@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `core` | 1 |
-| Flyway migration | `V197__customer_api_keys.sql` | 1 |
+| Flyway migration | `core/V201__customer_api_keys.sql` | 1 |
 | Externally testable behaviour | Customer admin generates scoped API keys, authenticates server-to-server requests via `X-API-Key`, and reads/syncs employee and attendance data | 1 |
 | Frontend area | `core/developer` | 1 |
 
@@ -63,7 +63,7 @@ External System --> Request with Header "X-API-Key: inf_live_..."
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `core/V197__customer_api_keys.sql` | Create `core.api_key` with RLS and index on key hash | yes | yes |
+| `core/V201__customer_api_keys.sql` | Create `core.api_key` with RLS and index on key hash | yes | yes |
 
 ### Table: `core.api_key`
 ```sql
@@ -71,12 +71,13 @@ CREATE TABLE core.api_key (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
     name VARCHAR(100) NOT NULL,
-    key_prefix VARCHAR(12) NOT NULL, -- e.g. "inf_live_ab12"
-    key_hash VARCHAR(64) NOT NULL,   -- SHA-256 of full secret
+    key_prefix VARCHAR(16) NOT NULL, -- e.g. "inf_live_ab12cd34"
+    key_hash VARCHAR(64) NOT NULL,   -- Salted SHA-256 of full secret
+    key_salt VARCHAR(32) NOT NULL,
     scopes TEXT[] NOT NULL DEFAULT '{}',
     ip_whitelist TEXT[] NULL,
     is_active BOOLEAN NOT NULL DEFAULT true,
-    expires_at TIMESTAMPTZ NULL,
+    expires_at TIMESTAMPTZ NOT NULL, -- Max lifetime 365 days; no indefinite keys
     last_used_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100) NOT NULL DEFAULT 'system',
@@ -85,7 +86,30 @@ CREATE TABLE core.api_key (
 
 CREATE UNIQUE INDEX uk_api_key_hash ON core.api_key (key_hash);
 CREATE INDEX idx_api_key_tenant ON core.api_key (tenant_id, is_active);
+
+ALTER TABLE core.api_key ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON core.api_key
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
 ```
+
+---
+
+## 5a. Security Specifications
+
+1. **Key Generation Format**: Keys are 48-character high-entropy tokens formatted as `inf_live_<12_hex_prefix>_<32_hex_secret>`. Only prefix is displayed in UI; full secret is displayed exactly once at creation time.
+2. **Storage**: Stored as `SHA-256(secret + key_salt)`.
+3. **Rate Limiting**: Enforced via in-memory token bucket per tenant (100 req/min). Returns HTTP 429 when exhausted with headers:
+   - `X-RateLimit-Limit: 100`
+   - `X-RateLimit-Remaining: 0`
+   - `X-RateLimit-Reset: <epoch_seconds>`
+4. **Permissions**: Management requires `core.apikey.manage`; viewing requires `core.apikey.read`.
 
 ---
 

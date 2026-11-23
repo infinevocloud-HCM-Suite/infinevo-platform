@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `hrms` | 1 |
-| Flyway migration | `V194__exit_process.sql` | 1 |
+| Flyway migration | `hrms/V199__exit_process.sql` | 1 |
 | Externally testable behaviour | Employee submits resignation, manager approves exit date, departments complete clearance checklist, and status triggers F&F in Payroll | 1 |
 | Frontend area | `hrms/exit` | 1 |
 
@@ -66,7 +66,7 @@ All Cleared --> Automated event: EXITS_CLEARED
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `hrms/V194__exit_process.sql` | Create `hrms.exit_request` and `hrms.exit_clearance_item` with RLS | yes | yes |
+| `hrms/V199__exit_process.sql` | Create `hrms.exit_request` and `hrms.exit_clearance_item` with RLS | yes | yes |
 
 ### Table: `hrms.exit_request`
 ```sql
@@ -92,7 +92,74 @@ CREATE TABLE hrms.exit_request (
 CREATE UNIQUE INDEX uk_exit_request_active_employee
     ON hrms.exit_request (tenant_id, employee_id)
     WHERE status NOT IN ('SETTLED', 'REJECTED', 'WITHDRAWN');
+
+ALTER TABLE hrms.exit_request ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON hrms.exit_request
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
 ```
+
+### Table: `hrms.exit_clearance_item`
+```sql
+CREATE TABLE hrms.exit_clearance_item (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
+    exit_request_id UUID NOT NULL REFERENCES hrms.exit_request(id) ON DELETE CASCADE,
+    department VARCHAR(50) NOT NULL CHECK (department IN ('IT', 'FINANCE', 'ADMIN', 'HR')),
+    item_name VARCHAR(100) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'CLEARED', 'WAIVED')),
+    cleared_by VARCHAR(100) NULL,
+    cleared_at TIMESTAMPTZ NULL,
+    remarks VARCHAR(255) NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100) NOT NULL DEFAULT 'system',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100) NOT NULL DEFAULT 'system'
+);
+
+CREATE INDEX idx_exit_clearance_tenant_request
+    ON hrms.exit_clearance_item (tenant_id, exit_request_id);
+
+ALTER TABLE hrms.exit_clearance_item ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON hrms.exit_clearance_item
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
+```
+
+---
+
+## 5a. Payroll Hand-off Contract
+
+When all clearance items for an exit request are resolved (`CLEARED` or `WAIVED`), the exit moves to `READY_FOR_FNF`. The hand-off to Payroll is executed via synchronous or asynchronous integration:
+
+1. **REST Endpoint**: `POST /api/v1/hrms/exits/{id}/hand-off-to-payroll`
+   - Permissions: `hrms.exit.manage`
+   - Pre-condition: `hrms.exit_request.status = 'READY_FOR_FNF'` and no clearance item remains `PENDING`.
+2. **Payload to Payroll Settlement Engine (`W-90.3`)**:
+   ```json
+   {
+     "employeeId": "uuid",
+     "resignationDate": "2026-10-01",
+     "exitDate": "2026-10-31",
+     "exitReason": "RESIGNATION",
+     "workingDaysInExitMonth": 22
+   }
+   ```
+3. **Response & Lifecycle Transition**:
+   - Payroll creates settlement draft in `payroll.fnf_settlement` (`W-90.3`).
+   - HRMS updates `hrms.exit_request.status = 'SETTLED'`.
 
 ---
 

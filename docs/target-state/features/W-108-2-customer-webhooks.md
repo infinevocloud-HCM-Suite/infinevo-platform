@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-108.2` · `PLAT-WEBHOOK` |
 | **Owner** | Mohit (`dev-mohit`) |
-| **Apps touched** | `code/backend/core`, `code/backend/worker`, `code/backend/migration`, `code/frontend` (`src/core/developer`) |
+| **Apps touched** | `code/backend/core`, `code/backend/migration`, `code/frontend` (`src/core/developer`) |
 | **Related gaps** | none in `GAP_INVENTORY.md` |
 | **Status** | Ready for founder review |
 | **Blocked by** | `W-108.1` (Customer API) |
@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `core` | 1 |
-| Flyway migration | `V198__customer_webhooks.sql` | 1 |
+| Flyway migration | `core/V202__customer_webhooks.sql` | 1 |
 | Externally testable behaviour | Subscribes external webhook URLs to lifecycle events, dispatches payloads signed with HMAC-SHA256, and retries failed deliveries | 1 |
 | Frontend area | `core/developer` | 1 |
 
@@ -65,7 +65,7 @@ Worker Process                      --> Picks up task --> Signs payload with HMA
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `core/V198__customer_webhooks.sql` | Create `core.webhook_subscription` and `core.webhook_delivery_log` with RLS | yes | yes |
+| `core/V202__customer_webhooks.sql` | Create `core.webhook_subscription` and `core.webhook_delivery_log` with RLS | yes | yes |
 
 ### Table: `core.webhook_subscription`
 ```sql
@@ -85,6 +85,17 @@ CREATE TABLE core.webhook_subscription (
 );
 
 CREATE INDEX idx_webhook_sub_tenant ON core.webhook_subscription (tenant_id, is_active);
+
+ALTER TABLE core.webhook_subscription ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON core.webhook_subscription
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
 ```
 
 ### Table: `core.webhook_delivery_log`
@@ -107,13 +118,42 @@ CREATE TABLE core.webhook_delivery_log (
 
 CREATE INDEX idx_webhook_delivery_retry ON core.webhook_delivery_log (status, next_retry_at)
     WHERE status = 'RETRYING';
+
+ALTER TABLE core.webhook_delivery_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON core.webhook_delivery_log
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
 ```
+
+---
+
+## 5a. Webhook Security & SSRF Protection
+
+1. **SSRF Guard**:
+   - `target_url` must strictly use scheme `https://` (HTTP rejected).
+   - DNS resolution must be performed prior to dispatch and validated against blocked ranges:
+     - Loopback (`127.0.0.0/8`, `::1`)
+     - RFC 1918 Private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
+     - Link-Local and Cloud Metadata (`169.254.169.254`, `fe80::/10`)
+   - Any URL resolving to a private or internal network is refused at subscription creation time and delivery time with `SSRF_ATTEMPT_DETECTED`.
+2. **Signature & Replay Prevention**:
+   - Header sent: `X-Infinevo-Signature: t={timestamp_epoch_ms},v1={hex_hmac_sha256}`.
+   - Signature computed as `HMAC-SHA256(secret_key, timestamp + "." + payload_json)`.
+   - Consumers verify timestamp is within $\pm 300$ seconds (5 minutes) to block replay attacks.
+3. **Permissions**: Management requires `core.webhook.manage`; viewing requires `core.webhook.read`.
 
 ---
 
 ## 6. Verification
 
 ```bash
-mvnw clean test -pl migration,core,worker -am -Dtest="*Webhook*"
+mvnw clean test -pl migration,core -am -Dtest="*Webhook*"
 ```
+- Integration test `WebhookDeliveryIT`: verifies event dispatching, HMAC-SHA256 signature correctness, SSRF rejection of private IP addresses, retry scheduling on HTTP 500 mock response, and automatic deactivation upon reaching consecutive failure limit.
 - Integration test `WebhookDeliveryIT`: verifies event dispatching, HMAC-SHA256 signature correctness, retry scheduling on HTTP 500 mock response, and automatic deactivation upon reaching consecutive failure limit.

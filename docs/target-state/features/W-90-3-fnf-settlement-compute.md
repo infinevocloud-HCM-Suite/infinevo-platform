@@ -1,28 +1,29 @@
 # Feature: Full and Final (F&F) Settlement Computation & Lifecycle
 
-| Field | Value |
-|---|---|
-| **Feature ID** | `W-90.3` · `PAYROLL-SETTLEMENT` |
-| **Owner** | Mohit (`dev-mohit`) |
+| Field            | Value                                            |
+| ---------------- | ------------------------------------------------ |
+| **Feature ID**   | `W-90.3` · `PAYROLL-SETTLEMENT`                  |
+| **Owner**        | Mohit (`dev-mohit`)                              |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
-| **Related gaps** | none in `GAP_INVENTORY.md` |
-| **Status** | Ready for CA / founder review |
-| **Blocked by** | `W-90.1`, `W-90.2`, `W-91` |
+| **Related gaps** | none in `GAP_INVENTORY.md`                       |
+| **Status**       | Ready for CA / founder review                    |
+| **Blocked by**   | `W-90.1`, `W-90.2`, `W-91`                       |
 
 ## 1. Size cap
 
-| Axis | This spec | Limit |
-|---|---|---|
-| Backend module | `payroll` | 1 |
-| Flyway migration | `V195__fnf_settlement.sql` (renumbered from V193 to sequence after V193 Leave Encashment and V194 Notice Period) | 1 |
-| Externally testable behaviour | Aggregates final salary, leave encashment, gratuity, notice pay, deductions, and executes final exit settlement | 1 |
-| Frontend area | none (UI in `W-90.4`) | 1 |
+| Axis                          | This spec                                                                                                        | Limit |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----- |
+| Backend module                | `payroll`                                                                                                        | 1     |
+| Flyway migration              | `V196__fnf_settlement.sql` (renumbered to sequence after V193 Leave Encashment, V194 Notice Period, and V195 Form24Q actions) | 1     |
+| Externally testable behaviour | Aggregates final salary, leave encashment, gratuity, notice pay, deductions, and executes final exit settlement  | 1     |
+| Frontend area                 | none (UI in `W-90.4`)                                                                                            | 1     |
 
 ---
 
 ## 2. Problem & Context
 
 When an employee exits, HR and Payroll must compile a master Full and Final (F&F) settlement statement consolidating:
+
 - Pro-rated salary for days worked in exit month.
 - Leave encashment (`W-90.1`).
 - Gratuity (`W-91`).
@@ -37,6 +38,7 @@ Currently, there is no consolidated settlement entity. Payroll officers have to 
 ## 3. Scope
 
 **In scope:**
+
 - PostgreSQL table `payroll.fnf_settlement` and `payroll.fnf_settlement_item` with RLS.
 - Settlement computation service:
   $$\text{Net F\&F Payable} = \text{Total Settlement Earnings} - \text{Total Settlement Deductions}$$
@@ -53,6 +55,7 @@ Currently, there is no consolidated settlement entity. Payroll officers have to 
 - REST API for F&F lifecycle: compute draft, adjust line items, approve, lock, and pay.
 
 **Out of scope:**
+
 - F&F frontend screens (handled in `W-90.4`).
 - Physical asset collection workflow (handled in `W-103`).
 
@@ -74,11 +77,12 @@ Payroll Officer --> POST /api/v1/payroll/fnf/{id}/pay
 
 ## 5. Database changes
 
-| Migration | Change | Tenant-aware? | Reversible? |
-|---|---|---|---|
-| `payroll/V195__fnf_settlement.sql` | Create `payroll.fnf_settlement` with RLS | yes | yes |
+| Migration                          | Change                                   | Tenant-aware? | Reversible? |
+| ---------------------------------- | ---------------------------------------- | ------------- | ----------- |
+| `payroll/V196__fnf_settlement.sql` | Create `payroll.fnf_settlement` with RLS | yes           | yes         |
 
 ### Table: `payroll.fnf_settlement`
+
 ```sql
 CREATE TABLE payroll.fnf_settlement (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -121,31 +125,31 @@ CREATE UNIQUE INDEX uk_fnf_settlement_employee
 
 ## 6. Backend changes
 
-| Layer | File | Change |
-|---|---|---|
-| Entity | `payroll/settlement/FnfSettlement.java` | JPA entity mapping `payroll.fnf_settlement` |
-| Repository | `payroll/settlement/FnfSettlementRepository.java` | Spring Data JPA repo with tenant queries |
-| DTO | `payroll/settlement/FnfInitiateRequest.java` | DTO: `employeeId`, `exitDate`, `exitReason` |
-| DTO | `payroll/settlement/FnfSettlementResponse.java` | Full DTO with all earnings, deductions, and net figures |
-| Service | `payroll/settlement/FnfSettlementService.java` | Orchestrates salary pro-rating, leave, gratuity, notice, and tax |
-| ServiceImpl | `payroll/settlement/FnfSettlementServiceImpl.java` | Implements aggregation, final TDS compute, and employee status update |
-| Controller | `payroll/settlement/FnfSettlementController.java` | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (initiate, approve, pay) and `@RequiresAction("payroll.salary.read")` (get/list) matching seeded platform roles |
+| Layer       | File                                               | Change                                                                                                                                                                               |
+| ----------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Entity      | `payroll/settlement/FnfSettlement.java`            | JPA entity mapping `payroll.fnf_settlement`                                                                                                                                          |
+| Repository  | `payroll/settlement/FnfSettlementRepository.java`  | Spring Data JPA repo with tenant queries                                                                                                                                             |
+| DTO         | `payroll/settlement/FnfInitiateRequest.java`       | DTO: `employeeId`, `exitDate`, `exitReason`                                                                                                                                          |
+| DTO         | `payroll/settlement/FnfSettlementResponse.java`    | Full DTO with all earnings, deductions, and net figures                                                                                                                              |
+| Service     | `payroll/settlement/FnfSettlementService.java`     | Orchestrates salary pro-rating, leave, gratuity, notice, and tax                                                                                                                     |
+| ServiceImpl | `payroll/settlement/FnfSettlementServiceImpl.java` | Implements aggregation, final TDS compute, and employee status update                                                                                                                |
+| Controller  | `payroll/settlement/FnfSettlementController.java`  | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (initiate, approve, pay) and `@RequiresAction("payroll.salary.read")` (get/list) matching seeded platform roles |
 
 ### API Contract
 
-| Method | Path | Request Body | Response Body | Auth |
-|---|---|---|---|---|
-| `POST` | `/api/v1/payroll/fnf/initiate` | `FnfInitiateRequest` | `FnfSettlementResponse` (`201`) | `payroll.salary.manage` |
-| `GET` | `/api/v1/payroll/fnf/{id}` | — | `FnfSettlementResponse` | `payroll.salary.read` |
-| `POST` | `/api/v1/payroll/fnf/{id}/approve` | — | `FnfSettlementResponse` | `payroll.salary.manage` |
-| `POST` | `/api/v1/payroll/fnf/{id}/pay` | — | `FnfSettlementResponse` | `payroll.salary.manage` |
+| Method | Path                               | Request Body         | Response Body                   | Auth                    |
+| ------ | ---------------------------------- | -------------------- | ------------------------------- | ----------------------- |
+| `POST` | `/api/v1/payroll/fnf/initiate`     | `FnfInitiateRequest` | `FnfSettlementResponse` (`201`) | `payroll.salary.manage` |
+| `GET`  | `/api/v1/payroll/fnf/{id}`         | —                    | `FnfSettlementResponse`         | `payroll.salary.read`   |
+| `POST` | `/api/v1/payroll/fnf/{id}/approve` | —                    | `FnfSettlementResponse`         | `payroll.salary.manage` |
+| `POST` | `/api/v1/payroll/fnf/{id}/pay`     | —                    | `FnfSettlementResponse`         | `payroll.salary.manage` |
 
 ---
 
 ## 7. Open Questions for CA Review
 
 1. **Negative Settlement Balance:** If recoveries and notice pay shortfall exceed gross earnings (creating a negative net balance where employee owes company), should the settlement record as ₹0 payable with an outstanding recovery notice, or block payment?
-2. **Timing of Employee Termination:** Should `core.employee.status` transition to `TERMINATED` immediately upon settlement approval, or upon recording the final payment? *(Standard: upon settlement payment)*.
+2. **Timing of Employee Termination:** Should `core.employee.status` transition to `TERMINATED` immediately upon settlement approval, or upon recording the final payment? _(Standard: upon settlement payment)_.
 
 ---
 
@@ -154,4 +158,5 @@ CREATE UNIQUE INDEX uk_fnf_settlement_employee
 ```bash
 mvnw clean test -pl migration,payroll -am -Dtest="*FnfSettlement*"
 ```
+
 - Integration test `FnfSettlementLifecycleIT`: tests initiate -> approve -> pay lifecycle, validating total net math and verifying employee status changes to `TERMINATED`.

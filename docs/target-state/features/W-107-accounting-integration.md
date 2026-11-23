@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` | 1 |
-| Flyway migration | `V196__accounting_integration.sql` | 1 |
+| Flyway migration | `payroll/V200__accounting_integration.sql` | 1 |
 | Externally testable behaviour | Generates balanced double-entry payroll journal vouchers from completed pay runs and exports them in Tally XML and Zoho Books CSV formats | 1 |
 | Frontend area | `payroll/settings/accounting` | 1 |
 
@@ -66,11 +66,74 @@ Finance Officer --> Maps ledger names in Payroll › Settings › Accounting
 
 ---
 
+---
+
+## 4a. REST API Contract
+
+All endpoints are scoped to the authenticated caller's tenant (`TenantContext`).
+
+### 1. `GET /api/v1/payroll/accounting/ledger-mappings`
+- **Permission**: `payroll.salary.read`
+- **Response**: `200 OK`
+```json
+[
+  { "id": "uuid", "headType": "GROSS_SALARY", "ledgerName": "Salaries Expense", "ledgerCode": "EXP-001" },
+  { "id": "uuid", "headType": "NET_SALARY", "ledgerName": "Net Salaries Payable", "ledgerCode": "LIA-001" },
+  { "id": "uuid", "headType": "EPF_PAYABLE", "ledgerName": "EPF Payable", "ledgerCode": "LIA-002" },
+  { "id": "uuid", "headType": "ESI_PAYABLE", "ledgerName": "ESI Payable", "ledgerCode": "LIA-003" },
+  { "id": "uuid", "headType": "PT_PAYABLE", "ledgerName": "Professional Tax Payable", "ledgerCode": "LIA-004" },
+  { "id": "uuid", "headType": "TDS_PAYABLE", "ledgerName": "TDS Payable", "ledgerCode": "LIA-005" }
+]
+```
+
+### 2. `PUT /api/v1/payroll/accounting/ledger-mappings`
+- **Permission**: `payroll.salary.manage`
+- **Request Body**:
+```json
+{
+  "mappings": [
+    { "headType": "GROSS_SALARY", "ledgerName": "Salaries Expense", "ledgerCode": "EXP-001" },
+    { "headType": "NET_SALARY", "ledgerName": "Net Salaries Payable", "ledgerCode": "LIA-001" }
+  ]
+}
+```
+- **Response**: `200 OK`
+
+### 3. `GET /api/v1/payroll/runs/{id}/journal-voucher`
+- **Permission**: `payroll.salary.read`
+- **Pre-condition**: Pay run status is `APPROVED` or `PAID`.
+- **Response**: `200 OK`
+```json
+{
+  "payRunId": "uuid",
+  "period": "2026-10",
+  "voucherDate": "2026-10-31",
+  "totalDebit": "500000.00",
+  "totalCredit": "500000.00",
+  "isBalanced": true,
+  "entries": [
+    { "headType": "GROSS_SALARY", "ledgerName": "Salaries Expense", "entryType": "DEBIT", "amount": "500000.00" },
+    { "headType": "NET_SALARY", "ledgerName": "Net Salaries Payable", "entryType": "CREDIT", "amount": "420000.00" },
+    { "headType": "TDS_PAYABLE", "ledgerName": "TDS on Salary", "entryType": "CREDIT", "amount": "50000.00" },
+    { "headType": "EPF_PAYABLE", "ledgerName": "EPF Payable", "entryType": "CREDIT", "amount": "30000.00" }
+  ]
+}
+```
+
+### 4. `GET /api/v1/payroll/runs/{id}/journal-voucher/export?format={tally|zoho}`
+- **Permission**: `payroll.salary.read`
+- **Query params**: `format` (`tally` or `zoho`)
+- **Response**:
+  - For `format=tally`: `Content-Type: application/xml`, file download `journal_voucher_2026_10.xml`
+  - For `format=zoho`: `Content-Type: text/csv; charset=UTF-8`, file download `journal_voucher_2026_10.csv`
+
+---
+
 ## 5. Database changes
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `payroll/V196__accounting_integration.sql` | Create `payroll.accounting_ledger_mapping` with RLS | yes | yes |
+| `payroll/V200__accounting_integration.sql` | Create `payroll.accounting_ledger_mapping` with RLS | yes | yes |
 
 ### Table: `payroll.accounting_ledger_mapping`
 ```sql
@@ -86,6 +149,17 @@ CREATE TABLE payroll.accounting_ledger_mapping (
     updated_by VARCHAR(100) NOT NULL DEFAULT 'system',
     CONSTRAINT uk_ledger_mapping_head UNIQUE (tenant_id, head_type)
 );
+
+ALTER TABLE payroll.accounting_ledger_mapping ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON payroll.accounting_ledger_mapping
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
 ```
 
 ---

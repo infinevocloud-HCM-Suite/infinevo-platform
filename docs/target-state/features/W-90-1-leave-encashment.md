@@ -1,28 +1,28 @@
 # Feature: Leave Encashment on Exit & Tax Exemption
 
-| Field | Value |
-|---|---|
-| **Feature ID** | `W-90.1` · `PAYROLL-SETTLEMENT` |
-| **Owner** | Mohit (`dev-mohit`) |
-| **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
-| **Related gaps** | none in `GAP_INVENTORY.md` |
-| **Status** | Ready for CA / founder review |
-| **Blocked by** | CA confirmation on encashment divisor (30 days vs 26 days vs actual month days) |
+| Field            | Value                                                                           |
+| ---------------- | ------------------------------------------------------------------------------- |
+| **Feature ID**   | `W-90.1` · `PAYROLL-SETTLEMENT`                                                 |
+| **Owner**        | Mohit (`dev-mohit`)                                                             |
+| **Apps touched** | `code/backend/payroll`, `code/backend/migration`                                |
+| **Related gaps** | none in `GAP_INVENTORY.md`                                                      |
+| **Status**       | Ready for CA / founder review                                                   |
+| **Blocked by**   | CA confirmation on encashment divisor (30 days vs 26 days vs actual month days) |
 
 ## 1. Size cap
 
-| Axis | This spec | Limit |
-|---|---|---|
-| Backend module | `payroll` | 1 |
-| Flyway migration | `V193__leave_encashment.sql` (renumbered from V191 as V190-V192 were reserved) | 1 |
-| Externally testable behaviour | Calculates accrued privilege/earned leave encashment at exit, applies Section 10(10AA) exemption cap (₹25,00,000), and records settlement | 1 |
-| Frontend area | none (UI in `W-90.4`) | 1 |
+| Axis                          | This spec                                                                                                                                 | Limit |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Backend module                | `payroll`                                                                                                                                 | 1     |
+| Flyway migration              | `V193__leave_encashment.sql` (renumbered from V191 as V190-V192 were reserved)                                                            | 1     |
+| Externally testable behaviour | Calculates accrued privilege/earned leave encashment at exit, applies Section 10(10AA) exemption cap (₹25,00,000), and records settlement | 1     |
+| Frontend area                 | none (UI in `W-90.4`)                                                                                                                     | 1     |
 
 ---
 
 ## 2. Problem & Context
 
-When an employee exits, unutilized earned/privilege leave (EL/PL) balances must be encashed. 
+When an employee exits, unutilized earned/privilege leave (EL/PL) balances must be encashed.
 Under Section 10(10AA) of the Income Tax Act (amended by Notification No. 31/2023), the maximum lifetime tax exemption for leave encashment on retirement/resignation for non-government employees is **₹25,00,000** (raised from ₹3,00,000).
 
 Currently, leave balances exist in `core.leave_allocation` and `core.leave_balance` (`W-16.2`), but there is no payroll calculation engine to compute encashment value, apply tax exemption under Section 10(10AA), or track encashment transactions.
@@ -32,6 +32,7 @@ Currently, leave balances exist in `core.leave_allocation` and `core.leave_balan
 ## 3. Scope
 
 **In scope:**
+
 - PostgreSQL table `payroll.leave_encashment_settlement` with RLS.
 - Reads active leave balances from `core.leave_balance` for leave types flagged as `is_encashable = true`.
 - Encashment formula:
@@ -43,6 +44,7 @@ Currently, leave balances exist in `core.leave_allocation` and `core.leave_balan
 - REST API for estimating and creating leave encashment settlement rows.
 
 **Out of scope:**
+
 - Notice pay (handled in `W-90.2`).
 - Consolidated F&F compute (handled in `W-90.3`).
 - Mid-service leave encashment while in service (fully taxable, separate feature).
@@ -64,11 +66,12 @@ Payroll Officer --> POST /api/v1/payroll/leave-encashment/estimate?employeeId={i
 
 ## 5. Database changes
 
-| Migration | Change | Tenant-aware? | Reversible? |
-|---|---|---|---|
-| `payroll/V193__leave_encashment.sql` | Create `payroll.leave_encashment_settlement` with RLS and foreign keys | yes | yes |
+| Migration                            | Change                                                                 | Tenant-aware? | Reversible? |
+| ------------------------------------ | ---------------------------------------------------------------------- | ------------- | ----------- |
+| `payroll/V193__leave_encashment.sql` | Create `payroll.leave_encashment_settlement` with RLS and foreign keys | yes           | yes         |
 
 ### Table: `payroll.leave_encashment_settlement`
+
 ```sql
 CREATE TABLE payroll.leave_encashment_settlement (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,15 +100,15 @@ CREATE UNIQUE INDEX uk_leave_encashment_emp_type
 
 ## 6. Backend changes
 
-| Layer | File | Change |
-|---|---|---|
-| Entity | `payroll/settlement/LeaveEncashmentSettlement.java` | JPA entity mapping `payroll.leave_encashment_settlement` |
-| Repository | `payroll/settlement/LeaveEncashmentRepository.java` | Spring Data JPA repo with tenant isolation |
-| DTO | `payroll/settlement/LeaveEncashmentEstimateRequest.java` | DTO: `employeeId`, `exitDate`, `customDays` (optional override) |
-| DTO | `payroll/settlement/LeaveEncashmentResponse.java` | DTO: days, rate, gross amount, exempt amount, taxable amount |
-| Service | `payroll/settlement/LeaveEncashmentService.java` | Interface for estimation, calculation, and recording |
-| ServiceImpl | `payroll/settlement/LeaveEncashmentServiceImpl.java` | Implements divisor math, leave type checks, and Section 10(10AA) limit |
-| Controller | `payroll/settlement/LeaveEncashmentController.java` | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (`/record`) and `@RequiresAction("payroll.salary.read")` (`/estimate`, `/{employeeId}`) matching seeded platform roles |
+| Layer       | File                                                     | Change                                                                                                                                                                                      |
+| ----------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entity      | `payroll/settlement/LeaveEncashmentSettlement.java`      | JPA entity mapping `payroll.leave_encashment_settlement`                                                                                                                                    |
+| Repository  | `payroll/settlement/LeaveEncashmentRepository.java`      | Spring Data JPA repo with tenant isolation                                                                                                                                                  |
+| DTO         | `payroll/settlement/LeaveEncashmentEstimateRequest.java` | DTO: `employeeId`, `exitDate`, `customDays` (optional override)                                                                                                                             |
+| DTO         | `payroll/settlement/LeaveEncashmentResponse.java`        | DTO: days, rate, gross amount, exempt amount, taxable amount                                                                                                                                |
+| Service     | `payroll/settlement/LeaveEncashmentService.java`         | Interface for estimation, calculation, and recording                                                                                                                                        |
+| ServiceImpl | `payroll/settlement/LeaveEncashmentServiceImpl.java`     | Implements divisor math, leave type checks, and Section 10(10AA) limit                                                                                                                      |
+| Controller  | `payroll/settlement/LeaveEncashmentController.java`      | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (`/record`) and `@RequiresAction("payroll.salary.read")` (`/estimate`, `/{employeeId}`) matching seeded platform roles |
 
 ---
 
@@ -121,4 +124,5 @@ CREATE UNIQUE INDEX uk_leave_encashment_emp_type
 ```bash
 mvnw clean test -pl migration,payroll -am -Dtest="*LeaveEncashment*"
 ```
+
 - Unit test `LeaveEncashmentTest`: verifies per-day calculation, 10(10AA) ₹25 Lakh cap, and non-encashable leave types (e.g. Sick Leave, Casual Leave) rejection.

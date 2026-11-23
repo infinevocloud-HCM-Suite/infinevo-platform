@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` | 1 |
-| Flyway migration | `V190__gratuity.sql` | 1 |
+| Flyway migration | `V197__gratuity.sql` (renumbered from V190 as V190-V196 are allocated to prior core and settlement migrations) | 1 |
 | Externally testable behaviour | Calculates gratuity payout, applies the statutory ceiling and Section 10(10) tax exemption, and records gratuity settlements | 1 |
 | Frontend area | none (UI in `W-90.4`) | 1 |
 
@@ -65,7 +65,7 @@ HR / Payroll Officer --> POST /api/v1/payroll/gratuity/estimate?employeeId={id}&
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `payroll/V190__gratuity.sql` | Create `payroll.gratuity_settlement` with RLS policies and indexes | yes | yes |
+| `payroll/V197__gratuity.sql` | Create `payroll.gratuity_settlement` with RLS policies and indexes | yes | yes |
 
 ### Table: `payroll.gratuity_settlement`
 ```sql
@@ -111,15 +111,15 @@ CREATE INDEX idx_gratuity_settlement_tenant_status
 | DTO | `payroll/gratuity/GratuityEstimateResponse.java` | Record: tenure, eligible flag, calculation breakdown, exempt vs taxable amounts |
 | Service | `payroll/gratuity/GratuityService.java` | Interface for estimation and settlement recording |
 | ServiceImpl | `payroll/gratuity/GratuityServiceImpl.java` | Implements Payment of Gratuity Act formula, 6-month rounding rule, and Section 10(10) caps |
-| Controller | `payroll/gratuity/GratuityController.java` | REST endpoints guarded by `@RequiresAction("payroll.settlement.manage")` |
+| Controller | `payroll/gratuity/GratuityController.java` | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (`/estimate`, `/settlements`) and `@RequiresAction("payroll.salary.read")` (`/settlements/{id}`) matching seeded platform roles |
 
 ### API Contract
 
 | Method | Path | Request Body | Response Body | Auth |
 |---|---|---|---|---|
-| `POST` | `/api/v1/payroll/gratuity/estimate` | `GratuityEstimateRequest` | `GratuityEstimateResponse` | `payroll.settlement.manage` |
-| `POST` | `/api/v1/payroll/gratuity/settlements` | `GratuitySettlementCreateRequest` | `GratuitySettlementResponse` (`201`) | `payroll.settlement.manage` |
-| `GET` | `/api/v1/payroll/gratuity/settlements/{id}` | — | `GratuitySettlementResponse` | `payroll.settlement.view` |
+| `POST` | `/api/v1/payroll/gratuity/estimate` | `GratuityEstimateRequest` | `GratuityEstimateResponse` | `payroll.salary.manage` |
+| `POST` | `/api/v1/payroll/gratuity/settlements` | `GratuitySettlementCreateRequest` | `GratuitySettlementResponse` (`201`) | `payroll.salary.manage` |
+| `GET` | `/api/v1/payroll/gratuity/settlements/{id}` | — | `GratuitySettlementResponse` | `payroll.salary.read` |
 
 ---
 

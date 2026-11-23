@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | none | 1 |
-| Flyway migration | none | 1 |
+| Flyway migration | `core/V195__form24q_actions.sql` | 1 |
 | Externally testable behaviour | Payroll officer manages TDS challans, views quarterly reconciliation status, and downloads Annexure I & II exports | 1 |
 | Frontend area | `payroll/form24q` | 1 |
 
@@ -84,6 +84,14 @@ Payroll Officer --> Clicks "Form 24Q (TDS)" in Payroll navigation
 | Path | Component | Guard / Layout |
 |---|---|---|
 | `/payroll/form24q` | `Form24QPage` | `AppLayout`, permission `payroll.tax.view` |
+
+---
+
+## 5a. Database changes
+
+| Migration | Change | Tenant-aware? | Reversible? |
+|---|---|---|---|
+| `core/V195__form24q_actions.sql` | Add `payroll.tax.view` and `payroll.tax.manage` to action catalogue and grant to `platform-admin`, `tenant-admin`, and `payroll-officer` | yes | yes |
 
 ---
 
