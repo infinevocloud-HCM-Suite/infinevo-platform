@@ -62,6 +62,7 @@ public final class SubscriptionWorkerTestSchema {
                         "core/V117__user_invitation.sql",
                         "core/V138__subscription_status_check.sql",
                         "core/V188__subscription_plan.sql",
+                        "core/V192__ai_switch_and_usage.sql",
                         "core/V208__subscription_period_end.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
