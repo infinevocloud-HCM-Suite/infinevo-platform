@@ -25,6 +25,7 @@ targetScope = 'resourceGroup'
 param environment string
 
 @description('Region of the VNet, the private endpoint and the zone link — the environment region')
+@allowed(['centralindia'])
 param location string = 'centralindia'
 
 // The AI parameters below carry the same defaults as main.bicep (W-114.2).

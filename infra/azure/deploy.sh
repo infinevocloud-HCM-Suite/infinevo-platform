@@ -328,7 +328,7 @@ elif [[ "$CURRENT_IMAGES_JSON" != "{}" ]]; then
   # The apps exist, so the endpoint does too: an empty answer is an expired token or an
   # ARM error, not a first deployment. Going on would write the apps without their Front
   # Door settings - the 2026-10-19 worker crash-loop. Stop, as deploy.yml does.
-  echo "FAIL: the apps in ${APP_RG} exist but Front Door endpoint ep-infinevo-${ENV} could not be read." >&2
+  echo "FAIL: the apps in ${APP_RG} exist but no public host was found (CUSTOM_DOMAIN empty, no Front Door custom domain, endpoint ep-infinevo-${ENV} unreadable)." >&2
   echo "      Check:  az afd endpoint show -g ${SHARED_RG} --profile-name afd-infinevo-shared --endpoint-name ep-infinevo-${ENV}" >&2
   exit 1
 else
