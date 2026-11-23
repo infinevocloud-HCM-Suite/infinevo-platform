@@ -423,6 +423,10 @@ module containerApps 'modules/containerapps.bicep' = {
     acrRoleAssignment
     keyVaultRbac
     postgresPrivateEndpoint
+    // W-114.2: with deployAi true, the app gets INFINEVO_AI_ENDPOINT only after the private
+    // endpoint and its A record exist - before that the host resolves to a public address
+    // that refuses it. With deployAi false the module is skipped and ARM drops this entry.
+    aiPrivateEndpoint
   ]
 }
 

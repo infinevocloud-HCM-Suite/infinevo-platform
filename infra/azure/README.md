@@ -149,30 +149,47 @@ stays locked to `centralindia`. A stronger model means `aiDeploymentSku = 'Globa
 with a model listed for `southindia` — data at rest stays in India, processing may not.
 `swedencentral` and `eastus2` are allowed values, but use them only with the founder's word.
 
-`verify-live.sh` check 6 fails once the account exists, because it sits in South India.
-That is expected while the switch is on.
+`verify-live.sh` check 6 lets the AI account through: a `Microsoft.CognitiveServices/accounts`
+resource in one of the `aiLocation` regions passes and is printed as a `NOTE`. Every other
+resource in `rg-infinevo-{env}` must still be in `centralindia`.
 
 **Switch on**
 
 ```bash
-# 1. Quota: the Standard gpt-4.1-mini row must have limit - current >= aiCapacity
-az cognitiveservices usage list -l southindia -o table | grep -i "gpt4.1-mini"
-az cognitiveservices model list -l southindia -o table | grep -i "gpt-4.1-mini"
+# 1. Quota: limit - current must be >= aiCapacity (usage names drop the hyphen: gpt4.1-mini)
+az cognitiveservices usage list -l southindia \
+  --query "[?name.value=='OpenAI.Standard.gpt4.1-mini'].{name:name.value,current:currentValue,limit:limit}" -o table
+az cognitiveservices model list -l southindia \
+  --query "[?kind=='OpenAI' && model.name=='gpt-4.1-mini'].{model:model.name,version:model.version,lifecycle:model.lifecycleStatus,skus:join(',',model.skus[].name)}" -o table
 # 2. Set `param deployAi = true` (and any ai* override) in parameters/dev.bicepparam
-# 3. Read the what-if, then deploy
-az deployment sub what-if --location centralindia \
-  --template-file infra/azure/main.bicep --parameters infra/azure/parameters/dev.bicepparam
+# 3. Preview with the exact parameters a real run passes, then deploy
+bash infra/azure/deploy.sh --env dev --what-if
 bash infra/azure/deploy.sh --env dev
 ```
+
+`--what-if` reads the live images, traffic pins and Front Door host like a real run, then
+runs `az deployment sub what-if` and exits. It writes nothing — no Key Vault rule, no
+secret, no deployment. One line in its output is expected and is not a change that stays:
+`kv-infinevo-shared` gaining this machine's address in `ipRules`, which a real run adds and
+then revokes.
 
 Allow up to five minutes after the role assignment before the first call answers.
 
 **Switch off:** set `deployAi = false` and run `deploy.sh` again. The two settings drop
-off the app and the backend falls back to its stub client. The account, endpoint and zone
-are **not** deleted by that (incremental mode); remove them by hand if wanted:
-`az cognitiveservices account delete -g rg-infinevo-dev -n oai-infinevo-dev`, then
-`az cognitiveservices account purge -g rg-infinevo-dev -n oai-infinevo-dev -l southindia`.
-Changing `aiModelName` likewise adds a new deployment and leaves the old one in place.
+off the app and the backend falls back to its stub client. Incremental mode deletes
+nothing, so the AI resources stay until removed by hand, in this order (`dev` shown):
+
+| # | Leftover | Delete |
+|---|---|---|
+| 1 | Private endpoint `pe-oai-infinevo-dev` | `az network private-endpoint delete -g rg-infinevo-dev -n pe-oai-infinevo-dev` |
+| 2 | Account `oai-infinevo-dev`, with its model deployment and role assignment | `az cognitiveservices account delete -g rg-infinevo-dev -n oai-infinevo-dev` |
+| 3 | The soft-deleted account (holds the name and the quota) | `az cognitiveservices account purge -g rg-infinevo-dev -n oai-infinevo-dev -l southindia` |
+| 4 | Zone link `link-vnet-infinevo-dev` | `az network private-dns link vnet delete -g rg-infinevo-dev -z privatelink.openai.azure.com -n link-vnet-infinevo-dev --yes` |
+| 5 | Zone `privatelink.openai.azure.com` | `az network private-dns zone delete -g rg-infinevo-dev -n privatelink.openai.azure.com --yes` |
+| 6 | Budget `budget-oai-infinevo-dev` | `az consumption budget delete -g rg-infinevo-dev --budget-name budget-oai-infinevo-dev` |
+
+Changing `aiModelName` likewise adds a new deployment and leaves the old one in place:
+`az cognitiveservices account deployment delete -g rg-infinevo-dev -n oai-infinevo-dev --deployment-name <old-model>`.
 
 ---
 

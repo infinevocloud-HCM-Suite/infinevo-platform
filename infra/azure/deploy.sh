@@ -4,11 +4,15 @@
 #
 # Usage:
 #   bash infra/azure/deploy.sh [--env dev|uat|prod] [--location centralindia]
-#                              [--image-tag git-<sha>]
+#                              [--image-tag git-<sha>] [--what-if]
 #
 # Without --image-tag this is an INFRASTRUCTURE-ONLY run: it reads what every Container
 # App is running and which revision holds the traffic, hands both back to the template,
 # and so changes neither. With --image-tag it declares that release instead.
+#
+# --what-if previews the deployment with the SAME parameter set a real run passes and
+# writes nothing: no Key Vault network rule, no secret seeding or persisting, no
+# deployment, no image import, no job start. It runs `az deployment sub what-if` and exits.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -23,6 +27,8 @@ LOCATION="centralindia"
 # declare a RELEASE from this script; the pipeline passes the same value through
 # backendImageTag (W-54 findings F-7 and F-8).
 IMAGE_TAG=""
+# 1 = preview only (W-114.2). Every write below is guarded on it being 0.
+WHAT_IF=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -37,6 +43,10 @@ while [[ $# -gt 0 ]]; do
     --image-tag)
       IMAGE_TAG="$2"
       shift 2
+      ;;
+    --what-if)
+      WHAT_IF=1
+      shift
       ;;
     *)
       echo "Unknown argument: $1" >&2
@@ -127,7 +137,9 @@ if [[ ! "$MY_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 KV_IP_RULE="${MY_IP}/32"
 
-if az keyvault show --name "$VAULT_NAME" >/dev/null 2>&1; then
+# Not in --what-if: adding the rule is a write. KV_IP_RULE is still computed above, because
+# a real run passes it as keyVaultAllowedIpRules and the preview must pass the same value.
+if [[ "$WHAT_IF" -eq 0 ]] && az keyvault show --name "$VAULT_NAME" >/dev/null 2>&1; then
   echo "Authorising ${KV_IP_RULE} on ${VAULT_NAME} for the duration of this script..."
   az keyvault network-rule add --name "$VAULT_NAME" --ip-address "$KV_IP_RULE" >/dev/null 2>&1 || true
   # The ACL takes several seconds to reach the data plane; without this the first secret
@@ -184,7 +196,11 @@ cleanup() {
   persist_admin_pw
   revoke_kv_ip_rule
 }
-trap cleanup EXIT
+# Not in --what-if: both jobs of the trap are writes, and a preview opened no rule and
+# deploys no server whose password would need keeping.
+if [[ "$WHAT_IF" -eq 0 ]]; then
+  trap cleanup EXIT
+fi
 
 # ── Seed canonical platform secrets (W-56) ──────────────────────────────────
 # The migration job and container apps need all canonical secrets seeded:
@@ -207,7 +223,9 @@ seed_canonical_secrets() {
     done
   fi
 }
-seed_canonical_secrets
+if [[ "$WHAT_IF" -eq 0 ]]; then
+  seed_canonical_secrets
+fi
 
 PARAM_FILE="${SCRIPT_DIR}/parameters/${ENV}.bicepparam"
 if [[ ! -f "$PARAM_FILE" ]]; then
@@ -308,23 +326,36 @@ else
 fi
 
 DEPLOY_NAME="infinevo-${ENV}-$(date +%Y%m%d%H%M%S)"
+
+# One parameter set for both the preview and the real run, so they cannot drift apart.
+DEPLOY_ARGS=(
+  --name "$DEPLOY_NAME"
+  --location "$LOCATION"
+  --template-file "${SCRIPT_DIR}/main.bicep"
+  --parameters "$PARAM_FILE"
+  --parameters deployerObjectId="$DEPLOYER_OID"
+  --parameters postgresAdminPassword="$ADMIN_PW"
+  --parameters postgresAdminUsername="$ADMIN_USER"
+  --parameters frontDoorBackendPrefixes="$FD_PREFIXES_JSON"
+  --parameters keyVaultAllowedIpRules="[{\"value\":\"${KV_IP_RULE}\"}]"
+  --parameters backendImageTag="${IMAGE_TAG:-$LIVE_BACKEND_TAG}"
+  --parameters containerAppCurrentImages="$CURRENT_IMAGES_JSON"
+  --parameters containerAppTrafficRevisions="$TRAFFIC_REVISIONS_JSON"
+  --parameters frontDoorHostName="$FRONT_DOOR_HOST"
+)
+
+# --what-if stops here. `az deployment sub what-if` only previews (no --confirm flag is
+# passed, so it cannot go on to deploy), and the `exit` makes everything below - the create
+# call, the secret write, the image import, the job start - unreachable in this mode.
+if [[ "$WHAT_IF" -eq 1 ]]; then
+  echo "What-if only: previewing subscription deployment ${DEPLOY_NAME}. Nothing is changed."
+  az deployment sub what-if "${DEPLOY_ARGS[@]}"
+  exit $?
+fi
+
 echo "Executing subscription deployment: ${DEPLOY_NAME}..."
 
-az deployment sub create \
-  --name "$DEPLOY_NAME" \
-  --location "$LOCATION" \
-  --template-file "${SCRIPT_DIR}/main.bicep" \
-  --parameters "$PARAM_FILE" \
-  --parameters deployerObjectId="$DEPLOYER_OID" \
-  --parameters postgresAdminPassword="$ADMIN_PW" \
-  --parameters postgresAdminUsername="$ADMIN_USER" \
-  --parameters frontDoorBackendPrefixes="$FD_PREFIXES_JSON" \
-  --parameters keyVaultAllowedIpRules="[{\"value\":\"${KV_IP_RULE}\"}]" \
-  --parameters backendImageTag="${IMAGE_TAG:-$LIVE_BACKEND_TAG}" \
-  --parameters containerAppCurrentImages="$CURRENT_IMAGES_JSON" \
-  --parameters containerAppTrafficRevisions="$TRAFFIC_REVISIONS_JSON" \
-  --parameters frontDoorHostName="$FRONT_DOOR_HOST" \
-  --output table
+az deployment sub create "${DEPLOY_ARGS[@]}" --output table
 
 echo "Deployment finished. Storing/updating administrator credentials in Key Vault..."
 az keyvault secret set --vault-name "$VAULT_NAME" --name "psql-admin-pw" --value "$ADMIN_PW" >/dev/null
