@@ -23,6 +23,7 @@ import { salaryService } from './salaryService.js';
 import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
 import { ScheduledEarningsPanel } from './ScheduledEarningsPanel.jsx';
 import { SalarySetupDrawer } from './SalarySetupDrawer.jsx';
+import { StatutoryProfileDrawer } from './StatutoryProfileDrawer.jsx';
 import { fetchActiveComponents } from './salarySlice.js';
 import { componentTypeTag } from './componentType.js';
 import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
@@ -54,6 +55,9 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
   const [selectedVersion, setSelectedVersion] = useState(null);
   // Bumped when the drawer saves the statutory profile, so the card below re-reads it.
   const [profileKey, setProfileKey] = useState(0);
+  // The statutory profile drawer (D-143), opened from the card with the profile the card shows.
+  const [statutoryOpen, setStatutoryOpen] = useState(false);
+  const [statutoryProfile, setStatutoryProfile] = useState(null);
   // The company's EPF and ESI switches decide which employer lines the structure shows (W-76.2).
   const [companyEpf, setCompanyEpf] = useState(null);
   const [companyEsi, setCompanyEsi] = useState(null);
@@ -435,7 +439,17 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
         )}
 
         {/* Statutory Profile Section */}
-        {employeeId && <StatutoryProfileCard key={profileKey} employeeId={employeeId} />}
+        {employeeId && (
+          <StatutoryProfileCard
+            key={profileKey}
+            employeeId={employeeId}
+            canManage={canManage}
+            onEdit={(profile) => {
+              setStatutoryProfile(profile);
+              setStatutoryOpen(true);
+            }}
+          />
+        )}
 
         {/* Scheduled earnings (W-73.6) */}
         {employeeId && <ScheduledEarningsPanel employeeId={employeeId} />}
@@ -485,6 +499,17 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
           mode={formMode}
           initialValues={selectedVersion}
           dateOfJoining={employee?.dateOfJoining || null}
+        />
+      )}
+
+      {/* Statutory profile drawer (D-143): the profile alone, no salary version touched */}
+      {statutoryOpen && canManage && employeeId && (
+        <StatutoryProfileDrawer
+          open={statutoryOpen}
+          onClose={() => setStatutoryOpen(false)}
+          employeeId={employeeId}
+          profile={statutoryProfile}
+          onSaved={() => setProfileKey((k) => k + 1)}
         />
       )}
     </div>

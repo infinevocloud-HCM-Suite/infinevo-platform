@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Card, Descriptions, Typography, Spin } from 'antd';
+import { Card, Descriptions, Typography, Spin, Button } from 'antd';
+import { EditOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { statutoryProfileService } from './statutoryProfileService.js';
 import { errorMsg } from '@shared/ui/msgHelper.js';
@@ -18,10 +19,11 @@ function text(value) {
 }
 
 /**
- * The employee's statutory details, read only. They are edited in the Set up salary / Revise drawer
- * and nowhere else, so the two can never disagree (W-76.2).
+ * The employee's statutory details. They are edited in the Set up salary / Revise drawer, and on
+ * their own through Edit when the parent passes `canManage` and `onEdit` (D-143); both drawers save
+ * the same profile (W-76.2).
  */
-export function StatutoryProfileCard({ employeeId }) {
+export function StatutoryProfileCard({ employeeId, canManage: canEdit = false, onEdit = null }) {
   const canManage = useCan('payroll.salary.manage');
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -54,7 +56,16 @@ export function StatutoryProfileCard({ employeeId }) {
       id="card-statutory-details"
       title={<Title level={5} style={{ margin: 0 }}>Statutory Details</Title>}
       extra={
-        canManage ? (
+        canEdit && onEdit ? (
+          <Button
+            id="btn-edit-statutory"
+            data-testid="statutory-edit"
+            icon={<EditOutlined />}
+            onClick={() => onEdit(profile)}
+          >
+            Edit
+          </Button>
+        ) : canManage ? (
           <Text type="secondary" data-testid="statutory-edit-hint">
             Edit in Set up salary or Revise
           </Text>
@@ -85,4 +96,6 @@ export function StatutoryProfileCard({ employeeId }) {
 
 StatutoryProfileCard.propTypes = {
   employeeId: PropTypes.string.isRequired,
+  canManage: PropTypes.bool,
+  onEdit: PropTypes.func,
 };
