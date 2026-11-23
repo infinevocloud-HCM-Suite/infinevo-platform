@@ -76,7 +76,10 @@ class TenantControllerTest {
                 12L,
                 50,
                 "GROWTH",
-                "PRIORITY");
+                "PRIORITY",
+                true,
+                500,
+                12);
 
         when(tenantQueryService.list()).thenReturn(List.of(overview));
 
@@ -94,7 +97,10 @@ class TenantControllerTest {
                 .andExpect(jsonPath("$[0].employee_count").value(12))
                 .andExpect(jsonPath("$[0].employee_limit").value(50))
                 .andExpect(jsonPath("$[0].plan").value("GROWTH"))
-                .andExpect(jsonPath("$[0].support_plan").value("PRIORITY"));
+                .andExpect(jsonPath("$[0].support_plan").value("PRIORITY"))
+                .andExpect(jsonPath("$[0].ai_enabled").value(true))
+                .andExpect(jsonPath("$[0].ai_monthly_request_cap").value(500))
+                .andExpect(jsonPath("$[0].ai_usage_this_month").value(12));
 
         verify(tenantQueryService).list();
     }
@@ -116,7 +122,10 @@ class TenantControllerTest {
                 7L,
                 null,
                 null,
-                null);
+                null,
+                false,
+                null,
+                0);
 
         when(tenantQueryService.getOverview(TENANT_ID)).thenReturn(overview);
 

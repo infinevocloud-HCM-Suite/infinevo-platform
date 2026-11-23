@@ -29,7 +29,8 @@ import java.util.UUID;
  * the payment seam ({@link #externalRef}) and does not leak into the core schema.
  *
  * <p>{@link Audited} (W-84.1): a change of plan, support plan or employee limit, and of status, is recorded in
- * {@code core.audit_log} with its old and new values and the actor.
+ * {@code core.audit_log} with its old and new values and the actor. So is a change of the AI helper switch or its
+ * monthly cap (W-114.1).
  */
 @Entity
 @Table(name = "subscription", schema = "core")
@@ -71,6 +72,14 @@ public class Subscription {
 
     @Column(name = "employee_limit")
     private Integer employeeLimit;
+
+    // W-114.1 (V192): the AI helper switch, off by default, and the monthly request cap. The cap is required while
+    // the switch is on (ck_subscription_ai_enabled_needs_cap); switching off keeps it.
+    @Column(name = "ai_enabled", nullable = false)
+    private boolean aiEnabled;
+
+    @Column(name = "ai_monthly_request_cap")
+    private Integer aiMonthlyRequestCap;
 
     @OneToMany(mappedBy = "subscription", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<SubscriptionModule> modules = new ArrayList<>();
@@ -174,6 +183,22 @@ public class Subscription {
 
     public void setEmployeeLimit(Integer employeeLimit) {
         this.employeeLimit = employeeLimit;
+    }
+
+    public boolean isAiEnabled() {
+        return aiEnabled;
+    }
+
+    public void setAiEnabled(boolean aiEnabled) {
+        this.aiEnabled = aiEnabled;
+    }
+
+    public Integer getAiMonthlyRequestCap() {
+        return aiMonthlyRequestCap;
+    }
+
+    public void setAiMonthlyRequestCap(Integer aiMonthlyRequestCap) {
+        this.aiMonthlyRequestCap = aiMonthlyRequestCap;
     }
 
     public List<SubscriptionModule> getModules() {
