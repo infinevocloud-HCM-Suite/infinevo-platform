@@ -50,7 +50,7 @@ anyone else's records, any screen.
 W-114.4 loop --> AiToolRegistry --> HrmsAiToolProvider.tools()
                                       customer holds HRMS?  no --> empty list
                                       yes --> five tools, each with its requiredAction
-model asks for my_attendance_sessions --> core checks the action --> ClockService.mySessions(from, to)
+model asks for hrms.my_attendance_sessions --> core checks the action --> ClockService.mySessions(from, to)
                                       --> JSON without ids --> core masks it --> model
 ```
 
@@ -58,11 +58,11 @@ model asks for my_attendance_sessions --> core checks the action --> ClockServic
 
 | Tool | Input | Calls | `requiredAction` | Evidence |
 |---|---|---|---|---|
-| `my_attendance_today` | — | `ClockService.today()` | `hrms.attendance.mark` | `attendance/ClockService.java:34`, `ClockController.java:50-51` |
-| `my_attendance_sessions` | `from`, `to` (dates) | `ClockService.mySessions(from, to)` | `core.attendance.read_own` | `attendance/ClockService.java:41`, `ClockController.java:56-57` |
-| `my_regularizations` | `from`, `to` (dates) | `regularizationService.mine(from, to)` | `core.attendance.read_own` | `attendance/RegularizationController.java:49-55` |
-| `my_timesheet_week` | `weekStart` (optional Monday) | `TimesheetService.forWeek(weekStart)` | `hrms.timesheet.read_own` | `portal/MyTimesheetController.java:43-51` |
-| `my_timesheets` | `from`, `to`, `status` (all optional) | `TimesheetService.listMine(from, to, status, null)` | `hrms.timesheet.read_own` | `timesheet/TimesheetController.java:93-101`, `TimesheetServiceImpl.java:37` |
+| `hrms.my_attendance_today` | — | `ClockService.today()` | `hrms.attendance.mark` | `attendance/ClockService.java:34`, `ClockController.java:50-51` |
+| `hrms.my_attendance_sessions` | `from`, `to` (dates) | `ClockService.mySessions(from, to)` | `core.attendance.read_own` | `attendance/ClockService.java:41`, `ClockController.java:56-57` |
+| `hrms.my_regularizations` | `from`, `to` (dates) | `regularizationService.mine(from, to)` | `core.attendance.read_own` | `attendance/RegularizationController.java:49-55` |
+| `hrms.my_timesheet_week` | `weekStart` (optional Monday) | `TimesheetService.forWeek(weekStart)` | `hrms.timesheet.read_own` | `portal/MyTimesheetController.java:43-51` |
+| `hrms.my_timesheets` | `from`, `to`, `status` (all optional) | `TimesheetService.listMine(from, to, status, null)` | `hrms.timesheet.read_own` | `timesheet/TimesheetController.java:93-101`, `TimesheetServiceImpl.java:37` |
 
 **Rules**
 
@@ -102,7 +102,7 @@ None.
 | Type | File | Covers |
 |---|---|---|
 | Unit | `hrms/src/test/.../ai/HrmsAiToolProviderTest.java` | Five tools when HRMS is held, none when it is not; each tool's `requiredAction` equals the action on its controller; each calls its service with the given dates; a 120-day range is refused; a service exception becomes an error result; no result contains a UUID |
-| Integration | `app/src/test/.../ai/HrmsAiToolsIT.java` | With the stub model scripted to call `my_attendance_sessions`: employee A gets only A's sessions; a login without `core.attendance.read_own` is not offered the tool; a customer without HRMS is offered none |
+| Integration | `app/src/test/.../ai/HrmsAiToolsIT.java` | With the stub model scripted to call `hrms.my_attendance_sessions`: employee A gets only A's sessions; a login without `core.attendance.read_own` is not offered the tool; a customer without HRMS is offered none |
 
 ## Verification
 
@@ -113,10 +113,10 @@ cd code/backend && ./mvnw -B -pl hrms,app -am verify
 | Check | Expected | Result |
 |---|---|---|
 | App starts | Log lists five HRMS tools registered | not run |
-| Ask "what time did I clock in today?" (stub scripted to call `my_attendance_today`) | TOOL row holds today's state for the caller only | not run |
+| Ask "what time did I clock in today?" (stub scripted to call `hrms.my_attendance_today`) | TOOL row holds today's state for the caller only | not run |
 | Same as an employee of a customer without HRMS | The tool list sent to the model has no HRMS tool | not run |
-| Same as a login without `hrms.timesheet.read_own`, asking about a timesheet | `my_timesheet_week` and `my_timesheets` are not offered | not run |
-| `my_attendance_sessions` with a 120-day range | Error result: "Ask for 93 days or fewer." | not run |
+| Same as a login without `hrms.timesheet.read_own`, asking about a timesheet | `hrms.my_timesheet_week` and `hrms.my_timesheets` are not offered | not run |
+| `hrms.my_attendance_sessions` with a 120-day range | Error result: "Ask for 93 days or fewer." | not run |
 | Any tool result in the stored TOOL row | No database id | not run |
 
 ## Risks

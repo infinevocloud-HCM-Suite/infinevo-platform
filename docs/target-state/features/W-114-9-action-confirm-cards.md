@@ -70,10 +70,11 @@ None.
 | `POST` | `/api/v1/ai/actions/{intentId}/cancel` | `W-114.8` |
 | `GET` | `/api/v1/ai/actions/{intentId}` → `{ intentId, actionCode, summary, fields, status, expiresAt, result }` | `W-114.8` |
 
-**Needed from another part.** After a reload the drawer must know which helper messages carry an
-action. So `GET /api/v1/ai/sessions/{id}/messages` (`W-114.3`) must return, on each assistant
-message that proposed one, `proposedAction: { intentId }` at least, and `W-114.4` must store that
-link when it saves the answer. The card reads everything else from `GET …/actions/{intentId}`.
+**From the earlier parts.** After a reload the drawer must know which helper messages carry an
+action. `GET /api/v1/ai/sessions/{id}/messages` (`W-114.3`) returns `proposedAction: { intentId }`
+on each assistant message that proposed one; the link is `core.ai_action_intent.message_id`
+(`W-114.3`), set by `W-114.8` when the answer is saved. The card reads everything else from
+`GET …/actions/{intentId}`.
 
 ## Frontend changes
 
@@ -82,8 +83,21 @@ Files are under `code/frontend/src/shell/assistant/`.
 | File | Change |
 |---|---|
 | `ActionCard.jsx` | **New.** Ant Design `Card`, small. Title = `summary`. Body = the `fields` as a two-column list. Footer by state (table below). `role="group"` with `aria-label` = the summary; a state change is announced through the message list's live region |
-| `actionLinks.js` | **New.** `{ 'core.leave.apply': (result) => '/me/leave/requests/' + result.leaveRequestId }` and `linkFor(actionCode, result)` |
+| `actionLinks.js` | **New.** `{ 'core.leave.apply': (result) => '/me/leave/requests/' + result.leaveRequestId }` and `linkFor(actionCode, result)`. Later parts add the lines in the table below; this part ships the first one only |
 | `assistantService.js` | **Add** `confirmAction(intentId)`, `cancelAction(intentId)`, `getAction(intentId)` |
+
+**The link map, as it grows** — one line per action, each route checked against the route tables
+
+| `actionCode` | Link | Added by | Route |
+|---|---|---|---|
+| `core.leave.apply` | `/me/leave/requests/{leaveRequestId}` | this part | `code/frontend/src/shell/routes.js:21` |
+| `core.leave.withdraw`, `core.leave.cancel` | `/me/leave/requests/{leaveRequestId}` | `W-114.17` | `routes.js:21` |
+| `core.wfh.apply`, `core.wfh.withdraw`, `core.wfh.cancel` | `/me/wfh` — the portal's WFH tab; a WFH request has no detail route | `W-114.17` | `routes.js:19` (`/me/:panelId`) |
+| `core.approval.decide` | `/approvals/{instanceId}` | `W-114.18` | `code/frontend/src/core/index.js:143` |
+| `core.employee.create` | `/employees/{employeeId}` | `W-114.20` | `code/frontend/src/core/index.js:136` |
+
+| File | Change |
+|---|---|
 | `MessageList.jsx` | `renderMessage` draws an `ActionCard` under a message that has `proposedAction`. This is the seam `W-114.5` left |
 | `assistant.css` | Card spacing. Colours from theme tokens; lint refuses a hex colour here (`code/frontend/.eslintrc.cjs:56-64,147-151`) |
 

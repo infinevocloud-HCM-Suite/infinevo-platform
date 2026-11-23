@@ -36,15 +36,15 @@ switch and the cap and counts usage. It calls no AI model and shows no chat.
 | `W-114.9` | Confirm and Cancel cards | frontend `shell` |
 | `W-114.10` | Nightly deletion of chats older than 30 days | `worker` |
 | `W-114.11` | Help library: how-to articles we write and ship; the helper answers "how do I…" only from them, with a link to the screen | `core` |
-| `W-114.12` | Role guide: what each role can access and is supposed to do, from the user's real permissions | `core` |
-| `W-114.13` | Screen awareness: knows the screen the user is on; "take me there" links to screens the user may open | frontend `shell` |
+| `W-114.12` | Role guide: what each role can access and is supposed to do, from the user's real permissions. Six duty guides: employee, manager, HR, payroll officer, tenant admin, finance | `core` |
+| `W-114.13` | Screen awareness: knows the screen the user is on; "take me there" links to screens the user may open, plus a fixed list of sub-routes | `core`, frontend `shell` |
 | `W-114.14` | Explain my payslip and TDS | `payroll` |
 | `W-114.15` | Explain my leave balance | `core` |
 | `W-114.16` | Setup guide for a new tenant admin, from the setup checklist | `core` |
-| `W-114.17` | Employee self-service: apply WFH, withdraw or cancel own leave, with Confirm | `core` |
-| `W-114.18` | Manager approvals: list what is waiting, approve or reject with Confirm | `core` |
-| `W-114.19` | HR team answers: who is on leave, who joined, within what HR may see | `core` |
-| `W-114.20` | Create employee from chat, with Confirm | `core` |
+| `W-114.17` | Employee self-service: apply WFH, withdraw or cancel own leave or own WFH request, with Confirm | `core` |
+| `W-114.18` | Manager approvals: list what is waiting, approve or reject with Confirm. Pay run, reimbursement and investment-proof steps are never decided from chat | `core` |
+| `W-114.19` | HR team answers: who is on leave, who joined, within what the caller may see. Says only "On leave", never the leave type | `core` |
+| `W-114.20` | Create employee from chat, with Confirm. The reporting manager is not set from chat | `core` |
 | `W-114.21` | Pay run summary and step guide. Read-only: the helper never starts, approves or pays a run | `payroll` |
 | `W-114.22` | Starter questions and tasks per role, shown when the chat opens. A starter shows only when the user has the permission and the part behind it is on `main` | `core` (the list), frontend `shell` (the chips) |
 
@@ -59,6 +59,9 @@ understand (`.11` to `.16`, then `.22`), then do (`.17` to `.21`).
 | 2026-11-23 | Where help answers come from | Articles we write and ship with the product, plus the user's real permissions. The helper does not describe a screen or step that is not in them |
 | 2026-11-23 | Pay run | Summary and step guidance only. The officer presses every button on the pay run screen |
 | 2026-11-23 | Order of the new parts | Understand first, then do |
+| 2026-11-23 | Who is on leave (`W-114.19`) | The helper says only "On leave". The leave type is never returned and never sent to the model, for managers and HR alike |
+| 2026-11-23 | Reporting manager (`W-114.20`) | Not set from chat. After creating the employee the helper says so and links to the employee's page |
+| 2026-11-23 | WFH from chat (`W-114.17`) | Apply, and also withdraw and cancel the caller's own WFH request, each behind Confirm |
 | 2026-11-23 | Migration numbers | No number is fixed in a spec; the developer takes the next free version when building |
 | 2026-11-23 | AI model | A GPT model on Azure OpenAI (the founder first chose Claude on Microsoft Foundry and changed it the same day). The newest GPT model with tool calling that the region offers at build time, not `gpt-4o` by name. The resource stays in India where the model is offered there; processing outside India is accepted: PAN, Aadhaar and bank account numbers are masked before sending; salary and leave figures are sent. Region and price are confirmed in `W-114.2` |
 | 2026-11-23 | Chat deletion is the last part | The order stays. **The helper is not switched on for any real customer until `W-114.10` is on `main`.** Only the test company uses it before then |

@@ -49,7 +49,7 @@ user calls from the browser. It is not a tool, so no model output can reach it.
 
 **In scope**
 
-- The tool `propose_leave_request`.
+- The tool `core.propose_leave_request`.
 - `POST /api/v1/ai/actions/{intentId}/confirm` and `/cancel`; `GET /api/v1/ai/actions/{intentId}`.
 - The re-check at confirm time; one leave request per intent, however often confirm is called.
 - `validateApply` in the leave service.
@@ -65,7 +65,7 @@ user calls from the browser. It is not a tool, so no model output can reach it.
 ```
 User: "apply casual leave for Friday"
   --> POST /api/v1/ai/sessions/{id}/messages            (W-114.4)
-  --> model calls tool propose_leave_request
+  --> model calls tool core.propose_leave_request
         --> resolve leave type by name --> LeaveRequestService.validateApply(...)
         --> INSERT core.ai_action_intent  status PROPOSED, expires_at = now + 15 min
         --> tool result: { intentId, summary, fields }   (nothing in core.leave_request yet)
@@ -85,12 +85,13 @@ Paths are under `code/backend/core/src/main/java/com/infinevo/core/`.
 | Layer | File | Change |
 |---|---|---|
 | Service | `leave/LeaveRequestService.java`, `LeaveRequestServiceImpl.java` | **New method** `validateApply(UUID tenantId, UUID employeeId, LeaveApplyRequest request)`: the checks now at `:118-186` up to the first save, moved unchanged. `createRequest` calls it first. No behaviour change for the Leave screen |
-| Tool | `ai/action/LeaveActionToolProvider.java` | **New.** An `AiToolProvider` with one `AiTool`, `propose_leave_request`; `requiredAction` = `core.leave.apply` |
+| Tool | `ai/action/LeaveActionToolProvider.java` | **New.** An `AiToolProvider` with one `AiTool`, `core.propose_leave_request`; `requiredAction` = `core.leave.apply` |
 | Service | `ai/action/AiActionService.java`, `AiActionServiceImpl.java` | **New.** `propose(actionCode, payload, summary, fields)`, `confirm(intentId)`, `cancel(intentId)`, `get(intentId)`. Generic: it knows nothing about leave |
-| Executor | `ai/action/AiActionExecutor.java` | **New interface.** `actionCode()`, `requiredAction()`, `execute(AiToolContext, JsonNode payload)` returning a result node. One bean per action; `AiActionService` picks by `actionCode` |
+| Executor | `ai/action/AiActionExecutor.java` | **New interface.** `actionCode()`, `requiredAction()`, `default boolean requiresEmployeeProfile() { return true; }`, `execute(AiToolContext, JsonNode payload)` returning a result node. One bean per action; `AiActionService` picks by `actionCode` |
 | Executor | `ai/action/LeaveApplyExecutor.java` | **New.** `actionCode` `core.leave.apply`. Builds a `LeaveApplyRequest` from the payload and calls `createRequest` |
 | Controller | `ai/action/AiActionController.java` | **New.** The three endpoints. `@RequiresAction("core.ai.use")`. Own handlers: not found or not the caller's → `404`; expired → `410 AI_ACTION_EXPIRED`; cancelled → `409 AI_ACTION_CANCELLED`; permission gone → `403 FORBIDDEN`; helper off → `403 AI_DISABLED` |
-| Repository | `ai/AiActionIntentRepository.java` (from `W-114.3`) | **Add** `findByIdAndTenantIdForUpdate` — a row lock (`PESSIMISTIC_WRITE`) |
+| Repository | `ai/AiActionIntentRepository.java` (from `W-114.3`) | No change: `W-114.3` already declares `findByIdAndTenantIdAndUserIdForUpdate` — the row lock (`PESSIMISTIC_WRITE`) confirm takes — and `findByMessageIdIn` |
+| Service | `ai/AiChatServiceImpl.java` (from `W-114.4`) | When a tool round wrote an intent, the answer's `proposedAction` is filled from it, and after the `ASSISTANT` row is saved the intent's `message_id` is set to that row (`core.ai_action_intent.message_id`, `W-114.3`). That is the link `GET …/sessions/{id}/messages` reads back as `proposedAction: { intentId }` |
 
 **The tool**
 
@@ -116,7 +117,7 @@ stores the payload exactly as it will be sent (`leaveTypeId`, dates, half-day va
 | 4 | `expires_at` is past | Set `EXPIRED`, `410 AI_ACTION_EXPIRED` |
 | 5 | `AiAccessGate.status().enabled()` is true (`W-114.1`) | `403 AI_DISABLED` |
 | 6 | `PermissionService.holds(executor.requiredAction())` — here `core.leave.apply` | `403 FORBIDDEN` |
-| 7 | The caller has an employee profile (`EmployeeService.currentEmployee()`, as `LeaveRequestController.java:217-223` does) | `403 FORBIDDEN` |
+| 7 | When `executor.requiresEmployeeProfile()` is true: the caller has an employee profile (`EmployeeService.currentEmployee()`, as `LeaveRequestController.java:217-223` does). True by default and for leave. Later executors that act for a user who need not be an employee return false: the approval decision (`W-114.18`) and employee create (`W-114.20`) | `403 FORBIDDEN` |
 | 8 | Run the executor. The leave service runs every leave check again | Leave refusal → status `FAILED`, `result.reason` is the service's message, `409 AI_ACTION_FAILED` |
 | 9 | Set `CONFIRMED`, `confirmed_at`, `result` | `200` |
 
@@ -193,7 +194,7 @@ cd code/backend && ./mvnw -B -pl core -am verify
 
 ## Rollback
 
-Revert the commit. `propose_leave_request` is no longer offered to the model and the three
+Revert the commit. `core.propose_leave_request` is no longer offered to the model and the three
 endpoints go. Leave requests already created stay; they are ordinary leave requests.
 
 ## Implementer tasks

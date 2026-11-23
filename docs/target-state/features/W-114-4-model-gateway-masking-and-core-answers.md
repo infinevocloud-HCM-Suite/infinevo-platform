@@ -21,7 +21,7 @@
 It passes every axis, but it is the largest part of `W-114`: the endpoint, the loop, the
 mask, the model client and seven tools. **If it runs long in the build, cut the tools in
 "Core tools" below into a follow-up part and merge the gateway with one tool
-(`my_leave_balances`) first.**
+(`core.my_leave_balances`) first.**
 
 ## Decisions
 
@@ -158,7 +158,7 @@ fewer than nine digits before it.
 
 | Plug-in type (`W-114.3`) | Sent to Azure OpenAI as |
 |---|---|
-| `AiTool.name` | `tools[].function.name`. OpenAI allows only letters, digits, `_` and `-`, at most 64 characters, so a dot in a tool name (`module.verb_noun`) is sent as `__` and turned back on the way in. `AiToolRegistry` refuses at startup a tool name that already holds `__`, or is longer than 64 after the change |
+| `AiTool.name` | `tools[].function.name`. OpenAI allows only letters, digits, `_` and `-`, at most 64 characters, so a dot in a tool name (`module.verb_noun`) is sent as `__` and turned back on the way in. `AiToolRegistry` refuses at startup a tool name that already holds `__`, or is longer than 64 after the change. The longest name in the 22 parts is `core.propose_approval_decision`, 31 characters once the dot becomes `__` |
 | `AiTool.description` | `tools[].function.description` |
 | `AiTool` input schema | `tools[].function.parameters` (JSON Schema), with `type: "function"` on the tool |
 | Model asks for a tool | `choices[0].message.tool_calls[]`: `id`, `function.name`, `function.arguments` (a JSON **string**; parse it, and treat unparseable text as a failed tool call reported back to the model) |
@@ -182,13 +182,13 @@ One class, `CoreAiToolProvider implements AiToolProvider`.
 
 | Tool | Input | Calls | `requiredAction` | Evidence |
 |---|---|---|---|---|
-| `my_leave_balances` | `asOf` (optional date) | the balance call behind `GET /api/v1/me/leave-balances` | `core.leave.read_own` | `LeaveAllocationController.java:100-109` |
-| `my_leave_requests` | `status`, `from`, `to` (all optional) | `leaveRequestService.searchRequests(tenantId, caller.id(), …)`, first 25 | `core.leave.read_own` | `LeaveRequestController.java:116-128` |
-| `leave_types_for_me` | — | `leaveEligibilityService.getEligibleLeaveTypes(tenantId, caller.id(), today)` | `core.leave.apply` | `LeaveTypeController.java:87-96` |
-| `holidays` | `from`, `to` (optional; default today to 12 months ahead) | `HolidayQueryService.holidaysBetween(…)` | `core.holiday.read` | `HolidayCalendarController.java:80-93`, `HolidayQueryService.java:54` |
-| `org_lookup` | `kind`: `DEPARTMENT`, `DESIGNATION` or `LOCATION` | the list call behind each master's `GET` | `core.org.read` | `DepartmentController.java:53`, `DesignationController.java:47`, `WorkLocationController.java:51` |
-| `my_wfh_requests` | — | `WfhRequestService.listEmployeeRequests(tenantId, caller.id())` | `core.wfh.read_own` | `MyWfhController.java:53-59` |
-| `my_wfh_balance` | `asOf` (optional date) | `WfhBalanceService.getBalanceSummary(tenantId, caller.id(), asOf)` | `core.wfh.read_own` | `MyWfhController.java:61-69` |
+| `core.my_leave_balances` | `asOf` (optional date) | the balance call behind `GET /api/v1/me/leave-balances` | `core.leave.read_own` | `LeaveAllocationController.java:100-109` |
+| `core.my_leave_requests` | `status`, `from`, `to` (all optional) | `leaveRequestService.searchRequests(tenantId, caller.id(), …)`, first 25 | `core.leave.read_own` | `LeaveRequestController.java:116-128` |
+| `core.leave_types_for_me` | — | `leaveEligibilityService.getEligibleLeaveTypes(tenantId, caller.id(), today)` | `core.leave.apply` | `LeaveTypeController.java:87-96` |
+| `core.holidays` | `from`, `to` (optional; default today to 12 months ahead) | `HolidayQueryService.holidaysBetween(…)` | `core.holiday.read` | `HolidayCalendarController.java:80-93`, `HolidayQueryService.java:54` |
+| `core.org_lookup` | `kind`: `DEPARTMENT`, `DESIGNATION` or `LOCATION` | the list call behind each master's `GET` | `core.org.read` | `DepartmentController.java:53`, `DesignationController.java:47`, `WorkLocationController.java:51` |
+| `core.my_wfh_requests` | — | `WfhRequestService.listEmployeeRequests(tenantId, caller.id())` | `core.wfh.read_own` | `MyWfhController.java:53-59` |
+| `core.my_wfh_balance` | `asOf` (optional date) | `WfhBalanceService.getBalanceSummary(tenantId, caller.id(), asOf)` | `core.wfh.read_own` | `MyWfhController.java:61-69` |
 
 All paths in this table are under `code/backend/core/src/main/java/com/infinevo/core/`
 (`leave/`, `holiday/`, `org/`, `wfh/`).
@@ -215,7 +215,7 @@ All under `code/backend/core/src/main/java/com/infinevo/core/ai/`.
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| `POST` | `/api/v1/ai/sessions/{id}/messages` | `{ "content": "How many leave days do I have left?" }` | `200` `{ "message": { "id": "…", "role": "ASSISTANT", "content": "…", "createdAt": "…" }, "proposedAction": null }` | `core.ai.use`; the session must be the caller's |
+| `POST` | `/api/v1/ai/sessions/{id}/messages` | `{ "content": "How many leave days do I have left?", "context": { "path": "/leave/requests" } }` — `context` is optional. This part accepts it and ignores it; `W-114.13` gives it meaning. A missing, malformed or oversized `context` is never a `400` | `200` `{ "message": { "id": "…", "role": "ASSISTANT", "content": "…", "createdAt": "…" }, "proposedAction": null }` | `core.ai.use`; the session must be the caller's |
 
 | Case | Answer |
 |---|---|
@@ -277,7 +277,7 @@ cd code/backend && ./mvnw -B -pl core -am verify
 |---|---|---|
 | App starts with `INFINEVO_AI_ENDPOINT` unset | Starts; log line "AI helper: stub model client" | not run |
 | `POST …/messages` for a customer with the helper off | `403 AI_DISABLED`; no row in `core.ai_message`; usage count unchanged | not run |
-| Same, helper on, stub scripted to call `my_leave_balances` then answer | `200`; three rows stored: USER, TOOL, ASSISTANT; usage count + 1 | not run |
+| Same, helper on, stub scripted to call `core.my_leave_balances` then answer | `200`; three rows stored: USER, TOOL, ASSISTANT; usage count + 1 | not run |
 | Same question from a login with no `core.leave.read_own` | The tool is not in the list sent to the model | not run |
 | Message containing a PAN | Stored USER row reads `[PAN]`; the text sent to the model reads `[PAN]` | not run |
 | Post to another user's session | `404` | not run |

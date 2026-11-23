@@ -114,15 +114,17 @@ All under `code/backend/core/src/main/java/com/infinevo/core/ai/`.
 | Type | Shape |
 |---|---|
 | `AiToolProvider` | `List<AiTool> tools();` — a module declares one bean; `core` never names another module |
-| `AiTool` | `String name()` (unique, `module.verb_noun`, for example `core.get_leave_balance`); `String description()`; `JsonNode inputSchema()`; `String requiredAction()`; `AiToolResult execute(AiToolContext ctx, JsonNode input)` |
+| `AiTool` | `String name()` (unique, `module.verb_noun`, for example `core.my_leave_balances`); `String description()`; `JsonNode inputSchema()`; `String requiredAction()`; `default List<String> requiredAnyOf() { return List.of(); }`; `AiToolResult execute(AiToolContext ctx, JsonNode input)` |
 | `AiToolContext` | `record(UUID tenantId, UUID userId, UUID employeeId)` — `employeeId` may be null |
 | `AiToolResult` | `record(boolean ok, JsonNode data, String error)` |
 
 Rules the registry enforces, so no tool has to:
 
 - A tool runs as the caller, in the caller's tenant. Nothing in this package switches tenant or raises rights.
-- `toolsFor(caller)` leaves out a tool whose `requiredAction` the caller does not hold, using the `PermissionService` check `PortalPanelService` uses (`:78`). The model is never told about a tool the user may not use.
-- `execute` is called only through the registry, which checks `requiredAction` again at that moment.
+- A caller may use a tool when they hold its `requiredAction` **or any code in `requiredAnyOf`** — the same "one action, or any of a short list" that `@RequiresAction(value, anyOf)` gives a controller (`code/backend/shared/src/main/java/com/infinevo/shared/authz/RequiresAction.java:44`). Most tools leave `requiredAnyOf` empty. `W-114.19` needs it: one tool offered to a caller holding either of two leave actions.
+- `toolsFor(caller)` leaves out a tool the caller may not use by that rule, using the `PermissionService` check `PortalPanelService` uses (`:78`). The model is never told about a tool the user may not use.
+- `execute` is called only through the registry, which runs the same check again at that moment.
+- Startup fails on a tool name that is not `module.verb_noun` (lower case, one dot, the module first), so a bare name cannot ship.
 
 **API contract**
 
@@ -142,7 +144,7 @@ None. **Routes added:** none.
 | Type | File | Covers |
 |---|---|---|
 | Unit | `core/src/test/.../ai/AiSessionServiceImplTest.java` | Create fills user and employee; a user with no employee still creates; list returns only the caller's; `messages` hides `TOOL` rows; delete of another user's session throws not found |
-| Unit | `core/src/test/.../ai/AiToolRegistryTest.java` | Duplicate tool name fails startup; `toolsFor` hides a tool the caller lacks the action for; `execute` refuses when the action is missing |
+| Unit | `core/src/test/.../ai/AiToolRegistryTest.java` | Duplicate tool name fails startup; a name without its module prefix fails startup; `toolsFor` hides a tool the caller lacks the action for; a caller holding only a `requiredAnyOf` code is offered the tool and may run it; a caller holding neither is not; `execute` refuses when the action is missing |
 | Unit | `core/src/test/.../ai/AiSessionControllerTest.java` | `404` for an unknown id; `403 AI_DISABLED` on create when the switch is off; `core.ai.use` required |
 | Integration | `core/src/test/.../ai/AiChatRlsIT.java` | As `app_user`: tenant B reads no row of tenant A in any of the three tables; with no tenant bound, no row |
 | Integration | `core/src/test/.../ai/AiSessionIT.java` | **User A cannot read, list or delete user B's session in the same tenant** (`404`, and B's session is still there); deleting a session removes its messages and intents |
