@@ -12,6 +12,8 @@ import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,12 +48,13 @@ public class PortalPanelService {
         this(employeeService, permissionService, entitlementService, providers, null);
     }
 
+    @Autowired
     public PortalPanelService(
             EmployeeService employeeService,
             PermissionService permissionService,
             EntitlementService entitlementService,
             List<PortalPanelProvider> providers,
-            TenantOptionService tenantOptionService) {
+            @Autowired(required = false) @Nullable TenantOptionService tenantOptionService) {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
         this.entitlementService = Objects.requireNonNull(entitlementService, "entitlementService must not be null");
