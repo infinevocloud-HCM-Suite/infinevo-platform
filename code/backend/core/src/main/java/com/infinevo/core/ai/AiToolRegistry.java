@@ -2,6 +2,8 @@ package com.infinevo.core.ai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.infinevo.shared.authz.PermissionService;
+import com.infinevo.shared.entitlement.EntitlementService;
+import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -22,7 +24,12 @@ import org.springframework.stereotype.Component;
  * providers ({@code core/portal/PortalPanelService.java:35-47}).
  *
  * <p>Startup fails on a tool with no name, a name that is not {@code module.verb_noun} (lower case, one dot, the
- * module first), two tools of one name, or a tool with no {@code requiredAction}.
+ * module first), a module other than {@code core}, {@code hrms} or {@code payroll}, two tools of one name, or a tool
+ * with no {@code requiredAction}.
+ *
+ * <p>The name's module is also the licence the tool needs: an {@code hrms.} or {@code payroll.} tool is offered and run
+ * only while the customer holds that module ({@link EntitlementService}), as {@code PortalPanelService} gates a panel
+ * ({@code :67}). Tools call services directly, so the {@code @RequiresModule} on a controller does not cover them.
  *
  * <p>A caller may use a tool when they hold its {@code requiredAction} or any code of its {@code requiredAnyOf},
  * checked through {@link PermissionService} as {@code PortalPanelService} checks a panel ({@code :78}). The check is
@@ -36,33 +43,47 @@ public class AiToolRegistry {
     /** {@code module.verb_noun}: a lower-case module, one dot, then a lower-case name of letters, digits and _. */
     static final Pattern NAME = Pattern.compile("^[a-z]+\\.[a-z][a-z0-9_]*$");
 
+    /** The modules a tool name may start with. */
+    static final List<String> MODULES = List.of("core", "hrms", "payroll");
+
     private static final Logger log = LoggerFactory.getLogger(AiToolRegistry.class);
 
     private final PermissionService permissionService;
+    private final EntitlementService entitlementService;
     private final Map<String, AiTool> tools;
 
     @Autowired
-    public AiToolRegistry(PermissionService permissionService, ObjectProvider<AiToolProvider> providers) {
-        this(permissionService, providers.orderedStream().toList());
+    public AiToolRegistry(
+            PermissionService permissionService,
+            EntitlementService entitlementService,
+            ObjectProvider<AiToolProvider> providers) {
+        this(permissionService, entitlementService, providers.orderedStream().toList());
     }
 
-    public AiToolRegistry(PermissionService permissionService, List<AiToolProvider> providers) {
+    public AiToolRegistry(
+            PermissionService permissionService,
+            EntitlementService entitlementService,
+            List<AiToolProvider> providers) {
         this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
+        this.entitlementService = Objects.requireNonNull(entitlementService, "entitlementService must not be null");
         this.tools = collect(providers == null ? List.of() : providers);
         log.info("AI tool registry holds {} tool(s): {}", tools.size(), tools.keySet());
     }
 
-    /** The tool of this name, whether or not the caller may use it. */
-    public Optional<AiTool> find(String name) {
-        return Optional.ofNullable(name == null ? null : tools.get(name));
+    /** The description of the tool of this name, whether or not the caller may use it. It cannot run the tool. */
+    public Optional<AiToolDescriptor> find(String name) {
+        return Optional.ofNullable(name == null ? null : tools.get(name)).map(AiToolDescriptor::of);
     }
 
     /** The tools the caller may use, in the order the providers declared them. Empty for a context not the caller's. */
-    public List<AiTool> toolsFor(AiToolContext caller) {
+    public List<AiToolDescriptor> toolsFor(AiToolContext caller) {
         if (!isBoundCaller(caller)) {
             return List.of();
         }
-        return tools.values().stream().filter(this::mayUse).toList();
+        return tools.values().stream()
+                .filter(this::mayUse)
+                .map(AiToolDescriptor::of)
+                .toList();
     }
 
     /**
@@ -81,7 +102,7 @@ public class AiToolRegistry {
         }
         if (!mayUse(tool)) {
             log.warn(
-                    "AI tool {} refused: caller holds neither {} nor any of {}",
+                    "AI tool {} refused: module not held, or caller holds neither {} nor any of {}",
                     name,
                     tool.requiredAction(),
                     tool.requiredAnyOf());
@@ -91,11 +112,25 @@ public class AiToolRegistry {
     }
 
     private boolean mayUse(AiTool tool) {
+        Optional<PlatformModule> module = moduleOf(tool.name());
+        if (module.isPresent() && !entitlementService.holds(module.get())) {
+            return false;
+        }
         if (permissionService.holds(tool.requiredAction())) {
             return true;
         }
         List<String> anyOf = tool.requiredAnyOf();
         return anyOf != null && anyOf.stream().anyMatch(code -> code != null && permissionService.holds(code));
+    }
+
+    /** {@code core} needs no licence; {@code hrms} and {@code payroll} need theirs. Names are checked at startup. */
+    private static Optional<PlatformModule> moduleOf(String name) {
+        String prefix = name.substring(0, name.indexOf('.'));
+        return switch (prefix) {
+            case "hrms" -> Optional.of(PlatformModule.HRMS);
+            case "payroll" -> Optional.of(PlatformModule.PAYROLL);
+            default -> Optional.empty();
+        };
     }
 
     private static boolean isBoundCaller(AiToolContext ctx) {
@@ -125,6 +160,12 @@ public class AiToolRegistry {
                     throw new IllegalStateException("AI tool name '" + name + "' from "
                             + tool.getClass().getName()
                             + " is not module.verb_noun (lower case, one dot, the module first)");
+                }
+                String prefix = name.substring(0, name.indexOf('.'));
+                if (!MODULES.contains(prefix)) {
+                    throw new IllegalStateException("AI tool '" + name + "' from "
+                            + tool.getClass().getName()
+                            + " names module '" + prefix + "'; it must be one of " + MODULES);
                 }
                 if (tool.requiredAction() == null || tool.requiredAction().isBlank()) {
                     throw new IllegalStateException("AI tool '" + name + "' declares no requiredAction");
