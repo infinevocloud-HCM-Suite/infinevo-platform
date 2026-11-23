@@ -129,6 +129,9 @@ public final class EmployeeTestSchema {
                 executeResource(conn, "db/migration/core/V192__employee_onboarding_tasks.sql");
                 executeResource(conn, "db/migration/core/V197__onboarding_role_check_and_grants.sql");
             }
+            if (!tableExists(conn, "tenant_option")) {
+                executeResource(conn, "db/migration/core/V200__tenant_option.sql");
+            }
         }
     }
 
