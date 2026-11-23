@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,19 @@ public class TenantOptionServiceImpl implements TenantOptionService {
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
 
+    @Autowired
+    public TenantOptionServiceImpl(
+            TenantOptionRegistry registry,
+            TenantOptionRepository repository,
+            ObjectProvider<CacheService> cacheServiceProvider,
+            ObjectMapper objectMapper) {
+        this(
+                registry,
+                repository,
+                cacheServiceProvider != null ? cacheServiceProvider.getIfAvailable() : null,
+                objectMapper);
+    }
+
     public TenantOptionServiceImpl(
             TenantOptionRegistry registry,
             TenantOptionRepository repository,
@@ -36,7 +51,7 @@ public class TenantOptionServiceImpl implements TenantOptionService {
             ObjectMapper objectMapper) {
         this.registry = Objects.requireNonNull(registry, "registry must not be null");
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
-        this.cacheService = Objects.requireNonNull(cacheService, "cacheService must not be null");
+        this.cacheService = cacheService;
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
     }
 
@@ -98,7 +113,9 @@ public class TenantOptionServiceImpl implements TenantOptionService {
         option.setOptionValue(rawValue);
         repository.save(option);
 
-        cacheService.evict(cacheKey(tenantId, key));
+        if (cacheService != null) {
+            cacheService.evict(cacheKey(tenantId, key));
+        }
         return toResponse(def, rawValue, true);
     }
 
@@ -108,7 +125,9 @@ public class TenantOptionServiceImpl implements TenantOptionService {
         UUID tenantId = TenantContext.require();
 
         repository.deleteByTenantIdAndOptionKey(tenantId, key);
-        cacheService.evict(cacheKey(tenantId, key));
+        if (cacheService != null) {
+            cacheService.evict(cacheKey(tenantId, key));
+        }
 
         return toResponse(def, def.defaultValue(), false);
     }
@@ -137,6 +156,12 @@ public class TenantOptionServiceImpl implements TenantOptionService {
 
     private String getRaw(OptionDefinition def) {
         UUID tenantId = TenantContext.require();
+        if (cacheService == null) {
+            return repository
+                    .findByTenantIdAndOptionKey(tenantId, def.key())
+                    .map(TenantOption::getOptionValue)
+                    .orElse(def.defaultValue());
+        }
         String key = cacheKey(tenantId, def.key());
         return cacheService.getOrCompute(key, String.class, CACHE_TTL, () -> repository
                 .findByTenantIdAndOptionKey(tenantId, def.key())
