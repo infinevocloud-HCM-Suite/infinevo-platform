@@ -29,5 +29,13 @@ public interface AiTool {
         return List.of();
     }
 
+    /**
+     * Whether the tool reads the caller's own employee record (W-114.4, rule 4). Such a tool is not offered, and not
+     * run, for a login with no employee record ({@link AiToolContext#employeeId()} {@code null}).
+     */
+    default boolean needsEmployee() {
+        return false;
+    }
+
     AiToolResult execute(AiToolContext ctx, JsonNode input);
 }

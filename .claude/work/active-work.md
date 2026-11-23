@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-23 — W-114.4 AI helper answers questions on `main`
+
+| What | Where |
+|---|---|
+| `POST /api/v1/ai/sessions/{id}/messages`: masking (PAN, Aadhaar, bank, IFSC, UAN, ESI, tokens) before storing and sending; tool loop (5 rounds), last 20 messages; Azure OpenAI client on `/openai/v1` with managed identity; stub model when `INFINEVO_AI_ENDPOINT` is blank; seven own-data Core tools with ids stripped; per-user limit 10/min and 200/day (`AI_RATE_LIMITED`) | `core/ai/`, `app/application.yml` `infinevo.ai.*` |
+| Azure model capacity raised to 100K tokens a minute (live and in Bicep) | `infra/azure/` |
+| Specs hardened after the research review; new parts `W-114.23`–`.25` | `docs/target-state/features/W-114-*` |
+
+- Built by Claude; one independent read (one High fixed: identity client id now falls back to `AZURE_CLIENT_ID`), CI green on `deef0e00`.
+- **The live app still runs the stub model**: setting `INFINEVO_AI_ENDPOINT` and `INFINEVO_AI_DEPLOYMENT` on the app is a live change, founder's go needed.
+- **Next:** `W-114.5` chat drawer.
+
 ## 2026-11-23 — W-114.3 AI chat sessions and tool registry on `main`; W-114.2 AI resources deployed
 
 | What | Where |
