@@ -116,6 +116,50 @@ param frontDoorBackendPrefixes array = []
 @description('Front Door endpoint hostname, bare. deploy.sh reads it from the live endpoint before the deployment so the container apps keep the Front Door settings deploy.yml also sets. Empty on a first deployment, when the endpoint does not exist yet.')
 param frontDoorHostName string = ''
 
+// ── AI helper (W-114.2) ──────────────────────────────────────────────────────
+// Off by default: with deployAi false this template creates no AI resource, no zone and
+// no endpoint, and the app container gets no AI setting. Every parameter file states it.
+@description('Whether to deploy the Azure OpenAI account for the AI helper (W-114.2). Off by default')
+param deployAi bool = false
+
+// Separate from `location`, which stays locked to centralindia above: Azure OpenAI's India
+// models are offered in South India. southindia and centralindia keep data at rest in
+// India (D-18, D-61). swedencentral and eastus2 are choice 3 in W-114.2 section 3.1 and
+// need the founder's word before use - they are listed so that move is a parameter change.
+@description('Region of the Azure OpenAI account (W-114.2 section 3.1). Default southindia; a region outside India needs the founder\'s word first')
+@allowed([
+  'southindia'
+  'centralindia'
+  'swedencentral'
+  'eastus2'
+])
+param aiLocation string = 'southindia'
+
+@description('GPT model the helper uses. gpt-4.1-mini is the one chat model `az cognitiveservices model list -l southindia` lists with a Standard (in-geography) deployment')
+param aiModelName string = 'gpt-4.1-mini'
+
+@description('Model version, from `az cognitiveservices model list -l <aiLocation>`')
+param aiModelVersion string = '2025-04-14'
+
+@description('Deployment type: Standard keeps processing inside the resource geography; DataZoneStandard inside a Microsoft data zone; GlobalStandard anywhere the model runs (W-114.2 section 3)')
+@allowed([
+  'Standard'
+  'DataZoneStandard'
+  'GlobalStandard'
+])
+param aiDeploymentSku string = 'Standard'
+
+@description('Deployment capacity in thousands of tokens per minute. Must fit the subscription quota for the model, type and region')
+@minValue(1)
+param aiCapacity int = 10
+
+@description('Monthly budget for the AI account in whole units of the billing currency; mail at 80 and 100 percent to alertEmail')
+@minValue(1)
+param aiMonthlyBudget int = 5000
+
+@description('First day of the month the AI budget starts counting, yyyy-MM-dd. A fixed date so a redeploy does not move it')
+param aiBudgetStartDate string = '2026-12-01'
+
 var sharedRgName = 'rg-infinevo-shared'
 var envRgName = 'rg-infinevo-${environment}'
 
@@ -223,6 +267,7 @@ module privateDns 'modules/private-dns.bicep' = {
   params: {
     vnetId: vnet.outputs.vnetId
     vnetName: vnet.outputs.vnetName
+    deployAi: deployAi
     tags: defaultTags
   }
 }
@@ -369,6 +414,9 @@ module containerApps 'modules/containerapps.bicep' = {
     brevoSmtpLogin: brevoSmtpLogin
     brevoSenderEmail: brevoSenderEmail
     frontDoorHostName: frontDoorHostName
+    // W-114.2: empty when deployAi is false, and containerapps.bicep then adds no setting.
+    aiEndpoint: deployAi ? (aiOpenAi.?outputs.endpoint ?? '') : ''
+    aiDeployment: deployAi ? (aiOpenAi.?outputs.deploymentName ?? '') : ''
     tags: defaultTags
   }
   dependsOn: [
@@ -455,6 +503,43 @@ module keyVaultPrivateEndpoint 'modules/private-endpoint.bicep' = {
     targetResourceId: keyVault.outputs.keyVaultId
     groupId: 'vault'
     privateDnsZoneId: privateDns.outputs.vaultZoneId
+    tags: defaultTags
+  }
+}
+
+// ── AI helper (W-114.2) ──────────────────────────────────────────────────────
+// The account sits in aiLocation (South India by default) inside rg-infinevo-{env}; its
+// private endpoint sits in snet-pe in `location`, because an endpoint NIC must be in its
+// VNet's region. Both exist only when deployAi is true.
+module aiOpenAi 'modules/ai-openai.bicep' = if (deployAi) {
+  name: 'deploy-ai-openai-${environment}'
+  scope: envRg
+  params: {
+    environment: environment
+    aiLocation: aiLocation
+    aiModelName: aiModelName
+    aiModelVersion: aiModelVersion
+    aiDeploymentSku: aiDeploymentSku
+    aiCapacity: aiCapacity
+    // The app only. The worker never calls the model.
+    appPrincipalId: managedIdentities.outputs.appIdentityPrincipalId
+    alertEmail: alertEmail
+    aiMonthlyBudget: aiMonthlyBudget
+    aiBudgetStartDate: aiBudgetStartDate
+    tags: defaultTags
+  }
+}
+
+module aiPrivateEndpoint 'modules/private-endpoint.bicep' = if (deployAi) {
+  name: 'deploy-pe-ai-openai-${environment}'
+  scope: envRg
+  params: {
+    privateEndpointName: 'pe-oai-infinevo-${environment}'
+    location: location
+    subnetId: vnet.outputs.peSubnetId
+    targetResourceId: deployAi ? aiOpenAi.?outputs.?accountId ?? '' : ''
+    groupId: 'account'
+    privateDnsZoneId: privateDns.outputs.openAiZoneId
     tags: defaultTags
   }
 }
@@ -640,4 +725,7 @@ output appInsightsId string = appInsights.outputs.appInsightsId
 output workbookName string = telemetryDashboard.outputs.workbookName
 output actionGroupId string = alerting.outputs.actionGroupId
 output actionGroupName string = alerting.outputs.actionGroupName
+// W-114.2: empty while deployAi is false.
+output aiEndpoint string = deployAi ? (aiOpenAi.?outputs.endpoint ?? '') : ''
+output aiDeploymentName string = deployAi ? (aiOpenAi.?outputs.deploymentName ?? '') : ''
 
