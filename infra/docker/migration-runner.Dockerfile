@@ -20,7 +20,7 @@
 # --username vs --client-id in the entrypoint) would break the job with no diff to point at.
 # Bumping this tag means re-checking: (a) the package manager is still apk, (b)
 # `az login --identity --username` is still accepted.
-FROM mcr.microsoft.com/azure-cli:2.61.0 AS runtime
+FROM mcr.microsoft.com/azure-cli:2.93.0 AS runtime
 
 # postgresql16-client — psql, matching the Flexible Server major version in postgres.bicep
 # redis            — redis-cli, built with TLS support (the probe uses 6380 only)
