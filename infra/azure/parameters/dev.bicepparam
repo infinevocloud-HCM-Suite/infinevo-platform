@@ -32,3 +32,8 @@ param alertEmail = 'kmohapatra@infinevocloud.com'
 // Founder step (W-10.1): Brevo SMTP login (Brevo > SMTP & API > SMTP).
 param brevoSmtpLogin = 'bc91dc001@smtp-brevo.com'
 param brevoSenderEmail = 'application@infinevocloud.com'
+
+// AI helper (W-114.2). Off: nothing AI-related is deployed. To switch it on, set true here;
+// the model, region and budget defaults live in main.bicep (aiLocation, aiModelName,
+// aiModelVersion, aiDeploymentSku, aiCapacity, aiMonthlyBudget) - override them here.
+param deployAi = false

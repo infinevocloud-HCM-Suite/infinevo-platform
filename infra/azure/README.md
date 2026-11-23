@@ -23,7 +23,8 @@ infra/azure/
 │   ├── postgres.bicep                  # PostgreSQL 16 Flexible Server (psql-infinevo-{env})
 │   ├── redis.bicep                     # Azure Cache for Redis (redis-infinevo-{env})
 │   ├── storage.bicep                   # Storage Account: private containers & queues (stinfinevo{env})
-│   └── frontdoor.bicep                 # Front Door Standard + WAF (afd-infinevo-shared)
+│   ├── frontdoor.bicep                 # Front Door Standard + WAF (afd-infinevo-shared)
+│   └── ai-openai.bicep                 # Azure OpenAI for the AI helper (oai-infinevo-{env}), off by default
 ├── parameters/
 │   ├── dev.bicepparam                  # Dev environment (burstable SKUs, scale-to-zero)
 │   ├── uat.bicepparam                  # UAT environment (acceptance testing topology)
@@ -133,6 +134,62 @@ then add the custom domain in the Front Door profile:
 |---|---|---|
 | `TXT` | `_dnsauth.dev` | the validation token shown by `az afd custom-domain show` |
 | `CNAME` | `dev` | the endpoint hostname from `az afd endpoint show --query hostName -o tsv` |
+
+### 4.5 AI helper (W-114.2)
+
+| | |
+|---|---|
+| Switch | `deployAi` in the parameter file, `false` in all three. Off means no AI resource, zone or endpoint, and no AI setting on the app |
+| On creates | `oai-infinevo-{env}` (Azure OpenAI, kind `OpenAI`, keys off, public access off), one model deployment, `Cognitive Services OpenAI User` for `id-app-{env}` only, budget `budget-oai-infinevo-{env}` (mail at 80% and 100%), zone `privatelink.openai.azure.com`, endpoint `pe-oai-infinevo-{env}` in `snet-pe` |
+| App settings | `INFINEVO_AI_ENDPOINT`, `INFINEVO_AI_DEPLOYMENT` on `ca-infinevo-{env}-app` only |
+| Default | `southindia`, `gpt-4.1-mini` `2025-04-14`, `Standard`, 10K tokens per minute: data and processing stay in India |
+
+The region rule (W-114.2 section 3.1, `D-61`): `aiLocation` is its own parameter; `location`
+stays locked to `centralindia`. A stronger model means `aiDeploymentSku = 'GlobalStandard'`
+with a model listed for `southindia` — data at rest stays in India, processing may not.
+`swedencentral` and `eastus2` are allowed values, but use them only with the founder's word.
+
+`verify-live.sh` check 6 lets the AI account through: a `Microsoft.CognitiveServices/accounts`
+resource in one of the `aiLocation` regions passes and is printed as a `NOTE`. Every other
+resource in `rg-infinevo-{env}` must still be in `centralindia`.
+
+**Switch on**
+
+```bash
+# 1. Quota: limit - current must be >= aiCapacity (usage names drop the hyphen: gpt4.1-mini)
+az cognitiveservices usage list -l southindia \
+  --query "[?name.value=='OpenAI.Standard.gpt4.1-mini'].{name:name.value,current:currentValue,limit:limit}" -o table
+az cognitiveservices model list -l southindia \
+  --query "[?kind=='OpenAI' && model.name=='gpt-4.1-mini'].{model:model.name,version:model.version,lifecycle:model.lifecycleStatus,skus:join(',',model.skus[].name)}" -o table
+# 2. Set `param deployAi = true` (and any ai* override) in parameters/dev.bicepparam
+# 3. Preview with the exact parameters a real run passes, then deploy
+bash infra/azure/deploy.sh --env dev --what-if
+bash infra/azure/deploy.sh --env dev
+```
+
+`--what-if` reads the live images, traffic pins and Front Door host like a real run, then
+runs `az deployment sub what-if` and exits. It writes nothing — no Key Vault rule, no
+secret, no deployment. One line in its output is expected and is not a change that stays:
+`kv-infinevo-shared` gaining this machine's address in `ipRules`, which a real run adds and
+then revokes.
+
+Allow up to five minutes after the role assignment before the first call answers.
+
+**Switch off:** set `deployAi = false` and run `deploy.sh` again. The two settings drop
+off the app and the backend falls back to its stub client. Incremental mode deletes
+nothing, so the AI resources stay until removed by hand, in this order (`dev` shown):
+
+| # | Leftover | Delete |
+|---|---|---|
+| 1 | Private endpoint `pe-oai-infinevo-dev` | `az network private-endpoint delete -g rg-infinevo-dev -n pe-oai-infinevo-dev` |
+| 2 | Account `oai-infinevo-dev`, with its model deployment and role assignment | `az cognitiveservices account delete -g rg-infinevo-dev -n oai-infinevo-dev` |
+| 3 | The soft-deleted account (holds the name and the quota) | `az cognitiveservices account purge -g rg-infinevo-dev -n oai-infinevo-dev -l southindia` |
+| 4 | Zone link `link-vnet-infinevo-dev` | `az network private-dns link vnet delete -g rg-infinevo-dev -z privatelink.openai.azure.com -n link-vnet-infinevo-dev --yes` |
+| 5 | Zone `privatelink.openai.azure.com` | `az network private-dns zone delete -g rg-infinevo-dev -n privatelink.openai.azure.com --yes` |
+| 6 | Budget `budget-oai-infinevo-dev` | `az consumption budget delete -g rg-infinevo-dev --budget-name budget-oai-infinevo-dev` |
+
+Changing `aiModelName` likewise adds a new deployment and leaves the old one in place:
+`az cognitiveservices account deployment delete -g rg-infinevo-dev -n oai-infinevo-dev --deployment-name <old-model>`.
 
 ---
 

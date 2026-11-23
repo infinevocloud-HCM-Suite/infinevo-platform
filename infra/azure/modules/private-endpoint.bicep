@@ -10,7 +10,7 @@ param subnetId string
 @description('Resource id of the service being reached privately. May sit in another resource group - kv-infinevo-shared does')
 param targetResourceId string
 
-@description('Private link sub-resource: postgresqlServer, redisCache, blob, queue or vault. Storage exposes blob and queue as separate sub-resources, so the account carries one endpoint of each')
+@description('Private link sub-resource: postgresqlServer, redisCache, blob, queue, vault or account (Azure OpenAI, W-114.2). Storage exposes blob and queue as separate sub-resources, so the account carries one endpoint of each')
 @allowed([
   'postgresqlServer'
   'redisCache'
@@ -18,6 +18,7 @@ param targetResourceId string
   'blob'
   'queue'
   'vault'
+  'account'
 ])
 param groupId string
 
