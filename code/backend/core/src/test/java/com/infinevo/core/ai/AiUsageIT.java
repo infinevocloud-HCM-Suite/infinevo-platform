@@ -29,6 +29,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * W-114.1 spec, Tests: {@link AiUsageRepository#countOne} - the whole cap check - against PostgreSQL as
@@ -48,6 +50,9 @@ class AiUsageIT extends AbstractIntegrationTest {
 
     @Autowired
     private AiUsageRepository repository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private UUID tenantA;
     private UUID tenantB;
@@ -124,11 +129,9 @@ class AiUsageIT extends AbstractIntegrationTest {
 
         // Control: the row exists, and tenant A reads it.
         assertThat(storedCount(tenantA, NOVEMBER)).isEqualTo(1);
-        assertThat(as(tenantA, () -> repository.findByTenantIdAndUsageMonth(tenantA, NOVEMBER)))
-                .isPresent();
+        assertThat(readAs(tenantA, tenantA)).isPresent();
 
-        assertThat(as(tenantB, () -> repository.findByTenantIdAndUsageMonth(tenantA, NOVEMBER)))
-                .isEmpty();
+        assertThat(readAs(tenantB, tenantA)).isEmpty();
 
         try (Connection conn = AuthzTestSchema.appConnection()) {
             conn.setAutoCommit(false);
@@ -147,6 +150,16 @@ class AiUsageIT extends AbstractIntegrationTest {
             }
             conn.rollback();
         }
+    }
+
+    /**
+     * Reads tenant {@code rowOwner}'s November row while bound to {@code boundTenant}. The read runs inside a
+     * transaction, as it does behind {@code AiAccessGateImpl}: the tenant binding is transaction-local, so a
+     * repository read on an auto-commit connection is refused.
+     */
+    private Optional<AiUsage> readAs(UUID boundTenant, UUID rowOwner) {
+        return as(boundTenant, () -> new TransactionTemplate(transactionManager)
+                .execute(status -> repository.findByTenantIdAndUsageMonth(rowOwner, NOVEMBER)));
     }
 
     private Optional<Integer> countOneAs(UUID tenantId, LocalDate month, int cap) {
