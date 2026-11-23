@@ -19,6 +19,8 @@
 | Model | A GPT model on Azure OpenAI. Not Claude (changed the same day) |
 | Data location | Keep the resource in India if the model is offered there. Processing outside India is accepted for the AI helper: PAN, Aadhaar and bank account numbers are masked before sending (`W-114.4`); salary and leave figures are sent |
 | Who deploys | The founder. This ticket delivers Bicep that builds and lints |
+| Capacity (added 2026-11-23, research review) | Raised from 10 to 100 thousand tokens a minute. See §7a |
+| Model life (added 2026-11-23, research review) | `gpt-4.1-mini` retires on 2027-04-14. The switch follows the playbook in §7b, and never happens without the `W-114.23` evaluation set |
 
 ## Size cap
 
@@ -151,6 +153,43 @@ Bicep, because container settings live in `containerapps.bicep` and the pipeline
 | 3 | Run the deployment (`infra/azure/deploy.sh`) and read the `what-if` first |
 | 4 | Check from inside the network that the app reaches the endpoint (after `W-114.4`: one chat message from the test company) |
 
+## 7a. Capacity and model life (Added 2026-11-23, research review)
+
+| Fact | Value | Source |
+|---|---|---|
+| Capacity before | 10 thousand tokens a minute | The first deployment, 2026-11-23 |
+| Capacity now | **100** thousand tokens a minute. Deployed and verified on 2026-11-23 (Azure deployment `w114-2-ai-capacity`) | Founder 2026-11-23 |
+| Subscription quota | 200 thousand tokens a minute for `Standard` `gpt-4.1-mini` in South India. 100 leaves 100 free for a second, candidate deployment (§7b) | Read with the quota command in `infra/azure/README.md:159-161` |
+| Why 10 was too low | One question with tools uses several thousand tokens. Ten thousand a minute is two or three questions a minute for all customers together | Research review |
+| Model retires | **2027-04-14**. Both regional `Standard` chat models in South India retire that day. No newer model has an India-only `Standard` deployment today | Microsoft's region and retirement tables, read by the research review |
+| What happens at retirement if nothing is done | The deployment is declared with `versionUpgradeOption: 'OnceCurrentVersionExpired'`, so Azure moves it to the default version by itself. That would be a model switch nobody tested | `infra/azure/modules/ai-openai.bicep:103-104` |
+
+**To do in Bicep.** On `main` the default still reads `aiCapacity = 10` in two places
+(`infra/azure/ai-only.bicep:38`, `infra/azure/main.bicep:154`). Set both to 100, so a later
+run does not put the live deployment back to 10.
+
+## 7b. Model switch playbook (Added 2026-11-23, research review)
+
+Use it for the 2027 retirement and for any earlier move to a stronger model.
+
+| # | Step | Detail |
+|---|---|---|
+| 1 | Watch for Microsoft's replacement notice | Expected 90 to 120 days before retirement: from about mid-December 2026. Check the model's `lifecycleStatus` monthly with the model list command (`infra/azure/README.md:162-163`) |
+| 2 | Pick the candidate | By the region rule in §3.1. If the candidate is not processed inside India, that is choice 2 or 3 and needs the founder's word (`D-61`) |
+| 3 | Deploy it **beside** the current one, under its own deployment name | The deployment name is the model name (`ai-openai.bicep:64`). Changing `aiModelName` adds a new deployment and leaves the old one in place (`infra/azure/README.md:191-192`). Give it capacity from the free quota |
+| 4 | Run the `W-114.23` evaluation set against the candidate | Same questions, same checks, the candidate's deployment name. It must meet the pass mark of `W-114.23`. No pass, no switch |
+| 5 | Switch | Change `INFINEVO_AI_DEPLOYMENT` on the app to the candidate's name. No code change (`W-114.4`, "Settings") |
+| 6 | Keep the old deployment for one week | Going back is setting `INFINEVO_AI_DEPLOYMENT` to the old name |
+| 7 | Delete the old deployment | The command at `infra/azure/README.md:192`. Record the switch date in this spec |
+
+**Warning — tools on newer models.** Microsoft's pages say some newer reasoning models
+accept function tools on Chat Completions only with reasoning switched off, and some not at
+all; an application that calls tools through Chat Completions "can start failing after you
+upgrade its deployment". `AzureOpenAiModelClient` (`W-114.4`) uses Chat Completions. A
+candidate may need a second client on the **Responses API**, behind the same `AiModelClient`
+interface, sent with `store: false` so Azure keeps no conversation. Whether `store: false`
+is honoured on Azure was **not verified**. Test both points in step 4, before switching.
+
 ## 8. Verification
 
 ```bash
@@ -178,6 +217,9 @@ for f in infra/azure/modules/*.bicep; do az bicep build --file "$f" && az bicep 
 | Someone widens the `location` list to make this work | Low | The spec forbids it; the verification greps for it |
 | Azure keeps prompts for abuse monitoring | Certain, by design | That store sits in the resource's geography (India); only masked text is ever sent |
 | Model cost runs away | Low | The per-customer cap (`W-114.1`) and the budget alert here |
+| The model retires on 2027-04-14 and Azure upgrades the deployment by itself (added 2026-11-23) | Certain, if nothing is done | §7b, started when the replacement notice arrives; the switch is made by us, tested, before the date |
+| The replacement cannot call tools through Chat Completions (added 2026-11-23) | Medium | §7b warning; step 4 finds it before customers do |
+| No replacement keeps processing inside India (added 2026-11-23) | Medium | §3.1 choice 2 is already allowed by `D-61`; customer contract wording on where data is processed must match — founder's step |
 
 ## 10. Rollback
 
