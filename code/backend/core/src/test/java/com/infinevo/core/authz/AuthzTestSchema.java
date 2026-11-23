@@ -234,6 +234,11 @@ public final class AuthzTestSchema {
                     if (!columnExists(conn, "core", "subscription", "ai_enabled")) {
                         executeResource(conn, "db/migration/core/V192__ai_switch_and_usage.sql");
                     }
+                    // W-114.3: the chat tables, core.ai.use and its grant to every system role (trigger and
+                    // backfill). After V158, as in Flyway, so the platform tenant is skipped.
+                    if (!tableExists(conn, "core", "ai_session")) {
+                        executeResource(conn, "db/migration/core/V200__ai_chat.sql");
+                    }
                 }
 
             } catch (Exception e) {
