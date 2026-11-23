@@ -80,6 +80,18 @@ public class SubscriptionController {
         return ResponseEntity.ok(subscriptionService.updatePlan(id, request));
     }
 
+    @PutMapping("/ai")
+    @RequiresAction("core.tenant.provision")
+    public ResponseEntity<SubscriptionResponse> updateAi(
+            @PathVariable("id") UUID id, @RequestBody AiSettingsUpdateRequest request) {
+        // W-114.1: the same guard as plan, status and modules; the path names any tenant.
+        platformTenant.requirePlatformTenant();
+        if (request == null) {
+            throw new IllegalArgumentException("body must not be null");
+        }
+        return ResponseEntity.ok(subscriptionService.updateAi(id, request));
+    }
+
     @ExceptionHandler(SubscriptionNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(SubscriptionNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

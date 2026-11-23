@@ -20,4 +20,10 @@ public interface SubscriptionService {
      * clears it, and a {@code null} limit means unlimited. Refused for the platform tenant.
      */
     SubscriptionResponse updatePlan(UUID tenantId, PlanUpdateRequest request);
+
+    /**
+     * Sets the tenant's AI helper switch and monthly request cap (W-114.1). Both are written as given. Refused for
+     * the platform tenant; refused when the switch is on with no cap, or when a cap below 1 is given.
+     */
+    SubscriptionResponse updateAi(UUID tenantId, AiSettingsUpdateRequest request);
 }

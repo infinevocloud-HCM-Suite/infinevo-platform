@@ -7,7 +7,7 @@ import java.util.UUID;
 
 /**
  * Representation of a tenant's subscription and active modules (W-12.1), with its plan, support plan and employee
- * limit (W-84.1; a {@code null} limit is unlimited).
+ * limit (W-84.1; a {@code null} limit is unlimited), and the AI helper switch and monthly request cap (W-114.1).
  */
 public record SubscriptionResponse(
         UUID id,
@@ -19,4 +19,6 @@ public record SubscriptionResponse(
         String externalRef,
         SubscriptionPlan plan,
         SupportPlan supportPlan,
+        boolean aiEnabled,
+        Integer aiMonthlyRequestCap,
         Integer employeeLimit) {}

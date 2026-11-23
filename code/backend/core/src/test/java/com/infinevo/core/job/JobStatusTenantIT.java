@@ -91,43 +91,6 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
         TenantContext.clear();
         try (Connection conn = migrationUserConnection()) {
             conn.createStatement().execute("DELETE FROM core.job_status");
-            if (tableExists(conn, "user_tenant")) {
-                conn.createStatement().execute("DELETE FROM core.user_tenant");
-            }
-            if (tableExists(conn, "user_role")) {
-                conn.createStatement().execute("DELETE FROM core.user_role");
-            }
-            if (tableExists(conn, "user_role_assignment")) {
-                conn.createStatement().execute("DELETE FROM core.user_role_assignment");
-            }
-            if (tableExists(conn, "role_action")) {
-                conn.createStatement().execute("DELETE FROM core.role_action");
-            }
-            if (tableExists(conn, "role")) {
-                conn.createStatement().execute("DELETE FROM core.role");
-            }
-            if (tableExists(conn, "attendance")) {
-                conn.createStatement().execute("DELETE FROM core.attendance");
-            }
-            if (tableExists(conn, "employee_contact")) {
-                conn.createStatement().execute("DELETE FROM core.employee_contact");
-            }
-            if (tableExists(conn, "employee_personal")) {
-                conn.createStatement().execute("DELETE FROM core.employee_personal");
-            }
-            // employee_invitation (V118) references employee without ON DELETE CASCADE — must go first
-            if (tableExists(conn, "employee_invitation")) {
-                conn.createStatement().execute("DELETE FROM core.employee_invitation");
-            }
-            if (tableExists(conn, "employee")) {
-                conn.createStatement().execute("DELETE FROM core.employee");
-            }
-            if (tableExists(conn, "user_account")) {
-                conn.createStatement().execute("DELETE FROM core.user_account");
-            }
-            if (tableExists(conn, "audit_log")) {
-                conn.createStatement().execute("DELETE FROM core.audit_log");
-            }
 
             // No blanket DELETE FROM core.tenant: tenants provisioned by other classes (LopPolicySeedIT,
             // TenantCreationIT) carry subscription and policy rows this class does not know about.

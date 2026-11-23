@@ -60,20 +60,37 @@ public final class SubscriptionTestSchema {
      * cut out of the real resource, since a SQL function naming a missing table cannot be created.
      */
     public static void applySubscriptionPlan(Connection conn) throws Exception {
-        if (columnExistsIn(conn, "subscription", "plan")) {
+        if (!columnExistsIn(conn, "subscription", "plan")) {
+            String sql = read("db/migration/core/V188__subscription_plan.sql");
+            if (!listTenantsDependenciesExist(conn)) {
+                int end = sql.indexOf("-- 3.");
+                if (end < 0) {
+                    throw new IllegalStateException("V188__subscription_plan.sql no longer has its section 3");
+                }
+                sql = sql.substring(0, end);
+            }
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute(sql);
+            }
+        }
+        // W-114.1: the entity maps V192's columns too, so every caller of this method gets them.
+        applyAiSwitch(conn);
+    }
+
+    /**
+     * W-114.1: brings {@code core.subscription} up to {@code V192} (the AI helper switch and cap) and creates
+     * {@code core.ai_usage}. As for {@code V188}, the functions section ({@code -- 8.}) runs only when the tables
+     * {@code core.list_tenants()} reads exist.
+     */
+    public static void applyAiSwitch(Connection conn) throws Exception {
+        if (columnExistsIn(conn, "subscription", "ai_enabled")) {
             return;
         }
-        String sql = readV188();
-        boolean listTenantsDependenciesExist = true;
-        for (String table : new String[] {
-            "employee", "user_account", "user_invitation", "user_invitation_role", "role", "subscription_module"
-        }) {
-            listTenantsDependenciesExist &= tableExistsIn(conn, table);
-        }
-        if (!listTenantsDependenciesExist) {
-            int end = sql.indexOf("-- 3.");
+        String sql = read("db/migration/core/V192__ai_switch_and_usage.sql");
+        if (!listTenantsDependenciesExist(conn)) {
+            int end = sql.indexOf("-- 8.");
             if (end < 0) {
-                throw new IllegalStateException("V188__subscription_plan.sql no longer has its section 3");
+                throw new IllegalStateException("V192__ai_switch_and_usage.sql no longer has its section 8");
             }
             sql = sql.substring(0, end);
         }
@@ -82,8 +99,17 @@ public final class SubscriptionTestSchema {
         }
     }
 
-    private static String readV188() throws Exception {
-        String resource = "db/migration/core/V188__subscription_plan.sql";
+    private static boolean listTenantsDependenciesExist(Connection conn) throws SQLException {
+        boolean exist = true;
+        for (String table : new String[] {
+            "employee", "user_account", "user_invitation", "user_invitation_role", "role", "subscription_module"
+        }) {
+            exist &= tableExistsIn(conn, table);
+        }
+        return exist;
+    }
+
+    private static String read(String resource) throws Exception {
         try (InputStream in = SubscriptionTestSchema.class.getClassLoader().getResourceAsStream(resource)) {
             if (in == null) {
                 throw new IllegalStateException("Resource not found: " + resource);
@@ -132,6 +158,9 @@ public final class SubscriptionTestSchema {
                 Statement stmt = conn.createStatement()) {
             // Scope every delete to our own two test tenants so we never disturb rows
             // owned by other ITs running in the same shared Testcontainers database.
+            if (tableExists(conn, "ai_usage")) {
+                stmt.execute("DELETE FROM core.ai_usage" + TENANT_SCOPE);
+            }
             stmt.execute("DELETE FROM core.subscription_module" + TENANT_SCOPE);
             stmt.execute("DELETE FROM core.subscription" + TENANT_SCOPE);
         }
