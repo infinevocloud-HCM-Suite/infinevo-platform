@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -98,6 +99,27 @@ class AiMessageControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"Hi\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("429 AI_RATE_LIMITED with Retry-After in whole seconds and the spec's message, for both limits")
+    void rateLimited() throws Exception {
+        when(service.send(any(), eq("fast")))
+                .thenThrow(new AiRateLimitedException(AiRateLimitedException.Limit.MINUTE, 12));
+        when(service.send(any(), eq("many")))
+                .thenThrow(new AiRateLimitedException(AiRateLimitedException.Limit.DAY, 3600));
+
+        mvc.perform(body("fast"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "12"))
+                .andExpect(jsonPath("$.code").value("AI_RATE_LIMITED"))
+                .andExpect(jsonPath("$.message").value("You are sending messages too quickly. Try again in a moment."));
+        mvc.perform(body("many"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "3600"))
+                .andExpect(jsonPath("$.code").value("AI_RATE_LIMITED"))
+                .andExpect(jsonPath("$.message")
+                        .value("You have reached today's limit for the AI helper. Try again tomorrow."));
     }
 
     @Test

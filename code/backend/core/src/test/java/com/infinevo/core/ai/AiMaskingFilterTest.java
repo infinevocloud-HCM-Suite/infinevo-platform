@@ -89,13 +89,56 @@ class AiMaskingFilterTest {
                 "password",
                 "clientSecret",
                 "accessToken",
-                "api-key"
+                "api-key",
+                "account_no",
+                "accountNo",
+                "ac_no",
+                "AcNo",
+                "esic_no",
+                "esicNumber",
+                "ESIC",
+                "pf_number",
+                "pfNumber",
+                "epfNumber"
             })
     @DisplayName("every sensitive key is hidden, nested in arrays too")
     void sensitiveKeys(String key) throws Exception {
         JsonNode input = json.createObjectNode()
                 .set("rows", json.createArrayNode().add(json.createObjectNode().put(key, "x")));
         assertThat(filter.mask(input).path("rows").path(0).path(key).asText()).isEqualTo("[hidden]");
+    }
+
+    @Test
+    @DisplayName("{ account_no, ac_no, esic_no, pf_number }: every value is hidden (added 2026-11-23)")
+    void newKeys() throws Exception {
+        assertThat(filter.mask(json.readTree("{ \"account_no\": \"12345\", \"ac_no\": \"678\", \"esic_no\": \"31001\","
+                        + " \"pf_number\": \"KN/1/2\" }")))
+                .isEqualTo(json.readTree("{ \"account_no\": \"[hidden]\", \"ac_no\": \"[hidden]\","
+                        + " \"esic_no\": \"[hidden]\", \"pf_number\": \"[hidden]\" }"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "basic",
+                "basicSalary",
+                "basic_salary",
+                "esi_amount",
+                "esiEmployee",
+                "pf_amount",
+                "pfDeduction",
+                "employer_pf",
+                "accountType",
+                "accounting_period",
+                "bank_name",
+                "designation",
+                "description",
+                "company",
+                "quantity"
+            })
+    @DisplayName("ordinary keys pass, the four new key parts included (basic does not contain esic)")
+    void ordinaryKeysPass(String key) {
+        assertThat(AiMaskingFilter.isSensitiveKey(key)).isFalse();
     }
 
     @Test

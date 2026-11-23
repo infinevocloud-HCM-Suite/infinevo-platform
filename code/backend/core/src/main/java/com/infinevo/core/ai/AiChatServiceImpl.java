@@ -34,7 +34,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Implementation of {@link AiChatService} (W-114.4, spec "Flow", "Rules" and "Limits").
  *
- * <p>The order: the chat must be the caller's ({@code 404}); then {@link AiAccessGate#consume()}, once, before any
+ * <p>The order: the chat must be the caller's ({@code 404}); then the per-user rate limit ({@link AiRateLimiter},
+ * {@code 429 AI_RATE_LIMITED}); then {@link AiAccessGate#consume()}, once, before any
  * model call (rule 8); then the masked question is stored; then up to five tool rounds. Each stored message is its own
  * short transaction, and no transaction is open while the model is called, so a slow model never holds a database
  * connection. Tools run in this thread as the caller, only through {@link AiToolRegistry#execute}, and only the tools
@@ -66,6 +67,7 @@ public class AiChatServiceImpl implements AiChatService {
     private final AiSessionRepository sessions;
     private final AiMessageRepository messages;
     private final AiAccessGate accessGate;
+    private final AiRateLimiter rateLimiter;
     private final AiToolRegistry registry;
     private final AiModelClient model;
     private final AiMaskingFilter masking;
@@ -81,6 +83,7 @@ public class AiChatServiceImpl implements AiChatService {
             AiSessionRepository sessions,
             AiMessageRepository messages,
             AiAccessGate accessGate,
+            AiRateLimiter rateLimiter,
             AiToolRegistry registry,
             AiModelClient model,
             AiMaskingFilter masking,
@@ -92,6 +95,7 @@ public class AiChatServiceImpl implements AiChatService {
                 sessions,
                 messages,
                 accessGate,
+                rateLimiter,
                 registry,
                 model,
                 masking,
@@ -106,6 +110,7 @@ public class AiChatServiceImpl implements AiChatService {
             AiSessionRepository sessions,
             AiMessageRepository messages,
             AiAccessGate accessGate,
+            AiRateLimiter rateLimiter,
             AiToolRegistry registry,
             AiModelClient model,
             AiMaskingFilter masking,
@@ -117,6 +122,7 @@ public class AiChatServiceImpl implements AiChatService {
         this.sessions = Objects.requireNonNull(sessions, "sessions must not be null");
         this.messages = Objects.requireNonNull(messages, "messages must not be null");
         this.accessGate = Objects.requireNonNull(accessGate, "accessGate must not be null");
+        this.rateLimiter = Objects.requireNonNull(rateLimiter, "rateLimiter must not be null");
         this.registry = Objects.requireNonNull(registry, "registry must not be null");
         this.model = Objects.requireNonNull(model, "model must not be null");
         this.masking = Objects.requireNonNull(masking, "masking must not be null");
@@ -138,8 +144,13 @@ public class AiChatServiceImpl implements AiChatService {
         Instant started = clock.instant();
         Instant deadline = started.plus(REQUEST_TIMEOUT);
 
-        AiSession found = tx.execute(s -> sessions.findByIdAndTenantIdAndUserId(sessionId, tenantId, userId)
-                .orElseThrow(() -> new AiSessionNotFoundException(sessionId)));
+        AiSession found = tx.execute(s -> {
+            AiSession session = sessions.findByIdAndTenantIdAndUserId(sessionId, tenantId, userId)
+                    .orElseThrow(() -> new AiSessionNotFoundException(sessionId));
+            // Before consume(): a refused message is not counted, stores no row and calls no model (rule 10).
+            rateLimiter.check(tenantId, userId);
+            return session;
+        });
         accessGate.consume();
 
         Run run = new Run(found);

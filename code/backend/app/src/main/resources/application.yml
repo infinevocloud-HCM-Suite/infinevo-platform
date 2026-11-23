@@ -106,6 +106,9 @@ infinevo:
     deployment: ${INFINEVO_AI_DEPLOYMENT:}
     managed-identity-client-id: ${INFINEVO_AI_MANAGED_IDENTITY_CLIENT_ID:}
     token-scope: ${INFINEVO_AI_TOKEN_SCOPE:https://cognitiveservices.azure.com/.default}
+    rate:
+      per-minute: ${INFINEVO_AI_RATE_PER_MINUTE:10}
+      per-day: ${INFINEVO_AI_RATE_PER_DAY:200}
 
 server:
   port: 8080

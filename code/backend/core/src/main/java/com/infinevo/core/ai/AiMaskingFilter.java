@@ -38,7 +38,12 @@ public class AiMaskingFilter {
             "password",
             "secret",
             "token",
-            "apikey");
+            "apikey",
+            // Added 2026-11-23 (research review): account_no, ac_no, esic_no / esicNumber, pf_number / epfNumber.
+            "accountno",
+            "acno",
+            "esic",
+            "pfnumber");
 
     /** Pass 1: short names that sit inside ordinary words ({@code company}, {@code quantity}), so whole key only. */
     private static final Set<String> SENSITIVE_WHOLE_KEYS =

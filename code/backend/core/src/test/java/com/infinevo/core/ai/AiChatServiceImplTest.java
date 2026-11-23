@@ -70,6 +70,7 @@ class AiChatServiceImplTest {
     private AiSessionRepository sessions;
     private AiMessageRepository messages;
     private AiAccessGate gate;
+    private AiRateLimiter rateLimiter;
     private EmployeeService employeeService;
     private StubAiModelClient model;
     private MovableClock clock;
@@ -124,6 +125,7 @@ class AiChatServiceImplTest {
 
         gate = mock(AiAccessGate.class);
         when(gate.consume()).thenReturn(1);
+        rateLimiter = mock(AiRateLimiter.class);
 
         employeeService = mock(EmployeeService.class);
         when(employeeService.currentEmployee()).thenReturn(Optional.of(employee()));
@@ -146,6 +148,7 @@ class AiChatServiceImplTest {
                 sessions,
                 messages,
                 gate,
+                rateLimiter,
                 registry,
                 model,
                 new AiMaskingFilter(),
@@ -178,6 +181,34 @@ class AiChatServiceImplTest {
         assertThat(messageStore.get(0).getContent()).isEqualTo("How many leave days do I have left?");
         assertThat(mine.getLastMessageAt()).isNotNull();
         verify(gate, times(1)).consume();
+    }
+
+    @Test
+    @DisplayName("over the rate limit: refused before consume(); nothing stored, no model call (rule 10)")
+    void rateLimited_nothingCountedOrStored() {
+        org.mockito.Mockito.doThrow(new AiRateLimitedException(AiRateLimitedException.Limit.MINUTE, 7))
+                .when(rateLimiter)
+                .check(tenantId, userId);
+        model.script(AiModelResponse.text("Never sent."));
+
+        assertThatThrownBy(() -> service.send(mine.getId(), "One more?"))
+                .isInstanceOfSatisfying(AiRateLimitedException.class, e -> assertThat(e.retryAfterSeconds())
+                        .isEqualTo(7));
+
+        verify(gate, never()).consume();
+        assertThat(messageStore).isEmpty();
+        assertThat(model.requests()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("the rate limit is checked after the session check: another user's chat is 404, not 429")
+    void rateLimit_afterSessionCheck() {
+        AiSession theirs = sessions.save(new AiSession(tenantId, otherUser, null, null));
+
+        assertThatThrownBy(() -> service.send(theirs.getId(), "Hi")).isInstanceOf(AiSessionNotFoundException.class);
+
+        verify(rateLimiter, never()).check(any(), any());
+        verify(gate, never()).consume();
     }
 
     @Test

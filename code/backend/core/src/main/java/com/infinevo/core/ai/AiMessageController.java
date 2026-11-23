@@ -25,7 +25,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
  * Needs {@code core.ai.use}; the chat must be the caller's. One full answer per request, no streaming.
  *
  * <p>Its own handlers, as handlers are per controller here: {@code 403 AI_DISABLED}, {@code 429 AI_CAP_REACHED},
- * {@code 404} for a chat that is not the caller's, {@code 400} for an empty or too long question, and {@code 502}
+ * {@code 429 AI_RATE_LIMITED} with {@code Retry-After}, {@code 404} for a chat that is not the caller's, {@code 400} for an empty or too long question, and {@code 502}
  * {@code INTERNAL} when the model fails or runs out of time.
  */
 @RestController
@@ -78,6 +78,11 @@ public class AiMessageController {
     @ExceptionHandler(AiCapReachedException.class)
     public ResponseEntity<ApiErrorResponse> handleCapReached(AiCapReachedException e) {
         return AiErrorResponses.capReached(e);
+    }
+
+    @ExceptionHandler(AiRateLimitedException.class)
+    public ResponseEntity<ApiErrorResponse> handleRateLimited(AiRateLimitedException e) {
+        return AiErrorResponses.rateLimited(e);
     }
 
     @ExceptionHandler(AiModelException.class)

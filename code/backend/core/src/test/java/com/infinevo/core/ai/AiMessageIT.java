@@ -3,6 +3,7 @@ package com.infinevo.core.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -278,6 +279,54 @@ class AiMessageIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("11th message in a minute: 429 AI_RATE_LIMITED + Retry-After; no USER row; usage +10; user B can send")
+    void eleventhInAMinute_rateLimited() throws Exception {
+        for (int i = 1; i <= 10; i++) {
+            ask(subA, sessionA, "Question " + i).andExpect(status().isOk());
+        }
+        assertThat(usage(tenant)).isEqualTo(10);
+        int modelCalls = stub.requests().size();
+
+        ask(subA, sessionA, "Question 11")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AI_RATE_LIMITED"))
+                .andExpect(jsonPath("$.message").value(AiRateLimitedException.MINUTE_MESSAGE))
+                .andExpect(header().string("Retry-After", org.hamcrest.Matchers.matchesPattern("[1-9][0-9]?")));
+
+        // Ten USER rows and their ten ASSISTANT answers: the answers were not counted, the 11th was not stored.
+        assertThat(roles(sessionA)).hasSize(20).filteredOn("USER"::equals).hasSize(10);
+        assertThat(contents(sessionA)).doesNotContain("Question 11");
+        assertThat(usage(tenant)).isEqualTo(10);
+        assertThat(stub.requests()).hasSize(modelCalls);
+
+        UUID sessionB = AiChatRows.session(tenant, subB);
+        ask(subB, sessionB, "Am I limited too?").andExpect(status().isOk());
+        assertThat(usage(tenant)).isEqualTo(11);
+    }
+
+    @Test
+    @DisplayName("rate limit query: TOOL and ASSISTANT rows, another user's rows and USER rows 61 s old do not count")
+    void rateLimit_countsOnlyOwnRecentUserRows() throws Exception {
+        UUID sessionB = AiChatRows.session(tenant, subB);
+        UUID otherSessionA = AiChatRows.session(tenant, subA);
+        for (int i = 0; i < 10; i++) {
+            AiChatRows.message(tenant, sessionA, "TOOL", "{}");
+            AiChatRows.message(tenant, sessionA, "ASSISTANT", "Answer");
+            AiChatRows.message(tenant, sessionB, "USER", "B's question");
+            messageAt(tenant, otherSessionA, "USER", 61);
+        }
+        for (int i = 0; i < 9; i++) {
+            messageAt(tenant, otherSessionA, "USER", 30);
+        }
+
+        ask(subA, sessionA, "The tenth in this minute").andExpect(status().isOk());
+        ask(subA, sessionA, "The eleventh, across both of my chats")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AI_RATE_LIMITED"));
+        assertThat(usage(tenant)).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("six tool rounds asked: 200 with the fixed text; five TOOL rows; six model calls")
     void sixToolRounds_stops() throws Exception {
         for (int i = 1; i <= 6; i++) {
@@ -377,6 +426,20 @@ class AiMessageIT extends AbstractIntegrationTest {
             ps.setObject(2, tenantId);
             ps.setBoolean(3, aiOn);
             ps.setObject(4, cap, java.sql.Types.INTEGER);
+            ps.executeUpdate();
+        }
+    }
+
+    /** A message stored {@code secondsAgo} seconds ago, as the schema owner. */
+    private static void messageAt(UUID tenantId, UUID sessionId, String role, int secondsAgo) throws SQLException {
+        try (Connection conn = AuthzTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO core.ai_message (tenant_id, session_id, role, content, created_at)"
+                                + " VALUES (?, ?, ?, 'earlier', now() - make_interval(secs => ?))")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, sessionId);
+            ps.setString(3, role);
+            ps.setInt(4, secondsAgo);
             ps.executeUpdate();
         }
     }
