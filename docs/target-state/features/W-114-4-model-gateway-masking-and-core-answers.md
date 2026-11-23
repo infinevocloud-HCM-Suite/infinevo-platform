@@ -36,6 +36,8 @@ mask, the model client and seven tools. **If it runs long in the build, cut the 
 | this spec | Claude | The WFH tools sit here, not in `W-114.6`: WFH lives in `core` (`code/backend/core/src/main/java/com/infinevo/core/wfh/MyWfhController.java:30`) |
 | this spec | Claude | No new library. The model is called with `java.net.http.HttpClient`, as `KeycloakProvisioningServiceImpl.java:8` does, and `azure-identity`, already in `code/backend/core/pom.xml:43-44` |
 | this spec | Claude | A model failure answers `502` with the existing `ApiError.INTERNAL` code, so `shared` is not touched |
+| 2026-11-23 | founder | (Research review) A per-user rate limit: 10 messages a minute and 200 a UTC day, counted from stored rows, no new table |
+| 2026-11-23 | founder | (Research review) No Aadhaar checksum in the mask. Four more field names: `accountno`, `acno`, `esic`, `pfnumber` |
 
 ## Problem
 
@@ -67,6 +69,7 @@ mask, the model client and seven tools. **If it runs long in the build, cut the 
 ```
 user --> POST /api/v1/ai/sessions/{id}/messages { content }
      --> session is the caller's?            no --> 404
+     --> per-user rate limit (added 2026-11-23)  over --> 429 AI_RATE_LIMITED + Retry-After, nothing counted
      --> AiAccessGate.consume()              off --> 403 AI_DISABLED · at cap --> 429 AI_CAP_REACHED
      --> mask(content) --> store USER message
      --> offer only the tools the caller may use
@@ -90,6 +93,8 @@ user --> POST /api/v1/ai/sessions/{id}/messages { content }
 | 6 | **Tool results are data, not instructions.** The system prompt says so, and each result is sent as its own `tool` message, never pasted into the instructions. |
 | 7 | The system prompt tells the model to answer only from tool results and the conversation, to say "I can't see that" when no tool gives the answer, never to guess a figure, and never to claim it changed anything. |
 | 8 | `consume()` is called once per user message, before the first model call. Tool rounds are not counted. A failed model call is still counted (`W-114.1` decision). |
+| 9 | **(Added 2026-11-23, research review)** The prompt line in rule 6 is **not a control**. A model can still obey text inside a tool result. The controls are three: no way out (answers are shown as plain text with no markdown, and links only from the allow-list of `W-114.13`), every tool runs as the caller (rules 2 and 3), and nothing changes without Confirm (`W-114.8`). |
+| 10 | **(Added 2026-11-23, research review)** A user may send at most 10 messages a minute and 200 a UTC day. See "Per-user rate limit". |
 
 **Limits**
 
@@ -103,13 +108,47 @@ user --> POST /api/v1/ai/sessions/{id}/messages { content }
 | Whole request | 60 seconds |
 | A tool result | cut to 8,000 characters after masking, with "…(more rows not shown)" |
 
+## Per-user rate limit (Added 2026-11-23, research review)
+
+Founder 2026-11-23. Built with this part, on the `W-114.4` branch.
+
+| Point | Rule |
+|---|---|
+| Limits | 10 messages in any 60 seconds, and 200 in one UTC day, per user |
+| What is counted | The user's own `USER` rows in `core.ai_message`, found through their sessions: `ai_message.session_id` → `ai_session.user_id`. `core.ai_message` has no user column (`code/backend/migration/src/main/resources/db/migration/core/V200__ai_chat.sql:22-29`); the session has one (`:15`). **No new table, no migration** |
+| The query | One count, in the caller's tenant: `USER` rows of the caller's sessions with `created_at` at or after the window start. Run twice: the last 60 seconds, and since 00:00 UTC today. The indexes `idx_ai_session_tenant_user` and `idx_ai_message_tenant_session` serve it (`V200__ai_chat.sql:49-50`) |
+| When | After the session check, **before** `AiAccessGate.consume()` |
+| Over the limit | `429`, code `AI_RATE_LIMITED`, header `Retry-After` in whole seconds: for the minute limit, until the oldest counted message is 60 seconds old; for the day limit, until the next 00:00 UTC. Message: "You are sending messages too quickly. Try again in a moment." or "You have reached today's limit for the AI helper. Try again tomorrow." |
+| The tenant cap | Not touched. A refused message does not call `consume()`, stores no row and calls no model |
+| Settings | `infinevo.ai.rate.per-minute` (default 10) and `infinevo.ai.rate.per-day` (default 200): two more lines in `application.yml` beside the other `infinevo.ai.*` lines |
+| Where | `AiRateLimiter.java` in `core/ai`, called by `AiChatServiceImpl`; `AiRateLimitedException`, handled in `AiMessageController`; the body is built as the other AI errors are (`code/backend/core/src/main/java/com/infinevo/core/ai/AiErrorResponses.java`) |
+
+| Known limit | Accepted because |
+|---|---|
+| Two messages sent at the same instant can both pass the check, so a user can go one or two over | The count is a read, not a lock. The input is disabled while an answer is pending (`W-114.5`), and the tenant cap is exact |
+| Deleting a chat deletes its rows, so its messages stop counting | The tenant's monthly count cannot be deleted by the tenant (`V192__ai_switch_and_usage.sql:76-80`), so the company's total still holds |
+
+Why it exists: every customer shares one Azure resource. One user sending many bad
+requests can get the whole resource slowed or flagged by Azure's abuse monitoring.
+
 ## Masking
 
 `AiMaskingFilter.mask(String)` and `mask(JsonNode)`. Two passes, in this order.
 
 **Pass 1 — by field name** (tool results are JSON). A value is replaced with `"[hidden]"` when its key, lower-cased with `_` and `-` removed, contains one of:
 
-`aadhaar`, `aadhar`, `accountnumber`, `bankaccount`, `ifsc`, `esinumber`, `passport`, `password`, `secret`, `token`, `apikey`.
+`aadhaar`, `aadhar`, `accountnumber`, `bankaccount`, `ifsc`, `esinumber`, `passport`, `password`, `secret`, `token`, `apikey`, `accountno`, `acno`, `esic`, `pfnumber`.
+
+**(Added 2026-11-23, research review)** The last four are new. Each field was checked against the "contains" rule:
+
+| Field | Covered by | Note |
+|---|---|---|
+| Bank account | `accountnumber`, `bankaccount`, and now `accountno`, `acno` | `account_no` and `ac_no` contain neither of the first two |
+| UAN | the whole-key rule below | unchanged |
+| IFSC | `ifsc` | unchanged |
+| ESI | `esinumber`, and now `esic` | `esic_no` and `esicNumber` do not contain `esinumber` |
+| PF number | now `pfnumber` | `pf_number`, `pfNumber`, `epfNumber` |
+| Aadhaar | `aadhaar`, `aadhar` | `aadhaarNumber` already contains `aadhaar`; nothing added |
 
 Two short names match **only as the whole key or with `number` / `no` after it**, because
 they sit inside ordinary words: `pan` (`pan`, `pannumber`, `panno` — not `company`, `span`)
@@ -131,6 +170,13 @@ attendance times, names, department, designation, location, email.
 Pattern 5 is wide on purpose. It also hides phone numbers, UAN and ESI numbers. It cannot
 hit a rupee amount below ₹10 crore, because amounts are written with a decimal point and
 fewer than nine digits before it.
+
+**Aadhaar checksum — considered and not added (2026-11-23, research review).** The review
+suggested checking the Verhoeff check digit before masking a 12-digit number. It is not
+done. A wrong digit fails the checksum, so a mistyped Aadhaar would go out unmasked.
+Pattern 4 masks every number of that shape, with or without spaces, and pattern 5 catches
+other long numbers. Masking too much costs a `[AADHAAR]` in an answer; masking too little
+sends an identifier out. Over-masking is the safe side.
 
 ## Model access
 
@@ -221,6 +267,7 @@ All under `code/backend/core/src/main/java/com/infinevo/core/ai/`.
 |---|---|
 | Helper off for the customer | `403` `AI_DISABLED` |
 | Monthly cap reached | `429` `AI_CAP_REACHED` |
+| The user is over 10 a minute or 200 a day (added 2026-11-23) | `429` `AI_RATE_LIMITED`, with `Retry-After` |
 | Session of another user, or unknown | `404` |
 | Empty or over 2,000 characters | `400` |
 | Stopped by Azure's content filter | `200` with "I can't help with that request." |
@@ -251,6 +298,8 @@ All use `StubAiModelClient` with scripted replies. No test calls Azure.
 | Unit | `core/src/test/.../ai/CoreAiToolProviderTest.java` | Each tool calls its service with the caller's id and returns no database id |
 | Unit | `core/src/test/.../ai/AzureOpenAiModelClientTest.java` | The URL ends `/openai/v1/chat/completions` with no `api-version`; the body carries the deployment as `model`, the tools as functions and the limits; a dotted tool name goes out with `__` and comes back with the dot; a `tool_calls` reply and a text reply are parsed; `400 content_filter` and `finish_reason: content_filter` become the filtered result, not an exception; HTTP 429, 500 and a timeout become `AiModelException`. Against a local stub HTTP server |
 | Integration | `core/src/test/.../ai/AiMessageIT.java` | The verification table, on a real database |
+| Unit | `core/src/test/.../ai/AiRateLimiterTest.java` (added 2026-11-23) | With a fixed clock: the 10th message in a minute passes and the 11th is refused; a message 61 seconds old no longer counts; the 201st of a UTC day is refused and the first after 00:00 UTC passes; `Retry-After` is right for both; `ASSISTANT` and `TOOL` rows are not counted; another user's rows in the same tenant are not counted |
+| Integration | `core/src/test/.../ai/AiMessageIT.java` (extend, added 2026-11-23) | The 11th message in a minute answers `429 AI_RATE_LIMITED` with `Retry-After`; no `USER` row is stored; `core.ai_usage.request_count` is unchanged; user B of the same tenant can still send |
 
 **Masking test table**
 
@@ -266,6 +315,8 @@ All use `StubAiModelClient` with scripted replies. No test calls Azure.
 | `{ "bank_account_number": "12345", "name": "Asha" }` | `{ "bank_account_number": "[hidden]", "name": "Asha" }` |
 | `Net pay 125000.00 for 2026-10, 4.5 days leave` | unchanged |
 | `{ "company": "Acme", "quantity": "3", "span": "5" }` | unchanged (`pan` and `uan` match only as a whole key) |
+| `{ "account_no": "12345", "ac_no": "678", "esic_no": "31001", "pf_number": "KN/1/2" }` (added 2026-11-23) | every value `"[hidden]"` |
+| `2345 6789 0124` and `2345 6789 0125` — at most one can carry a valid check digit (added 2026-11-23) | both `[AADHAAR]`: no checksum is applied |
 
 ## Verification
 
@@ -285,6 +336,7 @@ cd code/backend && ./mvnw -B -pl core -am verify
 | Stub scripted to report a content-filter stop | `200` with "I can't help with that request."; ASSISTANT row stored; usage count + 1 | not run |
 | Second question in the same session after a tool was used | The body sent to the model holds no `tool` message from the earlier question | not run |
 | Customer at its cap | `429 AI_CAP_REACHED` | not run |
+| 11 messages inside one minute from one user (added 2026-11-23) | The 11th: `429 AI_RATE_LIMITED`, `Retry-After` set; the usage count went up by 10, not 11 | not run |
 | Stub scripted to ask for tools six times | `200` with "I could not finish that…"; five TOOL rows | not run |
 | Grep the test log for a PAN, a tool result or an answer text | Not found | not run |
 
@@ -293,6 +345,8 @@ cd code/backend && ./mvnw -B -pl core -am verify
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | A tool result tells the model to do something ("ignore your rules") | Medium | Rule 6; every tool here is read-only and own-data, so the worst outcome is a wrong sentence |
+| The prompt line "tool results are data" is taken for a control (added 2026-11-23) | Medium | Rule 9: it is not one. The controls are no outbound channel (plain text, no markdown, link allow-list), tools run as the caller, and Confirm. `W-114.23` tests this against the real model |
+| One user floods the helper and Azure slows or flags the shared resource (added 2026-11-23) | Low | The per-user rate limit; the tenant cap; 5 tool rounds and 1,024 output tokens a message |
 | A new sensitive field is added to a response later and is not in the key list | Medium | Pattern pass 2 still catches numbers; a new tool's spec must state its sensitive fields |
 | Pattern 5 hides a number the user wanted (an employee number of nine digits or more) | Low | Accepted; the user sees `[NUMBER]` and opens the screen |
 | The token scope the `/openai/v1` route needs is not the default | Medium | It is a setting; change `INFINEVO_AI_TOKEN_SCOPE`, no code change |
@@ -315,3 +369,4 @@ customer sees changes.
 | 3 | `core` | `AiToolRegistry`, `AiChatService`, `AiMessageController` |
 | 4 | `core` | `CoreAiToolProvider`, the seven tools |
 | 5 | `core` | `AiMessageIT` |
+| 6 | `core` | (Added 2026-11-23) `AiRateLimiter`, the `429 AI_RATE_LIMITED` handler, the two settings lines, the four new mask keys, their tests |
