@@ -210,8 +210,8 @@ class RoleCatalogueIT {
                     .containsAll(NEW_CORE_CODES);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code LIKE 'core.%'"))
                     .as(
-                            "23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2) + 7 wfh (W-74) + 3 onboarding (W-102)")
-                    .isEqualTo(72);
+                            "23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2) + 7 wfh (W-74) + 3 onboarding (W-102) + 2 tenant_option (W-104)")
+                    .isEqualTo(74);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE split_part(code, '.', 1) <> module"))
                     .isZero();
         }
@@ -267,6 +267,49 @@ class RoleCatalogueIT {
                         .as("D-140 (V189): core.pay_input.read granted to hr")
                         .isTrue();
             }
+        }
+    }
+
+    @Test
+    void tenantOptionActions_existAndAreGrantedToRoles() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            assertThat(
+                            count(
+                                    conn,
+                                    "SELECT count(*) FROM reference.action WHERE code IN ('core.tenant_option.read', 'core.tenant_option.manage')"))
+                    .isEqualTo(2);
+
+            for (UUID tenant : List.of(TENANT_A, TENANT_B)) {
+                assertThat(holds(conn, tenant, "tenant-admin", "core.tenant_option.read"))
+                        .isTrue();
+                assertThat(holds(conn, tenant, "tenant-admin", "core.tenant_option.manage"))
+                        .isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.tenant_option.read")).isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.tenant_option.manage"))
+                        .isFalse();
+                assertThat(holds(conn, tenant, "payroll-officer", "core.tenant_option.read"))
+                        .isTrue();
+                assertThat(holds(conn, tenant, "payroll-officer", "core.tenant_option.manage"))
+                        .isFalse();
+                assertThat(holds(conn, tenant, "employee", "core.tenant_option.read"))
+                        .isFalse();
+            }
+
+            // A tenant created after the migration holds them too
+            UUID tenantNew = UUID.randomUUID();
+            try (PreparedStatement ps =
+                    conn.prepareStatement("INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?)")) {
+                ps.setObject(1, tenantNew);
+                ps.setString(2, "Roles Option Test");
+                ps.executeUpdate();
+            }
+            assertThat(holds(conn, tenantNew, "tenant-admin", "core.tenant_option.read"))
+                    .isTrue();
+            assertThat(holds(conn, tenantNew, "tenant-admin", "core.tenant_option.manage"))
+                    .isTrue();
+            assertThat(holds(conn, tenantNew, "hr", "core.tenant_option.read")).isTrue();
+            assertThat(holds(conn, tenantNew, "payroll-officer", "core.tenant_option.read"))
+                    .isTrue();
         }
     }
 

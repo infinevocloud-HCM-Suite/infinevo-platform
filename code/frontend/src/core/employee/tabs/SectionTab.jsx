@@ -112,6 +112,16 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
       await employeeService.saveSection(employeeId, sectionName, values);
       await successMsg('Section Saved', `${config.title} saved successfully.`);
     } catch (err) {
+      if (
+        (err?.response?.status === 403 || err?.status === 403) &&
+        (err?.response?.data?.code === 'SELF_EDIT_DISABLED' ||
+          err?.response?.data?.message === 'SELF_EDIT_DISABLED' ||
+          err?.message === 'SELF_EDIT_DISABLED')
+      ) {
+        if (typeof window !== 'undefined' && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent('infinevo:self-edit-disabled'));
+        }
+      }
       await errorMsg(err);
     } finally {
       setSaving(false);

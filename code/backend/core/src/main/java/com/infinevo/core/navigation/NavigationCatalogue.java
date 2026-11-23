@@ -293,6 +293,14 @@ public final class NavigationCatalogue {
                                     "/api/v1/tenants/current/profile",
                                     null,
                                     "core.tenant.read"),
+                            // W-104: Tenant options
+                            new ItemDefinition(
+                                    "core.settings.options",
+                                    "nav.settings.options",
+                                    "/settings/options",
+                                    "/api/v1/tenant-options",
+                                    null,
+                                    "core.tenant_option.read"),
                             // W-102: Onboarding templates
                             new ItemDefinition(
                                     "core.settings.onboarding",

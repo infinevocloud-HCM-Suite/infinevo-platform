@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.attendance.AttendanceStatus;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.option.TenantOptionService;
 import com.infinevo.core.tenant.TenantClock;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
@@ -385,6 +386,48 @@ class ClockServiceTest {
         // Same for clockOut
         org.junit.jupiter.api.Assertions.assertThrows(
                 ClockService.ValidationException.class, () -> service.clockOut(new ClockRequest(95.0, 77.0, 10.0)));
+    }
+
+    @Test
+    @DisplayName("W-104: When location required option is on, clock in/out without coords throws 400 LOCATION_REQUIRED")
+    void locationRequiredOptionEnforced() {
+        TenantOptionService tenantOptionService = mock(TenantOptionService.class);
+        when(tenantOptionService.getBoolean("hrms.attendance.clock_location_required"))
+                .thenReturn(true);
+
+        ClockServiceImpl locationService = new ClockServiceImpl(
+                clockSessions, clockDayService, employeeService, tenantClock, null, clock, tenantOptionService);
+
+        // Clock in with no request -> throws LOCATION_REQUIRED
+        assertThatThrownBy(locationService::clockIn)
+                .isInstanceOf(ClockService.ValidationException.class)
+                .hasMessage("LOCATION_REQUIRED");
+
+        // Clock in with empty request -> throws LOCATION_REQUIRED
+        assertThatThrownBy(() -> locationService.clockIn(new ClockRequest(null, null, null)))
+                .isInstanceOf(ClockService.ValidationException.class)
+                .hasMessage("LOCATION_REQUIRED");
+
+        // Clock out with no request -> throws LOCATION_REQUIRED
+        assertThatThrownBy(locationService::clockOut)
+                .isInstanceOf(ClockService.ValidationException.class)
+                .hasMessage("LOCATION_REQUIRED");
+
+        verify(clockSessions, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("W-104: When location required option is off, clock in without coords passes")
+    void locationNotRequiredOptionAllowsNoCoords() {
+        TenantOptionService tenantOptionService = mock(TenantOptionService.class);
+        when(tenantOptionService.getBoolean("hrms.attendance.clock_location_required"))
+                .thenReturn(false);
+
+        ClockServiceImpl locationService = new ClockServiceImpl(
+                clockSessions, clockDayService, employeeService, tenantClock, null, clock, tenantOptionService);
+
+        ClockSessionResponse resp = locationService.clockIn();
+        assertThat(resp).isNotNull();
     }
 
     private static class MutableClock extends Clock {

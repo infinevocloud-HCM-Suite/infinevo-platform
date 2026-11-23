@@ -6,6 +6,25 @@ import { hmm, timeOf } from './format.js';
 import { formatDate } from '@shared/ui/format.js';
 import { StatusTag } from '@shared/ui/StatusTag.jsx';
 
+function getBrowserCoordinates() {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return null;
+  }
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracyMeters: pos.coords.accuracy || null,
+        });
+      },
+      () => resolve(null),
+      { timeout: 5000, enableHighAccuracy: true }
+    );
+  });
+}
+
 /**
  * Clock in / clock out for today (W-48.4 §5). The date shown is the server's; the running time is display
  * only and is never sent anywhere.
@@ -55,16 +74,23 @@ export function ClockCard({ onDay }) {
     setBusy(true);
     setError(null);
     try {
+      const coordsPromise = getBrowserCoordinates();
+      const coords = coordsPromise ? await coordsPromise : null;
       if (open && !isStale) {
-        const out = await attendanceService.clockOut();
+        const out = await attendanceService.clockOut(coords || undefined);
         setDayStatus(out?.status || null);
       } else {
-        await attendanceService.clockIn();
+        await attendanceService.clockIn(coords || undefined);
         setDayStatus(null);
       }
       await load();
     } catch (err) {
-      setError(err?.message || 'Something went wrong');
+      const msg = err?.response?.data?.message || err?.message;
+      if (msg === 'LOCATION_REQUIRED' || (msg && msg.includes('LOCATION_REQUIRED'))) {
+        setError('Location is required to clock in.');
+      } else {
+        setError(msg || 'Something went wrong');
+      }
     } finally {
       setBusy(false);
     }

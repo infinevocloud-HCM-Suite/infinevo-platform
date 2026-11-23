@@ -110,6 +110,9 @@ const AuditLogScreen = lazy(() =>
 const CompanyProfile = lazy(() =>
   import('./settings/CompanyProfile.jsx').then((m) => ({ default: m.CompanyProfile }))
 );
+const TenantOptionsScreen = lazy(() =>
+  import('./settings/TenantOptionsScreen.jsx').then((m) => ({ default: m.TenantOptionsScreen }))
+);
 const OnboardingTemplateSettings = lazy(() =>
   import('./onboarding/OnboardingTemplateSettings.jsx').then((m) => ({ default: m.OnboardingTemplateSettings }))
 );
@@ -175,6 +178,8 @@ export const routes = [
   { path: '/wfh/import', element: React.createElement(WfhImport) },
   // W-73.1: mounted when the feed carries `core.settings.company`.
   { path: '/settings/company', element: React.createElement(CompanyProfile) },
+  // W-104: mounted when the feed carries `core.settings.options`.
+  { path: '/settings/options', element: React.createElement(TenantOptionsScreen) },
   // W-102: mounted when the feed carries `core.settings.onboarding`.
   { path: '/settings/onboarding', element: React.createElement(OnboardingTemplateSettings) },
   // Platform staff only: mounted when the feed carries `core.admin.home` (W-73.2) or `core.tenants`

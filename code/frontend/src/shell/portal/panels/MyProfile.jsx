@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Card, Descriptions, Skeleton, Result, Button, Avatar, Space, Row, Col, Typography, theme } from 'antd';
+import { Card, Descriptions, Skeleton, Result, Button, Avatar, Space, Row, Col, Typography, Alert, theme } from 'antd';
 import { UserOutlined, MailOutlined, PhoneOutlined, CalendarOutlined, IdcardOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 import { EMPTY, formatDate, humanize, statusLabel } from '../../../shared/ui/format.js';
@@ -14,7 +14,14 @@ export function MyProfile({ actions }) {
   const [managerName, setManagerName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selfEditDisabled, setSelfEditDisabled] = useState(false);
   const { token } = theme.useToken();
+
+  useEffect(() => {
+    const handleDisabled = () => setSelfEditDisabled(true);
+    window.addEventListener('infinevo:self-edit-disabled', handleDisabled);
+    return () => window.removeEventListener('infinevo:self-edit-disabled', handleDisabled);
+  }, []);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -24,11 +31,21 @@ export function MyProfile({ actions }) {
       const [data, names] = await Promise.all([portalService.getProfile(), portalService.getOrgNames()]);
       setEmployee(data);
       setOrgNames(names);
+      if (data?.selfEdit === false || data?.selfEditDisabled || data?.self_edit === false) {
+        setSelfEditDisabled(true);
+      }
       if (data?.id) {
         const mgr = await portalService.getReportingManager(data.id);
         setManagerName(mgr);
       }
     } catch (err) {
+      if (
+        err?.response?.status === 403 &&
+        (err?.response?.data?.code === 'SELF_EDIT_DISABLED' ||
+          err?.response?.data?.message === 'SELF_EDIT_DISABLED')
+      ) {
+        setSelfEditDisabled(true);
+      }
       setError(err?.response?.data?.message || err.message || 'Failed to load profile');
     } finally {
       setLoading(false);
@@ -150,12 +167,23 @@ export function MyProfile({ actions }) {
         </Card>
       </Col>
 
-      {actions ? (
+      {selfEditDisabled || employee?.selfEdit === false || employee?.selfEditDisabled ? (
+        <Col span={24} data-testid="self-edit-disabled-banner">
+          <Alert
+            type="info"
+            showIcon
+            message="Your company has switched off profile changes. Ask HR to update your details."
+          />
+        </Col>
+      ) : actions ? (
         <Col span={24} data-testid="panel-profile-actions">
           {actions.EditOwnSection ? (
-            <actions.EditOwnSection employeeId={employee.id} />
+            <actions.EditOwnSection
+              employeeId={employee.id}
+              onSelfEditDisabled={() => setSelfEditDisabled(true)}
+            />
           ) : typeof actions === 'function' ? (
-            actions({ employee, refresh: fetchProfile })
+            actions({ employee, refresh: fetchProfile, onSelfEditDisabled: () => setSelfEditDisabled(true) })
           ) : (
             actions
           )}

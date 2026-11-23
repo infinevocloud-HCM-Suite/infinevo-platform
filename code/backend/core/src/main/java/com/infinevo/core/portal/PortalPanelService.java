@@ -2,6 +2,7 @@ package com.infinevo.core.portal;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.option.TenantOptionService;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import java.util.ArrayList;
@@ -35,16 +36,27 @@ public class PortalPanelService {
     private final PermissionService permissionService;
     private final EntitlementService entitlementService;
     private final List<PortalPanelProvider> providers;
+    private final TenantOptionService tenantOptionService;
 
     public PortalPanelService(
             EmployeeService employeeService,
             PermissionService permissionService,
             EntitlementService entitlementService,
             List<PortalPanelProvider> providers) {
+        this(employeeService, permissionService, entitlementService, providers, null);
+    }
+
+    public PortalPanelService(
+            EmployeeService employeeService,
+            PermissionService permissionService,
+            EntitlementService entitlementService,
+            List<PortalPanelProvider> providers,
+            TenantOptionService tenantOptionService) {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
         this.entitlementService = Objects.requireNonNull(entitlementService, "entitlementService must not be null");
         this.providers = providers != null ? List.copyOf(providers) : List.of();
+        this.tenantOptionService = tenantOptionService;
     }
 
     public List<PanelDescriptor> getPanels() {
@@ -64,6 +76,14 @@ public class PortalPanelService {
         for (PortalPanelProvider provider : providers) {
             if (provider == null) {
                 continue;
+            }
+            // Gate 1.5: Tenant option visibility (W-104)
+            if (!"profile".equalsIgnoreCase(provider.code()) && tenantOptionService != null) {
+                String optionKey = "core.portal.panel." + provider.code() + ".visible";
+                if (!tenantOptionService.getBoolean(optionKey)) {
+                    log.debug("Panel {} excluded: option {} is disabled", provider.code(), optionKey);
+                    continue;
+                }
             }
             // Gate 2: Module entitlement
             if (provider.module() != null && !entitlementService.holds(provider.module())) {

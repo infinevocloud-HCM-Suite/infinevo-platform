@@ -160,7 +160,12 @@ export function MobileAttendanceScreen() {
       }
       await loadData();
     } catch (err) {
-      setError(err?.message || 'Attendance mark failed');
+      const msg = err?.response?.data?.message || err?.message;
+      if (msg === 'LOCATION_REQUIRED' || (msg && msg.includes('LOCATION_REQUIRED'))) {
+        setError('Location is required to clock in.');
+      } else {
+        setError(msg || 'Attendance mark failed');
+      }
     } finally {
       setBusy(false);
     }
@@ -228,6 +233,13 @@ export function MobileAttendanceScreen() {
         <Alert
           type="error"
           message={error}
+          action={
+            error === 'Location is required to clock in.' ? (
+              <Button size="small" type="primary" onClick={handleGrantConsent}>
+                Enable Location
+              </Button>
+            ) : undefined
+          }
           showIcon
           closable
           onClose={() => setError(null)}

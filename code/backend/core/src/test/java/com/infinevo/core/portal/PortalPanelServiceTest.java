@@ -1,12 +1,14 @@
 package com.infinevo.core.portal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.core.option.TenantOptionService;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import com.infinevo.shared.entitlement.PlatformModule;
@@ -268,5 +270,29 @@ class PortalPanelServiceTest {
         List<PanelDescriptor> panels = service.getPanels();
 
         assertThat(panels).isEmpty();
+    }
+
+    @Test
+    @DisplayName("W-104: A panel whose option is off is left out; profile always stays")
+    void panelWithOptionDisabledIsLeftOut_profileAlwaysStays() {
+        TenantOptionService tenantOptionService = mock(TenantOptionService.class);
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(enabledEmployee));
+        when(entitlementService.holds(any())).thenReturn(true);
+        when(permissionService.holds(any())).thenReturn(true);
+
+        when(tenantOptionService.getBoolean("core.portal.panel.leave.visible")).thenReturn(false);
+        when(tenantOptionService.getBoolean("core.portal.panel.documents.visible"))
+                .thenReturn(true);
+
+        PortalPanelService service = new PortalPanelService(
+                employeeService,
+                permissionService,
+                entitlementService,
+                List.of(profileProvider, leaveProvider, documentProvider),
+                tenantOptionService);
+
+        List<PanelDescriptor> panels = service.getPanels();
+        assertThat(panels).extracting(PanelDescriptor::code).containsExactly("profile", "documents");
+        assertThat(panels).extracting(PanelDescriptor::code).doesNotContain("leave");
     }
 }

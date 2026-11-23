@@ -54,6 +54,7 @@ export const NAV_LABELS = {
   'nav.settings': 'Settings',
   'nav.settings.company': 'Company profile',
   'nav.settings.onboarding': 'Onboarding templates',
+  'nav.settings.options': 'Options',
   'nav.setup': 'Setup',
   'nav.tenants': 'Tenants',
   'nav.users': 'Users & access',

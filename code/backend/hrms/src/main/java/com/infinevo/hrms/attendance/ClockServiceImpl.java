@@ -4,6 +4,7 @@ import com.infinevo.core.attendance.Attendance;
 import com.infinevo.core.attendance.AttendanceRepository;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.option.TenantOptionService;
 import com.infinevo.core.tenant.TenantClock;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
@@ -34,6 +35,7 @@ public class ClockServiceImpl implements ClockService {
     private final TenantClock tenantClock;
     private final AttendanceRepository attendanceRepository;
     private final Clock clock;
+    private final TenantOptionService tenantOptionService;
 
     @Autowired
     public ClockServiceImpl(
@@ -42,14 +44,16 @@ public class ClockServiceImpl implements ClockService {
             EmployeeService employeeService,
             TenantClock tenantClock,
             org.springframework.beans.factory.ObjectProvider<AttendanceRepository> attendanceRepoProvider,
-            org.springframework.beans.factory.ObjectProvider<Clock> clockProvider) {
+            org.springframework.beans.factory.ObjectProvider<Clock> clockProvider,
+            org.springframework.beans.factory.ObjectProvider<TenantOptionService> tenantOptionServiceProvider) {
         this(
                 clockSessions,
                 clockDayService,
                 employeeService,
                 tenantClock,
                 attendanceRepoProvider != null ? attendanceRepoProvider.getIfAvailable() : null,
-                clockProvider != null ? clockProvider.getIfAvailable(Clock::systemUTC) : Clock.systemUTC());
+                clockProvider != null ? clockProvider.getIfAvailable(Clock::systemUTC) : Clock.systemUTC(),
+                tenantOptionServiceProvider != null ? tenantOptionServiceProvider.getIfAvailable() : null);
     }
 
     public ClockServiceImpl(
@@ -65,7 +69,8 @@ public class ClockServiceImpl implements ClockService {
                 employeeService,
                 tenantClock,
                 attendanceRepository,
-                clockProvider != null ? clockProvider.getIfAvailable(Clock::systemUTC) : Clock.systemUTC());
+                clockProvider != null ? clockProvider.getIfAvailable(Clock::systemUTC) : Clock.systemUTC(),
+                null);
     }
 
     public ClockServiceImpl(
@@ -74,7 +79,7 @@ public class ClockServiceImpl implements ClockService {
             EmployeeService employeeService,
             TenantClock tenantClock,
             Clock clock) {
-        this(clockSessions, clockDayService, employeeService, tenantClock, null, clock);
+        this(clockSessions, clockDayService, employeeService, tenantClock, null, clock, null);
     }
 
     public ClockServiceImpl(
@@ -84,12 +89,24 @@ public class ClockServiceImpl implements ClockService {
             TenantClock tenantClock,
             AttendanceRepository attendanceRepository,
             Clock clock) {
+        this(clockSessions, clockDayService, employeeService, tenantClock, attendanceRepository, clock, null);
+    }
+
+    public ClockServiceImpl(
+            ClockSessionRepository clockSessions,
+            ClockDayService clockDayService,
+            EmployeeService employeeService,
+            TenantClock tenantClock,
+            AttendanceRepository attendanceRepository,
+            Clock clock,
+            TenantOptionService tenantOptionService) {
         this.clockSessions = Objects.requireNonNull(clockSessions, "clockSessions must not be null");
         this.clockDayService = Objects.requireNonNull(clockDayService, "clockDayService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.tenantClock = Objects.requireNonNull(tenantClock, "tenantClock must not be null");
         this.attendanceRepository = attendanceRepository;
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.tenantOptionService = tenantOptionService;
     }
 
     @Override
@@ -165,6 +182,11 @@ public class ClockServiceImpl implements ClockService {
     }
 
     private void validateCoordinates(ClockRequest request) {
+        if (tenantOptionService != null && tenantOptionService.getBoolean("hrms.attendance.clock_location_required")) {
+            if (request == null || request.latitude() == null || request.longitude() == null) {
+                throw new ValidationException("LOCATION_REQUIRED");
+            }
+        }
         if (request == null) {
             return;
         }

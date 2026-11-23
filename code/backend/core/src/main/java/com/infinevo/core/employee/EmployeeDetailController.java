@@ -16,6 +16,8 @@ import com.infinevo.core.employee.detail.EmployeeIdentificationService;
 import com.infinevo.core.employee.detail.EmployeePersonalRequest;
 import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
+import com.infinevo.core.option.TenantOptionService;
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
@@ -75,6 +77,8 @@ public class EmployeeDetailController {
     private final EmployeeIdentificationService identificationService;
     private final EmployeeEmploymentService employmentService;
     private final EmployeeBankService bankService;
+    private final PermissionService permissionService;
+    private final TenantOptionService tenantOptionService;
 
     public EmployeeDetailController(
             EmployeePersonalService personalService,
@@ -82,12 +86,35 @@ public class EmployeeDetailController {
             EmployeeIdentificationService identificationService,
             EmployeeEmploymentService employmentService,
             EmployeeBankService bankService) {
+        this(personalService, contactService, identificationService, employmentService, bankService, null, null);
+    }
+
+    public EmployeeDetailController(
+            EmployeePersonalService personalService,
+            EmployeeContactService contactService,
+            EmployeeIdentificationService identificationService,
+            EmployeeEmploymentService employmentService,
+            EmployeeBankService bankService,
+            PermissionService permissionService,
+            TenantOptionService tenantOptionService) {
         this.personalService = Objects.requireNonNull(personalService, "personalService must not be null");
         this.contactService = Objects.requireNonNull(contactService, "contactService must not be null");
         this.identificationService =
                 Objects.requireNonNull(identificationService, "identificationService must not be null");
         this.employmentService = Objects.requireNonNull(employmentService, "employmentService must not be null");
         this.bankService = Objects.requireNonNull(bankService, "bankService must not be null");
+        this.permissionService = permissionService;
+        this.tenantOptionService = tenantOptionService;
+    }
+
+    private void checkSelfEditAllowed() {
+        if (permissionService != null && tenantOptionService != null) {
+            if (!permissionService.holds("core.employee.update")) {
+                if (!tenantOptionService.getBoolean("core.employee.self_edit")) {
+                    throw new SelfEditDisabledException();
+                }
+            }
+        }
     }
 
     @GetMapping("/personal")
@@ -100,6 +127,7 @@ public class EmployeeDetailController {
     @RequiresAction(value = "core.employee.update", anyOf = "core.employee.update_own")
     public EmployeePersonalResponse putPersonal(
             @PathVariable("id") UUID id, @RequestBody EmployeePersonalRequest request) {
+        checkSelfEditAllowed();
         return personalService.put(id, request);
     }
 
@@ -113,6 +141,7 @@ public class EmployeeDetailController {
     @RequiresAction(value = "core.employee.update", anyOf = "core.employee.update_own")
     public EmployeeContactResponse putContact(
             @PathVariable("id") UUID id, @RequestBody EmployeeContactRequest request) {
+        checkSelfEditAllowed();
         return contactService.put(id, request);
     }
 
@@ -152,6 +181,23 @@ public class EmployeeDetailController {
     @RequiresAction("core.employee_bank.update")
     public EmployeeBankResponse putBank(@PathVariable("id") UUID id, @RequestBody EmployeeBankRequest request) {
         return bankService.put(id, request);
+    }
+
+    public static class SelfEditDisabledException extends RuntimeException {
+        public SelfEditDisabledException() {
+            super("SELF_EDIT_DISABLED");
+        }
+    }
+
+    @ExceptionHandler(SelfEditDisabledException.class)
+    public ResponseEntity<ApiErrorResponse> handleSelfEditDisabled(SelfEditDisabledException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiErrorResponse(
+                        "SELF_EDIT_DISABLED",
+                        "SELF_EDIT_DISABLED",
+                        java.util.Map.of(),
+                        traceId(),
+                        java.time.Instant.now()));
     }
 
     /**
