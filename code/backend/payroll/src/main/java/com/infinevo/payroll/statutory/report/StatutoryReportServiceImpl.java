@@ -17,6 +17,7 @@ import com.infinevo.payroll.payrun.PayRun;
 import com.infinevo.payroll.payrun.PayRunNotFoundException;
 import com.infinevo.payroll.payrun.PayRunRepository;
 import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfile;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfileRepository;
 import com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository;
@@ -195,6 +196,11 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
         PayRun run = payRunRepository
                 .findByIdAndTenantId(payrunId, tenantId)
                 .orElseThrow(() -> new PayRunNotFoundException(payrunId));
+
+        if (run.getRunType() == PayRunType.OFF_CYCLE) {
+            throw new IllegalArgumentException(
+                    "Statutory reports cannot be generated for off-cycle pay runs: " + payrunId);
+        }
 
         if (!ALLOWED_STATUSES.contains(run.getStatus())) {
             throw new PayFigureNotComputedException(payrunId, run.getStatus());

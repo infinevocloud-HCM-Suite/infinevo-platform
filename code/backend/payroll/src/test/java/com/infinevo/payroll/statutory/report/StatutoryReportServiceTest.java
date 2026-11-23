@@ -22,6 +22,7 @@ import com.infinevo.payroll.payrun.PayRun;
 import com.infinevo.payroll.payrun.PayRunNotFoundException;
 import com.infinevo.payroll.payrun.PayRunRepository;
 import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfile;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfileRepository;
 import com.infinevo.payroll.statutory.pt.OrgPtOverride;
@@ -606,5 +607,29 @@ class StatutoryReportServiceTest {
 
         assertThatThrownBy(() -> service.generateEsiReturnFile(PAYRUN_ID, ExportFormat.XLSX))
                 .isInstanceOf(PayRunNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("Refuses statutory reports for OFF_CYCLE pay runs with 400 Bad Request exception")
+    void refuses_OffCycleRun() {
+        PayRun offCycleRun = mock(PayRun.class);
+        when(offCycleRun.getRunType()).thenReturn(PayRunType.OFF_CYCLE);
+        when(payRunRepository.findByIdAndTenantId(PAYRUN_ID, TENANT_ID)).thenReturn(Optional.of(offCycleRun));
+
+        assertThatThrownBy(() -> service.generateEsiReturnFile(PAYRUN_ID, ExportFormat.XLSX))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Statutory reports cannot be generated for off-cycle pay runs");
+
+        assertThatThrownBy(() -> service.generatePtReturnFile(PAYRUN_ID, ExportFormat.CSV, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Statutory reports cannot be generated for off-cycle pay runs");
+
+        assertThatThrownBy(() -> service.generateEsiReturn(PAYRUN_ID, ExportFormat.CSV))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Statutory reports cannot be generated for off-cycle pay runs");
+
+        assertThatThrownBy(() -> service.generatePtReturn(PAYRUN_ID, ExportFormat.XLSX, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Statutory reports cannot be generated for off-cycle pay runs");
     }
 }
