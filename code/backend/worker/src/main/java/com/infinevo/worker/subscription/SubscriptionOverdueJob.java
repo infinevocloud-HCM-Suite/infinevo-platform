@@ -52,6 +52,7 @@ public class SubscriptionOverdueJob {
 
         for (UUID tenantId : tenantIds) {
             try {
+                TenantContext.set(tenantId);
                 subscriptionService.markPastDue(tenantId, asOf);
             } catch (Exception e) {
                 log.error("Error marking subscription past due for tenant {}", tenantId, e);

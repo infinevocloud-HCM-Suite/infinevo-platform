@@ -358,8 +358,17 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             if (rebind) {
                 if (previousTenant != null) {
                     TenantContext.set(previousTenant);
-                } else {
+                } else if (!org.springframework.transaction.support.TransactionSynchronizationManager
+                        .isActualTransactionActive()) {
                     TenantContext.clear();
+                } else {
+                    org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                            new org.springframework.transaction.support.TransactionSynchronization() {
+                                @Override
+                                public void afterCompletion(int status) {
+                                    TenantContext.clear();
+                                }
+                            });
                 }
             }
         }
