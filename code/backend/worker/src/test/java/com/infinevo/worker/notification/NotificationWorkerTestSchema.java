@@ -73,7 +73,7 @@ public final class NotificationWorkerTestSchema {
                         "core/V117__user_invitation.sql",
                         "core/V138__subscription_status_check.sql",
                         "core/V188__subscription_plan.sql",
-                        "core/V199__subscription_period_end.sql",
+                        "core/V208__subscription_period_end.sql",
                         "core/V038__notification_template.sql",
                         "core/V039__notification.sql",
                         "core/V093__reminder_rule.sql"

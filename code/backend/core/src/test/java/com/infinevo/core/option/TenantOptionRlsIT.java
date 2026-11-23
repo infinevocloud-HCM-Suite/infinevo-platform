@@ -41,7 +41,7 @@ class TenantOptionRlsIT extends AbstractIntegrationTest {
                 executeSqlResource(conn, "db/migration/core/V001__tenant.sql");
             }
             if (!tableExists(conn, "core", "tenant_option")) {
-                executeSqlResource(conn, "db/migration/core/V200__tenant_option.sql");
+                executeSqlResource(conn, "db/migration/core/V209__tenant_option.sql");
             }
         }
     }

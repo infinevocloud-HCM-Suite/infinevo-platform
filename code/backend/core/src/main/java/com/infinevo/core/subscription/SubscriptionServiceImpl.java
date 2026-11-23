@@ -280,7 +280,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             return toResponse(subscription, activeModules);
         }
 
-        // 3. Cross-tenant write through the SECURITY DEFINER setter (V188/V199), called as set_subscription_status is
+        // 3. Cross-tenant write through the SECURITY DEFINER setter (V188/V208), called as set_subscription_status is
         jdbcTemplate.execute((Connection conn) -> {
             try (PreparedStatement ps = conn.prepareStatement("SELECT core.set_subscription_plan(?, ?, ?, ?, ?)")) {
                 ps.setObject(1, tenantId);

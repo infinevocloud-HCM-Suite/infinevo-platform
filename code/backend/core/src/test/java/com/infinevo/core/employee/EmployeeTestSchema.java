@@ -126,11 +126,11 @@ public final class EmployeeTestSchema {
                 executeResource(conn, "db/migration/core/V188__subscription_plan.sql");
             }
             if (!tableExists(conn, "onboarding_task_template")) {
-                executeResource(conn, "db/migration/core/V192__employee_onboarding_tasks.sql");
-                executeResource(conn, "db/migration/core/V197__onboarding_role_check_and_grants.sql");
+                executeResource(conn, "db/migration/core/V201__employee_onboarding_tasks.sql");
+                executeResource(conn, "db/migration/core/V206__onboarding_role_check_and_grants.sql");
             }
             if (!tableExists(conn, "tenant_option")) {
-                executeResource(conn, "db/migration/core/V200__tenant_option.sql");
+                executeResource(conn, "db/migration/core/V209__tenant_option.sql");
             }
         }
     }

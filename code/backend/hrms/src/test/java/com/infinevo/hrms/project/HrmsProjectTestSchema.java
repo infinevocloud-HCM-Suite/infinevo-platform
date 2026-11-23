@@ -79,7 +79,7 @@ public final class HrmsProjectTestSchema {
                         "core/V030__attendance.sql",
                         "core/V033__tenant_locale_columns.sql",
                         "hrms/V123__clock_session.sql",
-                        "hrms/V198__clock_session_location.sql",
+                        "hrms/V207__clock_session_location.sql",
                         "hrms/V124__attendance_regularization.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
@@ -89,7 +89,7 @@ public final class HrmsProjectTestSchema {
                         "core/V030__attendance.sql",
                         "core/V033__tenant_locale_columns.sql",
                         "hrms/V123__clock_session.sql",
-                        "hrms/V198__clock_session_location.sql",
+                        "hrms/V207__clock_session_location.sql",
                         "hrms/V124__attendance_regularization.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
@@ -103,7 +103,7 @@ public final class HrmsProjectTestSchema {
                 }
                 if (tableExists(conn, "hrms", "clock_session")
                         && !columnExists(conn, "hrms", "clock_session", "in_latitude")) {
-                    executeResource(conn, "db/migration/hrms/V198__clock_session_location.sql");
+                    executeResource(conn, "db/migration/hrms/V207__clock_session_location.sql");
                 }
                 if (!tableExists(conn, "core", "overtime_request")) {
                     // W-40.6: core's overtime and pay input ledger, the hrms.overtime.request code, and the grant list
@@ -123,10 +123,10 @@ public final class HrmsProjectTestSchema {
                 }
                 if (!tableExists(conn, "hrms", "performance_cycle")) {
                     for (String script : new String[] {
-                        "hrms/V193__performance_review_cycles.sql",
-                        "hrms/V194__employee_goals_and_okrs.sql",
-                        "hrms/V195__performance_review_fixes.sql",
-                        "hrms/V196__employee_goal_check_in.sql"
+                        "hrms/V202__performance_review_cycles.sql",
+                        "hrms/V203__employee_goals_and_okrs.sql",
+                        "hrms/V204__performance_review_fixes.sql",
+                        "hrms/V205__employee_goal_check_in.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }
