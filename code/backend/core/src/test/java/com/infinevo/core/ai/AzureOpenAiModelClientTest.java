@@ -148,9 +148,19 @@ class AzureOpenAiModelClientTest {
         assertThat(assistant.path("content").isNull()).isTrue();
         assertThat(assistant.path("tool_calls").path(0).path("id").asText()).isEqualTo("call_1");
         assertThat(assistant.path("tool_calls").path(0).path("type").asText()).isEqualTo("function");
-        assertThat(assistant.path("tool_calls").path(0).path("function").path("name").asText())
+        assertThat(assistant
+                        .path("tool_calls")
+                        .path(0)
+                        .path("function")
+                        .path("name")
+                        .asText())
                 .isEqualTo("core__holidays");
-        assertThat(assistant.path("tool_calls").path(0).path("function").path("arguments").asText())
+        assertThat(assistant
+                        .path("tool_calls")
+                        .path(0)
+                        .path("function")
+                        .path("arguments")
+                        .asText())
                 .isEqualTo("{\"from\":\"x\"}");
         JsonNode tool = messages.path(3);
         assertThat(tool.path("role").asText()).isEqualTo("tool");
@@ -161,7 +171,8 @@ class AzureOpenAiModelClientTest {
     @Test
     @DisplayName("a tool_calls reply is parsed, the name comes back with the dot and arguments stay a string")
     void toolCallsReply() {
-        reply = """
+        reply =
+                """
                 {"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":null,
                  "tool_calls":[{"id":"call_9","type":"function",
                    "function":{"name":"core__my_leave_balances","arguments":"{\\"asOf\\":\\"2026-11-23\\"}"}}]}}],
@@ -205,7 +216,8 @@ class AzureOpenAiModelClientTest {
     @DisplayName("400 with code content_filter is the filtered result, not an exception")
     void promptFiltered() {
         status = 400;
-        reply = """
+        reply =
+                """
                 {"error":{"code":"content_filter","message":"The response was filtered",
                  "innererror":{"code":"ResponsibleAIPolicyViolation"}}}
                 """;
@@ -215,7 +227,8 @@ class AzureOpenAiModelClientTest {
     @Test
     @DisplayName("finish_reason content_filter is the filtered result, not an exception")
     void answerFiltered() {
-        reply = """
+        reply =
+                """
                 {"choices":[{"finish_reason":"content_filter","message":{"role":"assistant","content":null}}]}
                 """;
         assertThat(client.send(request(List.of())).kind()).isEqualTo(AiModelResponse.Kind.FILTERED);
@@ -257,8 +270,8 @@ class AzureOpenAiModelClientTest {
         MutableClock clock = new MutableClock(start);
         TokenCredential credential = ctx -> Mono.fromSupplier(() -> new AccessToken(
                 "t" + fetches.incrementAndGet(), OffsetDateTime.ofInstant(start.plusSeconds(3600), ZoneOffset.UTC)));
-        AzureOpenAiModelClient.CachedToken token =
-                new AzureOpenAiModelClient.CachedToken(credential, "https://cognitiveservices.azure.com/.default", clock);
+        AzureOpenAiModelClient.CachedToken token = new AzureOpenAiModelClient.CachedToken(
+                credential, "https://cognitiveservices.azure.com/.default", clock);
 
         assertThat(token.get()).isEqualTo("t1");
         clock.now = start.plusSeconds(3600 - 301);
@@ -277,7 +290,11 @@ class AzureOpenAiModelClientTest {
 
     private static AiModelRequest request(List<AiToolDescriptor> tools) {
         return new AiModelRequest(
-                "Be helpful.", List.of(AiModelRequest.Message.user("How much leave?")), tools, 1024, Duration.ofSeconds(5));
+                "Be helpful.",
+                List.of(AiModelRequest.Message.user("How much leave?")),
+                tools,
+                1024,
+                Duration.ofSeconds(5));
     }
 
     private static String textReply(String text, String finish) {

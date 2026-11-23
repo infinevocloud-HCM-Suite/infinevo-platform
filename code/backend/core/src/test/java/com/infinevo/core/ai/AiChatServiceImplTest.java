@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -135,7 +136,8 @@ class AiChatServiceImplTest {
         EntitlementService entitlements = mock(EntitlementService.class);
         when(entitlements.holds(any(PlatformModule.class))).thenReturn(true);
         balances = new BalancesTool();
-        AiToolRegistry registry = new AiToolRegistry(permissions, entitlements, List.of(() -> List.of(balances)));
+        AiToolProvider provider = () -> List.of(balances);
+        AiToolRegistry registry = new AiToolRegistry(permissions, entitlements, List.of(provider));
         granted.add("core.leave.read_own");
 
         model = new StubAiModelClient();
@@ -210,16 +212,14 @@ class AiChatServiceImplTest {
     @Test
     @DisplayName("a tool result is masked before it is sent and stored: the PAN never leaves")
     void toolResultMasked() {
-        model.script(
-                AiModelResponse.toolCall("call_1", "core.my_leave_balances", "{}"),
-                AiModelResponse.text("Done."));
+        model.script(AiModelResponse.toolCall("call_1", "core.my_leave_balances", "{}"), AiModelResponse.text("Done."));
 
         service.send(mine.getId(), "How much leave?");
 
         String toolRow = messageStore.get(1).getContent();
         assertThat(toolRow).doesNotContain(PAN).contains("\"pan\":\"[hidden]\"").contains("[PAN]");
-        assertThat(model.requests().get(1).messages().get(model.requests().get(1).messages().size() - 1).content())
-                .isEqualTo(toolRow);
+        List<AiModelRequest.Message> second = model.requests().get(1).messages();
+        assertThat(second.get(second.size() - 1).content()).isEqualTo(toolRow);
     }
 
     @Test
@@ -258,8 +258,7 @@ class AiChatServiceImplTest {
     void modelErrorKeepsUser() {
         model.scriptFailure();
 
-        assertThatThrownBy(() -> service.send(mine.getId(), "How much leave?"))
-                .isInstanceOf(AiModelException.class);
+        assertThatThrownBy(() -> service.send(mine.getId(), "How much leave?")).isInstanceOf(AiModelException.class);
 
         assertThat(roles()).containsExactly(AiMessageRole.USER);
         verify(gate, times(1)).consume();
@@ -268,18 +267,16 @@ class AiChatServiceImplTest {
     @Test
     @DisplayName("consume() is called exactly once, before the first model call, however many rounds")
     void consumeOnceBeforeModel() {
-        AtomicInteger consumedBeforeFirstCall = new AtomicInteger(-1);
+        AtomicInteger gateCallsAtFirstModelCall = new AtomicInteger(-1);
         model.scriptStep(request -> {
-            consumedBeforeFirstCall.set(
-                    org.mockito.Mockito.mockingDetails(gate).getInvocations().size());
+            gateCallsAtFirstModelCall.set(mockingDetails(gate).getInvocations().size());
             return AiModelResponse.toolCall("c1", "core.my_leave_balances", "{}");
         });
-        model.script(
-                AiModelResponse.toolCall("c2", "core.my_leave_balances", "{}"), AiModelResponse.text("Done."));
+        model.script(AiModelResponse.toolCall("c2", "core.my_leave_balances", "{}"), AiModelResponse.text("Done."));
 
         service.send(mine.getId(), "How much leave?");
 
-        assertThat(consumedBeforeFirstCall.get()).isEqualTo(1);
+        assertThat(gateCallsAtFirstModelCall.get()).isEqualTo(1);
         verify(gate, times(1)).consume();
     }
 
@@ -385,7 +382,7 @@ class AiChatServiceImplTest {
     }
 
     @Test
-    @DisplayName("history: the last 20 USER and ASSISTANT messages, no TOOL row from an earlier question")
+    @DisplayName("history: USER and ASSISTANT messages only, no TOOL row from an earlier question")
     void historyWithoutToolRows() {
         model.script(
                 AiModelResponse.toolCall("call_1", "core.my_leave_balances", "{}"), AiModelResponse.text("12 days."));
@@ -396,9 +393,11 @@ class AiChatServiceImplTest {
         service.send(mine.getId(), "Is that all?");
 
         List<AiModelRequest.Message> sent = model.requests().get(0).messages();
-        assertThat(sent).extracting(AiModelRequest.Message::role)
+        assertThat(sent)
+                .extracting(AiModelRequest.Message::role)
                 .containsExactly(AiModelRequest.Role.USER, AiModelRequest.Role.ASSISTANT, AiModelRequest.Role.USER);
-        assertThat(sent).extracting(AiModelRequest.Message::content)
+        assertThat(sent)
+                .extracting(AiModelRequest.Message::content)
                 .containsExactly("How much leave?", "12 days.", "Is that all?");
     }
 
@@ -476,7 +475,7 @@ class AiChatServiceImplTest {
     }
 
     @Test
-    @DisplayName("no employee record: the own-data tool is not offered")
+    @DisplayName("no employee record: the own-data tool is not offered and no name is sent")
     void noEmployeeNoOwnDataTool() {
         when(employeeService.currentEmployee()).thenReturn(Optional.empty());
         model.script(AiModelResponse.text("I can't see that."));

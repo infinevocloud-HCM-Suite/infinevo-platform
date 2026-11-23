@@ -240,7 +240,8 @@ class AiToolRegistryTest {
 
         AiToolContext withEmployee = new AiToolContext(tenantId, userId, UUID.randomUUID());
         assertThat(names(registry.toolsFor(withEmployee))).containsExactly("core.my_leave_balances", "core.holidays");
-        assertThat(registry.execute("core.my_leave_balances", withEmployee, null).ok())
+        assertThat(registry.execute("core.my_leave_balances", withEmployee, null)
+                        .ok())
                 .isTrue();
         assertThat(balances.runs.get()).isEqualTo(1);
     }

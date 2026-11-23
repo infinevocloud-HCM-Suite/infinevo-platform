@@ -47,8 +47,7 @@ public class AiMaskingFilter {
     /** Pass 2, in the spec's order: tokens first, so a JWT's digits are not taken for an account number. */
     private static final List<Map.Entry<Pattern, String>> PATTERNS = List.of(
             Map.entry(Pattern.compile("\\bBearer\\s+[A-Za-z0-9._~+/=-]{20,}"), "[TOKEN]"),
-            Map.entry(
-                    Pattern.compile("\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}"), "[TOKEN]"),
+            Map.entry(Pattern.compile("\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}"), "[TOKEN]"),
             Map.entry(Pattern.compile("\\b[A-Za-z]{5}[0-9]{4}[A-Za-z]\\b"), "[PAN]"),
             Map.entry(Pattern.compile("\\b[A-Za-z]{4}0[A-Za-z0-9]{6}\\b"), "[IFSC]"),
             Map.entry(Pattern.compile("\\b[2-9][0-9]{3}[ -]?[0-9]{4}[ -]?[0-9]{4}\\b"), "[AADHAAR]"),

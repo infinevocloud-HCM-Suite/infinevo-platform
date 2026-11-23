@@ -151,9 +151,11 @@ public class AiChatServiceImpl implements AiChatService {
             store(run, AiMessageRole.USER, maskedQuestion);
             LocalDate today = tenantClock.today();
             Optional<EmployeeResponse> me = employeeService.currentEmployee();
-            return new Setup(earlier, today, me.map(EmployeeResponse::id).orElse(null), me.map(
-                            EmployeeResponse::firstName)
-                    .orElse(null));
+            return new Setup(
+                    earlier,
+                    today,
+                    me.map(EmployeeResponse::id).orElse(null),
+                    me.map(EmployeeResponse::firstName).orElse(null));
         });
 
         AiToolContext caller = new AiToolContext(tenantId, userId, setup.employeeId());
@@ -227,9 +229,8 @@ public class AiChatServiceImpl implements AiChatService {
                     List<AiModelResponse.ToolCall> calls = new ArrayList<>();
                     for (int i = 0; i < reply.toolCalls().size(); i++) {
                         AiModelResponse.ToolCall c = reply.toolCalls().get(i);
-                        String id = c.id() == null || c.id().isBlank()
-                                ? "call_" + run.toolRounds + "_" + (i + 1)
-                                : c.id();
+                        String id =
+                                c.id() == null || c.id().isBlank() ? "call_" + run.toolRounds + "_" + (i + 1) : c.id();
                         calls.add(new AiModelResponse.ToolCall(id, c.name(), c.argumentsJson()));
                     }
                     conversation.add(AiModelRequest.Message.assistantToolCalls(calls));

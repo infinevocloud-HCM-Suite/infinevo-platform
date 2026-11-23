@@ -101,9 +101,11 @@ public class AzureOpenAiModelClient implements AiModelClient {
         try {
             response = http.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (HttpTimeoutException e) {
-            throw new AiModelException("The model did not answer within " + request.timeout().toSeconds() + " s", e);
+            throw new AiModelException(
+                    "The model did not answer within " + request.timeout().toSeconds() + " s", e);
         } catch (IOException e) {
-            throw new AiModelException("The model could not be reached: " + e.getClass().getSimpleName(), e);
+            throw new AiModelException(
+                    "The model could not be reached: " + e.getClass().getSimpleName(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AiModelException("Interrupted while waiting for the model", e);
@@ -137,17 +139,15 @@ public class AzureOpenAiModelClient implements AiModelClient {
                         }
                     }
                 }
-                case TOOL -> out.put("role", "tool")
-                        .put("tool_call_id", m.toolCallId())
-                        .put("content", m.content());
+                case TOOL ->
+                    out.put("role", "tool").put("tool_call_id", m.toolCallId()).put("content", m.content());
             }
         }
         if (!request.tools().isEmpty()) {
             // tool_choice without tools is refused by the API, so both go only when there are tools.
             ArrayNode tools = root.putArray("tools");
             for (AiToolDescriptor tool : request.tools()) {
-                ObjectNode function =
-                        tools.addObject().put("type", "function").putObject("function");
+                ObjectNode function = tools.addObject().put("type", "function").putObject("function");
                 function.put("name", toWire(tool.name()));
                 function.put("description", tool.description());
                 if (tool.inputSchema() != null) {

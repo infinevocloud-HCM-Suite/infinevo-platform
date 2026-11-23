@@ -44,8 +44,7 @@ public class AiMessageController {
 
     @PostMapping("/{id}/messages")
     @RequiresAction("core.ai.use")
-    public AiChatResponse send(
-            @PathVariable("id") UUID id, @RequestBody(required = false) AiMessageRequest request) {
+    public AiChatResponse send(@PathVariable("id") UUID id, @RequestBody(required = false) AiMessageRequest request) {
         // request.context() is accepted and ignored until W-114.13.
         return chatService.send(id, request == null ? null : request.content());
     }
