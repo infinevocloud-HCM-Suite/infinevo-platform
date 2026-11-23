@@ -3,7 +3,7 @@
 # This is NOT the deployable image. W-49 writes that one: multi-stage, slim runtime,
 # non-root user, no build tooling in the final layer. Do not promote this file.
 
-FROM maven:3.9-eclipse-temurin-21
+FROM maven:3.9-eclipse-temurin-26
 
 WORKDIR /build
 

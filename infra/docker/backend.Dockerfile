@@ -15,7 +15,7 @@
 # No secrets in this image. All configuration via environment variables.
 
 # ── Stage 1: resolve dependencies (cached unless a POM changes) ──────────────
-FROM maven:3.9-eclipse-temurin-21 AS deps
+FROM maven:3.9-eclipse-temurin-26 AS deps
 
 WORKDIR /build
 
