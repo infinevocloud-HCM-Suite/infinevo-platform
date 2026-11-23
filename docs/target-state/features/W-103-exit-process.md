@@ -1,28 +1,29 @@
 # Feature: Employee Resignation, Exit Clearances & Handover to Payroll
 
-| Field | Value |
-|---|---|
-| **Feature ID** | `W-103` · `HRMS-EXIT` |
-| **Owner** | Mohit (`dev-mohit`) |
+| Field            | Value                                                                            |
+| ---------------- | -------------------------------------------------------------------------------- |
+| **Feature ID**   | `W-103` · `HRMS-EXIT`                                                            |
+| **Owner**        | Mohit (`dev-mohit`)                                                              |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration`, `code/frontend` (`src/hrms/exit`) |
-| **Related gaps** | none in `GAP_INVENTORY.md` |
-| **Status** | Ready for founder review |
-| **Blocked by** | `W-90` (Full and Final Settlement) |
+| **Related gaps** | none in `GAP_INVENTORY.md`                                                       |
+| **Status**       | Ready for founder review                                                         |
+| **Blocked by**   | `W-90` (Full and Final Settlement)                                               |
 
 ## 1. Size cap
 
-| Axis | This spec | Limit |
-|---|---|---|
-| Backend module | `hrms` | 1 |
-| Flyway migration | `hrms/V199__exit_process.sql` | 1 |
-| Externally testable behaviour | Employee submits resignation, manager approves exit date, departments complete clearance checklist, and status triggers F&F in Payroll | 1 |
-| Frontend area | `hrms/exit` | 1 |
+| Axis                          | This spec                                                                                                                              | Limit |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Backend module                | `hrms`                                                                                                                                 | 1     |
+| Flyway migration              | `hrms/V199__exit_process.sql`                                                                                                          | 1     |
+| Externally testable behaviour | Employee submits resignation, manager approves exit date, departments complete clearance checklist, and status triggers F&F in Payroll | 1     |
+| Frontend area                 | `hrms/exit`                                                                                                                            | 1     |
 
 ---
 
 ## 2. Problem & Context
 
 Currently, employee status transitions are binary (`ACTIVE`, `SUSPENDED`, `TERMINATED`). There is no operational workflow to:
+
 1. Allow an employee to submit a formal resignation online.
 2. Track served notice period days vs expected last working day (LWD).
 3. Assign clearance checklists across departments:
@@ -37,6 +38,7 @@ Currently, employee status transitions are binary (`ACTIVE`, `SUSPENDED`, `TERMI
 ## 3. Scope
 
 **In scope:**
+
 - PostgreSQL tables `hrms.exit_request` and `hrms.exit_clearance_item` with RLS.
 - Employee self-service resignation submission (`POST /api/v1/me/exit`).
 - Manager approval / revision of proposed Last Working Day.
@@ -45,6 +47,7 @@ Currently, employee status transitions are binary (`ACTIVE`, `SUSPENDED`, `TERMI
 - HRMS screens: Employee resignation form under `/me/exit` and HR clearance tracker under `/hrms/exits`.
 
 **Out of scope:**
+
 - Pay computation, gratuity, and leave encashment (handled in `W-90` and `W-91`).
 
 ---
@@ -64,11 +67,12 @@ All Cleared --> Automated event: EXITS_CLEARED
 
 ## 5. Database changes
 
-| Migration | Change | Tenant-aware? | Reversible? |
-|---|---|---|---|
-| `hrms/V199__exit_process.sql` | Create `hrms.exit_request` and `hrms.exit_clearance_item` with RLS | yes | yes |
+| Migration                     | Change                                                             | Tenant-aware? | Reversible? |
+| ----------------------------- | ------------------------------------------------------------------ | ------------- | ----------- |
+| `hrms/V199__exit_process.sql` | Create `hrms.exit_request` and `hrms.exit_clearance_item` with RLS | yes           | yes         |
 
 ### Table: `hrms.exit_request`
+
 ```sql
 CREATE TABLE hrms.exit_request (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -106,6 +110,7 @@ CREATE POLICY tenant_isolation ON hrms.exit_request
 ```
 
 ### Table: `hrms.exit_clearance_item`
+
 ```sql
 CREATE TABLE hrms.exit_clearance_item (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -165,21 +170,21 @@ When all clearance items for an exit request are resolved (`CLEARED` or `WAIVED`
 
 ## 6. Backend changes
 
-| Layer | File | Change |
-|---|---|---|
-| Entity | `hrms/exit/ExitRequest.java`, `ExitClearanceItem.java` | Entities mapping exit request and clearance checklist |
-| Repository | `hrms/exit/ExitRequestRepository.java` | Spring Data JPA repo with tenant queries |
-| Service | `hrms/exit/ExitService.java`, `ExitServiceImpl.java` | Handles submission, LWD approval, clearance toggling, and completion check |
-| Controller | `hrms/exit/ExitController.java` | REST endpoints for employee and HR |
+| Layer      | File                                                   | Change                                                                     |
+| ---------- | ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Entity     | `hrms/exit/ExitRequest.java`, `ExitClearanceItem.java` | Entities mapping exit request and clearance checklist                      |
+| Repository | `hrms/exit/ExitRequestRepository.java`                 | Spring Data JPA repo with tenant queries                                   |
+| Service    | `hrms/exit/ExitService.java`, `ExitServiceImpl.java`   | Handles submission, LWD approval, clearance toggling, and completion check |
+| Controller | `hrms/exit/ExitController.java`                        | REST endpoints for employee and HR                                         |
 
 ---
 
 ## 7. Frontend changes
 
-| File | Change |
-|---|---|
-| `src/hrms/exit/ResignationPage.jsx` | Self-service resignation submission under `/me/exit` |
-| `src/hrms/exit/ExitDashboard.jsx` | HR management dashboard of active exits under `/hrms/exits` |
+| File                                | Change                                                       |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `src/hrms/exit/ResignationPage.jsx` | Self-service resignation submission under `/me/exit`         |
+| `src/hrms/exit/ExitDashboard.jsx`   | HR management dashboard of active exits under `/hrms/exits`  |
 | `src/hrms/exit/ClearanceDrawer.jsx` | Drawer to tick off department assets and clearance checklist |
 
 ---
@@ -190,4 +195,5 @@ When all clearance items for an exit request are resolved (`CLEARED` or `WAIVED`
 mvnw clean test -pl migration,hrms -am -Dtest="*Exit*"
 cd code/frontend && npx vitest run src/hrms/exit
 ```
+
 - Integration test `ExitProcessLifecycleIT`: tests submitting resignation, manager approval, completing all 4 departmental clearances, and verifying status moves to `READY_FOR_FNF`.

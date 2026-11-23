@@ -1,22 +1,22 @@
 # Feature: Customer Webhooks & Event Dispatcher
 
-| Field | Value |
-|---|---|
-| **Feature ID** | `W-108.2` · `PLAT-WEBHOOK` |
-| **Owner** | Mohit (`dev-mohit`) |
+| Field            | Value                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| **Feature ID**   | `W-108.2` · `PLAT-WEBHOOK`                                                            |
+| **Owner**        | Mohit (`dev-mohit`)                                                                   |
 | **Apps touched** | `code/backend/core`, `code/backend/migration`, `code/frontend` (`src/core/developer`) |
-| **Related gaps** | none in `GAP_INVENTORY.md` |
-| **Status** | Ready for founder review |
-| **Blocked by** | `W-108.1` (Customer API) |
+| **Related gaps** | none in `GAP_INVENTORY.md`                                                            |
+| **Status**       | Ready for founder review                                                              |
+| **Blocked by**   | `W-108.1` (Customer API)                                                              |
 
 ## 1. Size cap
 
-| Axis | This spec | Limit |
-|---|---|---|
-| Backend module | `core` | 1 |
-| Flyway migration | `core/V202__customer_webhooks.sql` | 1 |
-| Externally testable behaviour | Subscribes external webhook URLs to lifecycle events, dispatches payloads signed with HMAC-SHA256, and retries failed deliveries | 1 |
-| Frontend area | `core/developer` | 1 |
+| Axis                          | This spec                                                                                                                        | Limit |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Backend module                | `core`                                                                                                                           | 1     |
+| Flyway migration              | `core/V202__customer_webhooks.sql`                                                                                               | 1     |
+| Externally testable behaviour | Subscribes external webhook URLs to lifecycle events, dispatches payloads signed with HMAC-SHA256, and retries failed deliveries | 1     |
+| Frontend area                 | `core/developer`                                                                                                                 | 1     |
 
 ---
 
@@ -29,6 +29,7 @@ Currently, external systems must continuously poll Infinevo endpoints to detect 
 ## 3. Scope
 
 **In scope:**
+
 - PostgreSQL tables `core.webhook_subscription` and `core.webhook_delivery_log` with RLS.
 - Supported event types:
   - `employee.created`, `employee.updated`, `employee.terminated`
@@ -44,6 +45,7 @@ Currently, external systems must continuously poll Infinevo endpoints to detect 
 - Frontend screen: `/settings/developer/webhooks` to create webhook subscriptions, view delivery logs, and send test ping events.
 
 **Out of scope:**
+
 - Inbound webhooks from third-party systems.
 
 ---
@@ -63,11 +65,12 @@ Worker Process                      --> Picks up task --> Signs payload with HMA
 
 ## 5. Database changes
 
-| Migration | Change | Tenant-aware? | Reversible? |
-|---|---|---|---|
-| `core/V202__customer_webhooks.sql` | Create `core.webhook_subscription` and `core.webhook_delivery_log` with RLS | yes | yes |
+| Migration                          | Change                                                                      | Tenant-aware? | Reversible? |
+| ---------------------------------- | --------------------------------------------------------------------------- | ------------- | ----------- |
+| `core/V202__customer_webhooks.sql` | Create `core.webhook_subscription` and `core.webhook_delivery_log` with RLS | yes           | yes         |
 
 ### Table: `core.webhook_subscription`
+
 ```sql
 CREATE TABLE core.webhook_subscription (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -99,6 +102,7 @@ CREATE POLICY tenant_isolation ON core.webhook_subscription
 ```
 
 ### Table: `core.webhook_delivery_log`
+
 ```sql
 CREATE TABLE core.webhook_delivery_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -155,5 +159,6 @@ CREATE POLICY tenant_isolation ON core.webhook_delivery_log
 ```bash
 mvnw clean test -pl migration,core -am -Dtest="*Webhook*"
 ```
+
 - Integration test `WebhookDeliveryIT`: verifies event dispatching, HMAC-SHA256 signature correctness, SSRF rejection of private IP addresses, retry scheduling on HTTP 500 mock response, and automatic deactivation upon reaching consecutive failure limit.
 - Integration test `WebhookDeliveryIT`: verifies event dispatching, HMAC-SHA256 signature correctness, retry scheduling on HTTP 500 mock response, and automatic deactivation upon reaching consecutive failure limit.

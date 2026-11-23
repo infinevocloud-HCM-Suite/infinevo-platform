@@ -1,22 +1,22 @@
 # Feature: Customer REST API & API Key Management
 
-| Field | Value |
-|---|---|
-| **Feature ID** | `W-108.1` · `PLAT-API` |
-| **Owner** | Mohit (`dev-mohit`) |
+| Field            | Value                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| **Feature ID**   | `W-108.1` · `PLAT-API`                                                                |
+| **Owner**        | Mohit (`dev-mohit`)                                                                   |
 | **Apps touched** | `code/backend/core`, `code/backend/migration`, `code/frontend` (`src/core/developer`) |
-| **Related gaps** | none in `GAP_INVENTORY.md`; all current APIs require Keycloak JWT user sessions |
-| **Status** | Ready for founder review |
-| **Blocked by** | none |
+| **Related gaps** | none in `GAP_INVENTORY.md`; all current APIs require Keycloak JWT user sessions       |
+| **Status**       | Ready for founder review                                                              |
+| **Blocked by**   | none                                                                                  |
 
 ## 1. Size cap
 
-| Axis | This spec | Limit |
-|---|---|---|
-| Backend module | `core` | 1 |
-| Flyway migration | `core/V201__customer_api_keys.sql` | 1 |
-| Externally testable behaviour | Customer admin generates scoped API keys, authenticates server-to-server requests via `X-API-Key`, and reads/syncs employee and attendance data | 1 |
-| Frontend area | `core/developer` | 1 |
+| Axis                          | This spec                                                                                                                                       | Limit |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Backend module                | `core`                                                                                                                                          | 1     |
+| Flyway migration              | `core/V201__customer_api_keys.sql`                                                                                                              | 1     |
+| Externally testable behaviour | Customer admin generates scoped API keys, authenticates server-to-server requests via `X-API-Key`, and reads/syncs employee and attendance data | 1     |
+| Frontend area                 | `core/developer`                                                                                                                                | 1     |
 
 ---
 
@@ -29,6 +29,7 @@ Currently, all Infinevo endpoints require an interactive Keycloak OAuth2 JWT bea
 ## 3. Scope
 
 **In scope:**
+
 - PostgreSQL table `core.api_key` with RLS:
   - Scoped permissions (`employees.read`, `employees.write`, `attendance.write`, `payroll.read`).
   - Hashed secret storage using SHA-256 (`api_key_hash`), displaying secret only once on generation.
@@ -43,6 +44,7 @@ Currently, all Infinevo endpoints require an interactive Keycloak OAuth2 JWT bea
 - Frontend screen: `/settings/developer/api-keys` for tenant admins to generate, view usage, and revoke keys.
 
 **Out of scope:**
+
 - Outbound Webhooks (handled in `W-108.2`).
 
 ---
@@ -61,11 +63,12 @@ External System --> Request with Header "X-API-Key: inf_live_..."
 
 ## 5. Database changes
 
-| Migration | Change | Tenant-aware? | Reversible? |
-|---|---|---|---|
-| `core/V201__customer_api_keys.sql` | Create `core.api_key` with RLS and index on key hash | yes | yes |
+| Migration                          | Change                                               | Tenant-aware? | Reversible? |
+| ---------------------------------- | ---------------------------------------------------- | ------------- | ----------- |
+| `core/V201__customer_api_keys.sql` | Create `core.api_key` with RLS and index on key hash | yes           | yes         |
 
 ### Table: `core.api_key`
+
 ```sql
 CREATE TABLE core.api_key (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -118,4 +121,5 @@ CREATE POLICY tenant_isolation ON core.api_key
 ```bash
 mvnw clean test -pl migration,core -am -Dtest="*ApiKey*"
 ```
+
 - Integration test `ApiKeyAuthIT`: verifies successful authentication with valid `X-API-Key`, scope enforcement (e.g. `attendance.write` forbidden on employee endpoint), rate limit 429 response, and rejection of revoked keys.

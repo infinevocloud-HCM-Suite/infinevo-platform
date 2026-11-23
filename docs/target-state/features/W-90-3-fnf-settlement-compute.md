@@ -11,12 +11,12 @@
 
 ## 1. Size cap
 
-| Axis                          | This spec                                                                                                        | Limit |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----- |
-| Backend module                | `payroll`                                                                                                        | 1     |
+| Axis                          | This spec                                                                                                                     | Limit |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Backend module                | `payroll`                                                                                                                     | 1     |
 | Flyway migration              | `V196__fnf_settlement.sql` (renumbered to sequence after V193 Leave Encashment, V194 Notice Period, and V195 Form24Q actions) | 1     |
-| Externally testable behaviour | Aggregates final salary, leave encashment, gratuity, notice pay, deductions, and executes final exit settlement  | 1     |
-| Frontend area                 | none (UI in `W-90.4`)                                                                                            | 1     |
+| Externally testable behaviour | Aggregates final salary, leave encashment, gratuity, notice pay, deductions, and executes final exit settlement               | 1     |
+| Frontend area                 | none (UI in `W-90.4`)                                                                                                         | 1     |
 
 ---
 
