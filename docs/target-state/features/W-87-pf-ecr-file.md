@@ -81,16 +81,16 @@ The official EPFO Electronic Challan cum Return (ECR 2.0) file structure consist
 
 | Col # | EPFO Field Name | Data Type | Required | Source / Calculation in Infinevo |
 |---|---|---|---|---|
-| **1** | **UAN** | Numeric (12 digits) | **Yes** | `EmployeeStatutoryProfile.uan` (clean digits, exactly 12 chars). |
-| **2** | **Member Name** | Text (max 80 chars) | **Yes** | `Employee.firstName` + space + `Employee.lastName` (uppercase, clean special chars). |
-| **3** | **Gross Wages** | Numeric (integer) | **Yes** | `EmployeePayRun.grossEarnings` rounded to whole rupee (`RoundingMode.HALF_UP`). |
-| **4** | **EPF Wages** | Numeric (integer) | **Yes** | EPF calculation wage base for the employee (capped at ₹15,000 if restricted, or actual earned basic). |
-| **5** | **EPS Wages** | Numeric (integer) | **Yes** | EPS calculation wage base (capped at ₹15,000; 0 if age $\ge 58$ or not EPS eligible). |
-| **6** | **EDLI Wages** | Numeric (integer) | **Yes** | EDLI wage base (min(earnedBasic, ₹15,000); 0 if exempt). |
+| **1** | **UAN** | Numeric (12 digits) | **Yes** | `EmployeeStatutoryProfile.uan` (clean digits, exactly 12 chars). Mandatory for portal upload. |
+| **2** | **Member Name** | Text (max 80 chars) | **Yes** | `Employee.firstName` + space + `Employee.lastName` (uppercase, stripped of `#`, `~`, commas, and non-ASCII chars). |
+| **3** | **Gross Wages** | Numeric (integer) | **Yes** | Actual earned gross in the pay period net of LOP deductions (or scaled by payable days), rounded to nearest whole rupee (`RoundingMode.HALF_UP`). *Must represent actual earned gross, not unscaled structure gross before LOP, ensuring audit alignment with Column 10 NCP days.* |
+| **4** | **EPF Wages** | Numeric (integer) | **Yes** | EPF calculation wage base for the employee (capped at ₹15,000 if restricted ceiling is enabled in `EpfSetting`, prorated ceiling if `prorateRestrictedWage` is enabled, or actual earned basic if unrestricted). |
+| **5** | **EPS Wages** | Numeric (integer) | **Yes** | EPS calculation wage base. **Strictly capped at ₹15,000** (or prorated ceiling). Even if Col 4 exceeds ₹15,000, Col 5 never exceeds ₹15,000. Capped at `0` if age $\ge 58$ or not EPS eligible. |
+| **6** | **EDLI Wages** | Numeric (integer) | **Yes** | EDLI wage base (strictly capped at ₹15,000, or prorated ceiling; 0 if exempt). |
 | **7** | **EE Share Remitted** | Numeric (integer) | **Yes** | Employee PF contribution (12% of Col 4), rounded to nearest rupee. From line `EPF_EMPLOYEE`. |
-| **8** | **EPS Contribution** | Numeric (integer) | **Yes** | Employer Pension contribution (8.33% of Col 5), rounded to nearest rupee. From line `EPS_EMPLOYER`. 0 if age $\ge 58$. |
+| **8** | **EPS Contribution** | Numeric (integer) | **Yes** | Employer Pension contribution (8.33% of Col 5), rounded to nearest rupee. From line `EPS_EMPLOYER`. Capped at ₹1,250. `0` if age $\ge 58$. |
 | **9** | **ER Share Remitted** | Numeric (integer) | **Yes** | Employer PF contribution (Col 7 − Col 8, or Col 4 $\times$ 3.67%). From line `EPF_EMPLOYER`. If age $\ge 58$, full 12% goes here. |
-| **10** | **NCP Days** | Numeric (integer) | **Yes** | Non-Contributing Period days. Integer count of LOP / unpaid days from `EmployeePayRun.lopDays`. Max = total days in month. |
+| **10** | **NCP Days** | Numeric (integer) | **Yes** | Non-Contributing Period days. Integer count of LOP / unpaid days within the employment period from `EmployeePayRun.lopDays`. Days before date of joining or after exit are not NCP days. Max = days in month. |
 | **11** | **Refund of Advances** | Numeric (integer) | **Yes** | Standard `0` (or recovered loan/advance if tagged). |
 
 ### Sample ECR Text File Output
@@ -233,16 +233,22 @@ GET /api/v1/payroll/runs/{payrunId}/statutory/pf-ecr/export?format=TXT
 ## 8. Edge Cases & Validation Rules
 
 1. **Missing or Malformed UAN:**
-   - EPFO strictly mandates a 12-digit numeric UAN.
-   - If an employee has no UAN, the preview flags `MISSING_UAN`. In the generated `.txt` file, the row is output with placeholder or empty string if configured, or excluded with a clear notification so the file won't be rejected by EPFO portal validations.
+   - EPFO strictly mandates an active 12-digit numeric UAN for every record in the ECR upload file. A file containing missing or partial UANs is rejected in full by the EPFO portal.
+   - The preview API surfaces `MISSING_UAN` warnings with affected employee IDs and names.
+   - For official `.txt` export: if any contributing member lacks a UAN, the export returns HTTP 422 Unprocessable Entity detailing the missing members to prevent uploading corrupted files. An explicit query parameter `?allowPartial=true` can be supplied to filter and export only members with valid UANs if emergency partial filing is required.
 2. **Senior Citizen Employee (Age $\ge$ 58):**
-   - Under EPS rules, pension contribution stops at 58.
+   - Under EPS rules, pension contribution ceases at age 58 (`StatutoryLineContributor.isEpsSenior`).
    - Column 5 (EPS Wages) = `0`.
    - Column 8 (EPS Share) = `0`.
-   - Column 9 (ER Share) = Full 12% remitted to Account 01.
-3. **Loss of Pay (LOP) / NCP Days:**
-   - NCP days must be integer $\ge 0$ and $\le$ total days in the month. Fractional days are rounded down to whole days or clamped.
-4. **Rounding Consistency:**
+   - Column 9 (ER Share) = Full 12% remitted to EPF Account 01.
+3. **Loss of Pay (LOP) & NCP Days:**
+   - NCP days represent non-contributing unpaid days *within the period of employment*. Days prior to date of joining or post exit are excluded from NCP days.
+   - NCP days must be an integer $\ge 0$ and $\le$ calendar days in the month.
+4. **EPS & EDLI Wage Ceiling Cap:**
+   - While EPF Wages (Col 4) may exceed ₹15,000 when voluntary or uncapped employee contributions are configured (`restrictEmployeeToCeiling = false`), Col 5 (EPS Wages) and Col 6 (EDLI Wages) remain strictly capped at ₹15,000 per statutory EPFO constraints.
+5. **Soft-Deleted Employees in Historical Runs:**
+   - Consistent with statutory reporting guidelines, historical pay run returns resolve employee profiles and names via `EmployeeService.findByIdInIncludingDeleted()`, preventing `NotFoundException` or transaction rollback failures if an employee was deleted after the run completed.
+6. **Rounding Consistency:**
    - EPFO requires rupee-level rounding (HALF_UP).
    - EE share (12%) + ER share (3.67%) + EPS share (8.33%) sum must match total statutory deductions recorded in the pay run lines.
 
@@ -255,7 +261,7 @@ GET /api/v1/payroll/runs/{payrunId}/statutory/pf-ecr/export?format=TXT
 - **Precision:** All monetary amounts use integer or `BigDecimal` with half-up rounding to the nearest rupee as required by EPFO. Never uses floating-point arithmetic.
 - **Indexes:** Reuses existing indexed lookups on `tenant_id` and foreign keys (`payrun_id`, `employee_id`).
 - **Expand / Contract:** No schema modifications; non-breaking and non-destructive.
-- **Module Boundaries:** `payroll` reads `core.employee` only through existing clean service/client interfaces (`EmployeeService.get()`), strictly adhering to modular architecture.
+- **Module Boundaries:** `payroll` reads `core.employee` only through existing clean service interfaces (`EmployeeService.findByIdInIncludingDeleted()` / `EmployeeService.get()`), strictly adhering to modular architecture.
 
 ---
 
