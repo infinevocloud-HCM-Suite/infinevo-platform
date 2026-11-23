@@ -42,6 +42,9 @@ class EndpointGuardCoverageTest {
                     + " else's; the query is scoped to tenant and recipient, so there is no action to hold",
             "com.infinevo.core.navigation.NavigationController",
             "every signed-in user has a menu; items inside are filtered by module and action (W-12.3)",
+            "com.infinevo.core.ai.AiStatusController",
+            "reports only the bound tenant's own AI helper switch, cap and monthly usage (W-114.1 API contract:"
+                    + " \"signed in\"); every member may see whether their organisation has the helper",
             "com.infinevo.core.invitation.InvitationAcceptanceController",
             "unauthenticated single-use bearer token endpoints for invitation acceptance and decline (W-24.2)");
 

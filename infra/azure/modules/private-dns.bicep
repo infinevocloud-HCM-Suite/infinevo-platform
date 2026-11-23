@@ -4,6 +4,9 @@ param vnetId string
 @description('Name of the virtual network, used to name the zone links')
 param vnetName string
 
+@description('Whether the Azure OpenAI zone is created (W-114.2). Off by default, so the zone exists only when main.bicep deployAi is true')
+param deployAi bool = false
+
 @description('Tags for the resources')
 param tags object = {}
 
@@ -116,8 +119,32 @@ resource vaultZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@20
   }
 }
 
+// W-114.2: the Azure OpenAI account (kind OpenAI) answers on <name>.openai.azure.com, and
+// its private endpoint (group id `account`) writes its A record here. Conditional, unlike
+// the zones above: with deployAi false nothing is added to the environment.
+resource openAiZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (deployAi) {
+  name: 'privatelink.openai.azure.com'
+  location: zoneLocation
+  tags: tags
+}
+
+resource openAiZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (deployAi) {
+  parent: openAiZone
+  name: 'link-${vnetName}'
+  location: zoneLocation
+  tags: tags
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnetId
+    }
+  }
+}
+
 output postgresZoneId string = postgresZone.id
 output redisZoneId string = redisZone.id
 output blobZoneId string = blobZone.id
 output queueZoneId string = queueZone.id
 output vaultZoneId string = vaultZone.id
+// Empty when deployAi is false: there is no zone to point at.
+output openAiZoneId string = deployAi ? openAiZone.id : ''

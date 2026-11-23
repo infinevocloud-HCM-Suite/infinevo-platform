@@ -13,6 +13,10 @@ import java.util.UUID;
  *
  * <p>W-84.1 (V188): {@code employee_count} counts employees not soft-deleted and not {@code TERMINATED};
  * {@code employee_limit} is {@code null} for unlimited; {@code plan} and {@code support_plan} are {@code null} until set.
+ *
+ * <p>W-114.1 (V192): {@code ai_enabled} is the AI helper switch ({@code false} with no subscription row);
+ * {@code ai_monthly_request_cap} is {@code null} until set; {@code ai_usage_this_month} counts this calendar month's
+ * requests (UTC), {@code 0} when none.
  */
 public record TenantOverview(
         @JsonProperty("tenant_id") UUID tenantId,
@@ -28,7 +32,10 @@ public record TenantOverview(
         @JsonProperty("employee_count") long employeeCount,
         @JsonProperty("employee_limit") Integer employeeLimit,
         @JsonProperty("plan") String plan,
-        @JsonProperty("support_plan") String supportPlan) {
+        @JsonProperty("support_plan") String supportPlan,
+        @JsonProperty("ai_enabled") boolean aiEnabled,
+        @JsonProperty("ai_monthly_request_cap") Integer aiMonthlyRequestCap,
+        @JsonProperty("ai_usage_this_month") int aiUsageThisMonth) {
 
     /** Where the tenant's administrator invitation stands, as {@code core.list_tenants()} (V159) reports it. */
     public enum AdminInvitationStatus {

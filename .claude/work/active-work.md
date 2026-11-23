@@ -6,6 +6,25 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-23 — W-114.1 AI helper switch and monthly cap on `main` (`47c316c4`)
+
+| What | Where |
+|---|---|
+| Platform admin sets an AI helper switch and a monthly request cap per customer on the tenant page; off for every customer by default. `core.ai_usage` counts requests per tenant and UTC month; `AiAccessGate` refuses when off (403) or at the cap (429); `GET /api/v1/ai/status` | `core/subscription/`, `core/ai/`, `core/admin/TenantDetail.jsx`, `V192` |
+
+- Built by Claude on `dev-claude-w114`, one independent read (no defects, two low notes), CI green on `368383d2`. No AI model is called yet.
+- **`W-114` is 22 parts, built by Claude** (taken over from karma 2026-11-23). Specs `.1`–`.10` are on `main`; `.11`–`.22` are not written. Model: a GPT model on Azure OpenAI (`D-61`).
+- **Also on `main` 2026-11-23:** backend image limit 290 MB and the runtime base image pinned by digest (`65dfd30f`); mohit's fix for two order-dependent tests (`EmployeeSelfServiceIT`, `JobStatusTenantIT`) came in with this commit.
+- **Left:** the helper is not to be switched on for a real customer until `W-114.10` (30-day chat deletion) is on `main`.
+- **Newly unblocked:** `W-114.3`.
+
+## 2026-11-23 — D-143 statutory flags editable from the Salary tab on `main` (`75216f54`)
+
+- The statutory card on an employee's Salary tab has an Edit action that saves PF, ESI, PT, LWF, EPS, director and TDS applicable alone; no salary version is touched. Frontend only, `payroll/salary/`.
+- Built by Claude on `dev-claude-d143`, CI green on `22a6752f`.
+- **Also on `main` since 2026-11-19 (`954fcba3`):** krushna's 13 specs, corrected and approved; `W-85` split into `W-85.1` and `W-85.2`. Code for them is on `feature/krushna-specs`, not merged.
+- **Branches:** `dev-claude-d143` reset to `main`; it can be deleted.
+
 ## 2026-11-13 — D-142 locked-month loss of pay on `main` (`d281593f`)
 
 - A loss of pay entry for a locked month is stored under the next open month. The screen now says so in a dialog and shows that month. Frontend only, `hrms/lossofpay/`.

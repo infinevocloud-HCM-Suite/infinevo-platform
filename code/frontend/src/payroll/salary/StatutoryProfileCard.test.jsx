@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
 import { statutoryProfileService } from './statutoryProfileService.js';
 import * as useCanModule from '@shell/screens';
@@ -88,5 +88,39 @@ describe('StatutoryProfileCard - read view (W-76.2)', () => {
 
     await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
     expect(screen.queryByTestId('statutory-edit-hint')).toBeNull();
+  });
+
+  it('D-143: shows Edit instead of the hint when the parent passes canManage', async () => {
+    statutoryProfileService.get.mockResolvedValueOnce(PROFILE);
+
+    render(<StatutoryProfileCard employeeId="emp-1" canManage onEdit={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
+    const edit = screen.getByTestId('statutory-edit');
+    expect(edit.id).toBe('btn-edit-statutory');
+    expect(edit.textContent).toContain('Edit');
+    expect(screen.queryByTestId('statutory-edit-hint')).toBeNull();
+  });
+
+  it('D-143: shows no Edit without canManage', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(false);
+    statutoryProfileService.get.mockResolvedValueOnce(PROFILE);
+
+    render(<StatutoryProfileCard employeeId="emp-1" canManage={false} onEdit={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
+    expect(screen.queryByTestId('statutory-edit')).toBeNull();
+  });
+
+  it('D-143: Edit calls onEdit with the profile the card shows', async () => {
+    statutoryProfileService.get.mockResolvedValueOnce(PROFILE);
+    const onEdit = vi.fn();
+
+    render(<StatutoryProfileCard employeeId="emp-1" canManage onEdit={onEdit} />);
+
+    await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
+    fireEvent.click(screen.getByTestId('statutory-edit'));
+    expect(onEdit).toHaveBeenCalledWith(PROFILE);
+    expect(statutoryProfileService.save).not.toHaveBeenCalled();
   });
 });

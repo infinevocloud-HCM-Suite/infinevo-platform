@@ -40,6 +40,7 @@ import {
   ESI_NUMBER_MAX_LENGTH,
 } from './statutoryRules.js';
 import { statutoryName } from './statutoryLabels.js';
+import { EMPTY_PROFILE, STATUTORY_TICKS, profileFormValues, profilePayload } from './statutoryProfileForm.js';
 import { isDecimal, isPositiveDecimal } from './decimal.js';
 import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
 import { successMsg } from '@shared/ui/msgHelper.js';
@@ -54,19 +55,8 @@ const PREVIEW_DEBOUNCE_MS = 400;
 const NO_ROWS = [];
 const NO_COMPONENTS = { earnings: NO_ROWS, benefits: NO_ROWS, reimbursements: NO_ROWS };
 
-const EMPTY_PROFILE = {
-  eligibleForPf: false,
-  eligibleForEps: false,
-  contributesEpsOnHigherWages: false,
-  eligibleForPt: false,
-  eligibleForEsi: false,
-  eligibleForLwf: false,
-  director: false,
-  tdsApplicable: true,
-  pfAccountNumber: '',
-  uan: '',
-  esiNumber: '',
-};
+/** The statutory ticks by name: labels and help shared with the statutory profile drawer (D-143). */
+const TICKS = Object.fromEntries(STATUTORY_TICKS.map((tick) => [tick.name, tick]));
 
 function versionRow(item) {
   return {
@@ -108,25 +98,6 @@ function salaryPayload(values, balancingId) {
     ),
     benefits: (values.benefits || []).map(itemPayload),
     reimbursements: (values.reimbursements || []).map(itemPayload),
-  };
-}
-
-/** `StatutoryProfileRequest`: the drawer's ticks and numbers - the only place they are edited (W-76.2). */
-function profilePayload(statutory = {}) {
-  const trimmed = (value) => (value && String(value).trim() ? String(value).trim() : null);
-  return {
-    eligibleForPf: Boolean(statutory.eligibleForPf),
-    eligibleForPt: Boolean(statutory.eligibleForPt),
-    eligibleForLwf: Boolean(statutory.eligibleForLwf),
-    eligibleForEsi: Boolean(statutory.eligibleForEsi),
-    eligibleForEps: Boolean(statutory.eligibleForEps),
-    contributesEpsOnHigherWages: Boolean(statutory.contributesEpsOnHigherWages),
-    director: Boolean(statutory.director),
-    pfAccountNumber: trimmed(statutory.pfAccountNumber),
-    uan: trimmed(statutory.uan),
-    esiNumber: trimmed(statutory.esiNumber),
-    // D-141: TDS is on unless switched off for this employee.
-    tdsApplicable: statutory.tdsApplicable !== false,
   };
 }
 
@@ -399,22 +370,7 @@ export function SalarySetupDrawer({
           setProfileState('error');
           return;
         }
-        form.setFieldsValue({
-          statutory: {
-            eligibleForPf: Boolean(data.eligibleForPf),
-            eligibleForEps: Boolean(data.eligibleForEps),
-            contributesEpsOnHigherWages: Boolean(data.contributesEpsOnHigherWages),
-            eligibleForPt: Boolean(data.eligibleForPt),
-            eligibleForEsi: Boolean(data.eligibleForEsi),
-            eligibleForLwf: Boolean(data.eligibleForLwf),
-            director: Boolean(data.director),
-            // D-141: a profile saved before the flag existed reads as TDS applicable.
-            tdsApplicable: data.tdsApplicable !== false,
-            pfAccountNumber: data.pfAccountNumber || '',
-            uan: data.uan || '',
-            esiNumber: data.esiNumber || '',
-          },
-        });
+        form.setFieldsValue({ statutory: profileFormValues(data) });
         setProfileState('loaded');
         schedulePreview();
       })
@@ -832,42 +788,42 @@ export function SalarySetupDrawer({
       <Row gutter={16}>
         <Col span={8}>
           <Form.Item name={['statutory', 'eligibleForPf']} valuePropName="checked" style={{ marginBottom: 4 }}>
-            <Checkbox>Employees&apos; Provident Fund (EPF)</Checkbox>
+            <Checkbox>{TICKS.eligibleForPf.label}</Checkbox>
           </Form.Item>
           <Form.Item name={['statutory', 'eligibleForEps']} valuePropName="checked" style={{ marginBottom: 4 }}>
-            <Checkbox disabled={!epfTicked}>Employee Pension Scheme (EPS)</Checkbox>
+            <Checkbox disabled={!epfTicked}>{TICKS.eligibleForEps.label}</Checkbox>
           </Form.Item>
           <Form.Item
             name={['statutory', 'contributesEpsOnHigherWages']}
             valuePropName="checked"
             style={{ marginBottom: 4 }}
           >
-            <Checkbox disabled={!epfTicked || !epsTicked}>EPS on higher wages</Checkbox>
+            <Checkbox disabled={!epfTicked || !epsTicked}>{TICKS.contributesEpsOnHigherWages.label}</Checkbox>
           </Form.Item>
         </Col>
         <Col span={8}>
           <Form.Item name={['statutory', 'eligibleForPt']} valuePropName="checked" style={{ marginBottom: 4 }}>
-            <Checkbox>Professional Tax (PT)</Checkbox>
+            <Checkbox>{TICKS.eligibleForPt.label}</Checkbox>
           </Form.Item>
           <Form.Item name={['statutory', 'eligibleForEsi']} valuePropName="checked" style={{ marginBottom: 4 }}>
-            <Checkbox>Employee State Insurance (ESI)</Checkbox>
+            <Checkbox>{TICKS.eligibleForEsi.label}</Checkbox>
           </Form.Item>
           {esiWarning && <Alert type="warning" showIcon message={esiWarning} data-testid="esi-ceiling-warning" />}
         </Col>
         <Col span={8}>
           <Form.Item name={['statutory', 'eligibleForLwf']} valuePropName="checked" style={{ marginBottom: 4 }}>
-            <Checkbox id="chk-statutory-lwf">Labour Welfare Fund (LWF)</Checkbox>
+            <Checkbox id="chk-statutory-lwf">{TICKS.eligibleForLwf.label}</Checkbox>
           </Form.Item>
           <Form.Item name={['statutory', 'director']} valuePropName="checked" style={{ marginBottom: 4 }}>
-            <Checkbox id="chk-statutory-director">Director</Checkbox>
+            <Checkbox id="chk-statutory-director">{TICKS.director.label}</Checkbox>
           </Form.Item>
           <Form.Item
             name={['statutory', 'tdsApplicable']}
             valuePropName="checked"
             style={{ marginBottom: 4 }}
-            extra="Off: no TDS is deducted for this employee in pay runs"
+            extra={TICKS.tdsApplicable.extra}
           >
-            <Checkbox id="chk-statutory-tds">TDS applicable</Checkbox>
+            <Checkbox id="chk-statutory-tds">{TICKS.tdsApplicable.label}</Checkbox>
           </Form.Item>
         </Col>
       </Row>
