@@ -22,6 +22,12 @@ public interface SubscriptionService {
     SubscriptionResponse updatePlan(UUID tenantId, PlanUpdateRequest request);
 
     /**
+     * Sets the tenant's AI helper switch and monthly request cap (W-114.1). Both are written as given. Refused for
+     * the platform tenant; refused when the switch is on with no cap, or when a cap below 1 is given.
+     */
+    SubscriptionResponse updateAi(UUID tenantId, AiSettingsUpdateRequest request);
+
+    /**
      * Sweeps the tenant and marks it PAST_DUE if it is currently ACTIVE and has an expired period end before
      * {@code asOf} (W-86). Returns {@code true} if the status was changed to PAST_DUE, {@code false} otherwise.
      */

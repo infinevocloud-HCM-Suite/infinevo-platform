@@ -314,6 +314,64 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     @Transactional
+    public SubscriptionResponse updateAi(UUID tenantId, AiSettingsUpdateRequest request) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(request, "request must not be null");
+        if (platformTenant.isPlatformTenant(tenantId)) {
+            throw new IllegalArgumentException("Cannot modify the AI helper settings for the platform tenant");
+        }
+        if (request.monthlyRequestCap() != null && request.monthlyRequestCap() < 1) {
+            throw new IllegalArgumentException("monthlyRequestCap must be a whole number above 0");
+        }
+        if (request.enabled() && request.monthlyRequestCap() == null) {
+            throw new IllegalArgumentException("monthlyRequestCap is required when the AI helper is switched on");
+        }
+        return asTenant(tenantId, () -> applyAi(tenantId, request));
+    }
+
+    private SubscriptionResponse applyAi(UUID tenantId, AiSettingsUpdateRequest request) {
+        // 1. Verify subscription exists
+        Subscription subscription = subscriptionRepository
+                .findByTenantId(tenantId)
+                .orElseThrow(() -> new SubscriptionNotFoundException(tenantId));
+
+        Set<PlatformModule> activeModules =
+                subscriptionModuleRepository.findByTenantIdAndRevokedOnIsNull(tenantId).stream()
+                        .map(SubscriptionModule::getModule)
+                        .collect(Collectors.toSet());
+
+        // 2. No-op check: nothing differs, nothing is written
+        if (subscription.isAiEnabled() == request.enabled()
+                && Objects.equals(subscription.getAiMonthlyRequestCap(), request.monthlyRequestCap())) {
+            log.debug("No AI settings change for tenant {}; skipping write", tenantId);
+            return toResponse(subscription, activeModules);
+        }
+
+        // 3. Cross-tenant write through the SECURITY DEFINER setter (V192), called as set_subscription_plan is
+        jdbcTemplate.execute((Connection conn) -> {
+            try (PreparedStatement ps = conn.prepareStatement("SELECT core.set_subscription_ai(?, ?, ?)")) {
+                ps.setObject(1, tenantId);
+                ps.setBoolean(2, request.enabled());
+                if (request.monthlyRequestCap() != null) {
+                    ps.setObject(3, request.monthlyRequestCap(), Types.INTEGER);
+                } else {
+                    ps.setNull(3, Types.INTEGER);
+                }
+                ps.execute();
+                return null;
+            }
+        });
+
+        // 4. Set the loaded entity so the audit listener records old and new values on flush. No cache bump:
+        //    nothing permission-related changes.
+        subscription.setAiEnabled(request.enabled());
+        subscription.setAiMonthlyRequestCap(request.monthlyRequestCap());
+
+        return toResponse(subscription, activeModules);
+    }
+
+    @Override
+    @Transactional
     public boolean markPastDue(UUID tenantId, java.time.LocalDate asOf) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(asOf, "asOf must not be null");
@@ -385,6 +443,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscription.getExternalRef(),
                 subscription.getPlan(),
                 subscription.getSupportPlan(),
+                subscription.isAiEnabled(),
+                subscription.getAiMonthlyRequestCap(),
                 subscription.getEmployeeLimit());
     }
 }

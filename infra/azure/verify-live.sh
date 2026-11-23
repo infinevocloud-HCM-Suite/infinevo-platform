@@ -68,14 +68,26 @@ done
 
 # 6. Data Residency in Central India
 echo "--- Check 6: Data Residency (D-18) ---"
-ENV_ROWS=$(az resource list -g "$RG_ENV" --query "[?location!='centralindia'].[name,location]" -o tsv)
-BAD_RES=$(echo "$ENV_ROWS" | awk 'NF && tolower($2) != "global" { print $1 }')
+# One exception (W-114.2): the Azure OpenAI account oai-infinevo-{env} sits in aiLocation,
+# because its India models are offered in South India, not Central India. It passes only
+# as type Microsoft.CognitiveServices/accounts AND in a region main.bicep's aiLocation
+# @allowed list holds. Every other resource is still held to centralindia.
+AI_ALLOWED_LOCATIONS="southindia centralindia swedencentral eastus2"
+ENV_ROWS=$(az resource list -g "$RG_ENV" --query "[?location!='centralindia'].[name,location,type]" -o tsv)
+BAD_RES=$(echo "$ENV_ROWS" | awk -v ai="$AI_ALLOWED_LOCATIONS" '
+  BEGIN { n = split(ai, list, " "); for (i = 1; i <= n; i++) allowed[list[i]] = 1 }
+  NF && tolower($2) != "global" {
+    if (tolower($3) == "microsoft.cognitiveservices/accounts" && (tolower($2) in allowed)) next
+    print $1
+  }')
 if [ -n "$BAD_RES" ]; then echo "FAIL: Non-global resources outside centralindia in $RG_ENV: $BAD_RES"; exit 1; fi
+AI_ROWS=$(echo "$ENV_ROWS" | awk 'tolower($3) == "microsoft.cognitiveservices/accounts" { print $1 " (" $2 ")" }')
+if [ -n "$AI_ROWS" ]; then echo "NOTE: AI account allowed outside centralindia (W-114.2): $AI_ROWS"; fi
 
 SHARED_ROWS=$(az resource list -g "$RG_SHARED" --query "[?location!='centralindia'].[name,location]" -o tsv)
 BAD_SHARED=$(echo "$SHARED_ROWS" | awk 'NF && tolower($2) != "global" { print $1 }')
 if [ -n "$BAD_SHARED" ]; then echo "FAIL: Non-global resources outside centralindia in $RG_SHARED: $BAD_SHARED"; exit 1; fi
-echo "PASS: All regional resources strictly reside in Central India"
+echo "PASS: All regional resources reside in Central India (the W-114.2 AI account excepted)"
 
 # 7. Direct Origin Access Blocked (403)
 echo "--- Check 7: Direct Origin Access Refusal (403) ---"

@@ -229,6 +229,16 @@ public final class AuthzTestSchema {
                     if (!columnExists(conn, "core", "subscription", "plan")) {
                         executeResource(conn, "db/migration/core/V188__subscription_plan.sql");
                     }
+                    // W-114.1: the AI helper switch and cap, core.ai_usage, and the three AI columns on
+                    // list_tenants() and get_tenant_overview() (replaces V188's functions).
+                    if (!columnExists(conn, "core", "subscription", "ai_enabled")) {
+                        executeResource(conn, "db/migration/core/V192__ai_switch_and_usage.sql");
+                    }
+                    // W-114.3: the chat tables, core.ai.use and its grant to every system role (trigger and
+                    // backfill). After V158, as in Flyway, so the platform tenant is skipped.
+                    if (!tableExists(conn, "core", "ai_session")) {
+                        executeResource(conn, "db/migration/core/V200__ai_chat.sql");
+                    }
                     if (!tableExists(conn, "core", "onboarding_task_template")) {
                         executeResource(conn, "db/migration/core/V201__employee_onboarding_tasks.sql");
                         executeResource(conn, "db/migration/core/V206__onboarding_role_check_and_grants.sql");

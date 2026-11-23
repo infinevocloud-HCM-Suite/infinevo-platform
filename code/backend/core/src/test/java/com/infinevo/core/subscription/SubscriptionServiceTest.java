@@ -306,6 +306,84 @@ class SubscriptionServiceTest {
         verify(subscriptionRepository, never()).findByTenantId(any());
     }
 
+    @Test
+    @DisplayName("W-114.1: updateAi on the platform tenant is refused before any SQL runs")
+    void updateAi_onPlatformTenant_isRefused() {
+        assertThatThrownBy(() -> subscriptionService.updateAi(
+                        PlatformTenant.DEFAULT_PLATFORM_TENANT_ID, new AiSettingsUpdateRequest(true, 500)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("platform tenant");
+
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+        verify(subscriptionRepository, never()).findByTenantId(any());
+    }
+
+    @Test
+    @DisplayName("W-114.1: switching on with no cap is refused")
+    void updateAi_onWithNoCap_isRefused() {
+        assertThatThrownBy(() -> subscriptionService.updateAi(TENANT_ID, new AiSettingsUpdateRequest(true, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("monthlyRequestCap is required when the AI helper is switched on");
+
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+        verify(subscriptionRepository, never()).findByTenantId(any());
+    }
+
+    @Test
+    @DisplayName("W-114.1: a cap of 0 or below is refused, on or off")
+    void updateAi_capBelowOne_isRefused() {
+        assertThatThrownBy(() -> subscriptionService.updateAi(TENANT_ID, new AiSettingsUpdateRequest(true, 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("monthlyRequestCap must be a whole number above 0");
+        assertThatThrownBy(() -> subscriptionService.updateAi(TENANT_ID, new AiSettingsUpdateRequest(false, -1)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+        verify(subscriptionRepository, never()).findByTenantId(any());
+    }
+
+    @Test
+    @DisplayName("W-114.1: a valid change calls core.set_subscription_ai with both values and sets the entity")
+    void updateAi_whenValid_callsSetterFunction() throws Exception {
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+        SubscriptionResponse response = subscriptionService.updateAi(TENANT_ID, new AiSettingsUpdateRequest(true, 500));
+
+        PreparedStatement ps = runCapturedCallback("SELECT core.set_subscription_ai(?, ?, ?)");
+        verify(ps).setObject(1, TENANT_ID);
+        verify(ps).setBoolean(2, true);
+        verify(ps).setObject(3, 500, Types.INTEGER);
+        verify(ps).execute();
+
+        assertThat(sub.isAiEnabled()).isTrue();
+        assertThat(sub.getAiMonthlyRequestCap()).isEqualTo(500);
+        assertThat(response.aiEnabled()).isTrue();
+        assertThat(response.aiMonthlyRequestCap()).isEqualTo(500);
+        verify(permissionCache, never()).bumpVersion(any());
+    }
+
+    @Test
+    @DisplayName("W-114.1: switching off with no cap passes SQL NULL; the current values write nothing")
+    void updateAi_offWithNoCap_passesNull_andNoOpWritesNothing() throws Exception {
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());
+        sub.setAiEnabled(true);
+        sub.setAiMonthlyRequestCap(100);
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+        subscriptionService.updateAi(TENANT_ID, new AiSettingsUpdateRequest(false, null));
+
+        PreparedStatement ps = runCapturedCallback("SELECT core.set_subscription_ai(?, ?, ?)");
+        verify(ps).setBoolean(2, false);
+        verify(ps).setNull(3, Types.INTEGER);
+        assertThat(sub.isAiEnabled()).isFalse();
+        assertThat(sub.getAiMonthlyRequestCap()).isNull();
+
+        // Same values again: nothing more is written.
+        subscriptionService.updateAi(TENANT_ID, new AiSettingsUpdateRequest(false, null));
+        verify(jdbcTemplate, times(1)).execute(any(ConnectionCallback.class));
+    }
+
     /** Runs the one ConnectionCallback the service handed to JdbcTemplate against a mocked connection. */
     @SuppressWarnings("unchecked")
     private PreparedStatement runCapturedCallback(String expectedSql) throws Exception {

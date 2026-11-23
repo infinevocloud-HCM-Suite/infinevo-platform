@@ -57,7 +57,10 @@ RUN set -eu; \
     done
 
 # ── Stage 3: slim runtime ───────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine AS runtime
+# Pinned by digest (2026-11-23). As a floating tag this image changed under us and took
+# the backend image over its CI size limit with no change in this repository. Dependabot
+# proposes a new digest (.github/dependabot.yml); the images job then shows its size.
+FROM eclipse-temurin:21-jre-alpine@sha256:5d7689f47d670aca766b9503a70bccc2d73b4eb9221ae8f714ae958313c4ce70 AS runtime
 
 # Non-root user (04-runtime-containers.md section 4).
 RUN addgroup -g 1000 infinevo && \

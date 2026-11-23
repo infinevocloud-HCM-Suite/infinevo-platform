@@ -35,6 +35,8 @@ const LOCKING_STATUSES = ['SUSPENDED', 'CANCELLED'];
  * suspending ask first: the tenant's data in a revoked module goes read-only (W-12-1 §13 row 1)
  * and a suspended tenant is locked out of every module endpoint. A limit below the current headcount
  * asks first too: nobody is removed, but adding or reactivating employees is blocked (W-84.2).
+ * Switching the AI helper on asks first as well: it sends the customer's questions to the AI model
+ * (W-114.1).
  *
  * "Act as" asks for an email, resolved server-side, because a customer's users cannot be listed
  * before a session exists (§5 note, §13 decision 2). A tenant with no user accounts gets a
@@ -62,6 +64,9 @@ export function TenantDetail() {
   const [form] = Form.useForm();
   // The Plan card's draft, reset from the overview on every load (W-84.1, W-86).
   const [planDraft, setPlanDraft] = useState({ plan: null, supportPlan: null, employeeLimit: null, currentPeriodEnd: null });
+  // The AI helper card's draft (W-114.1). Missing fields read as off and no cap, so the card works
+  // against a backend that does not send them yet.
+  const [aiDraft, setAiDraft] = useState({ enabled: false, monthlyRequestCap: null });
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +77,11 @@ export function TenantDetail() {
         supportPlan: res?.support_plan ?? null,
         employeeLimit: res?.employee_limit ?? null,
         currentPeriodEnd: res?.current_period_end ?? null,
+      });
+      setAiDraft({
+        enabled: res?.ai_enabled === true,
+        monthlyRequestCap:
+          typeof res?.ai_monthly_request_cap === 'number' ? res.ai_monthly_request_cap : null,
       });
       shown.current = true;
       setMissing(false);
@@ -194,6 +204,40 @@ export function TenantDetail() {
       return;
     }
     applyPlan(draft);
+  };
+
+  const aiSavedOn = tenant.ai_enabled === true;
+  const aiSavedCap = typeof tenant.ai_monthly_request_cap === 'number' ? tenant.ai_monthly_request_cap : null;
+  const aiUsed = Number(tenant.ai_usage_this_month ?? 0);
+  const aiCapMissing = aiDraft.enabled && typeof aiDraft.monthlyRequestCap !== 'number';
+
+  const applyAi = async ({ enabled, monthlyRequestCap }) => {
+    setBusy(true);
+    try {
+      await tenantService.setAi(tenant.tenant_id, {
+        enabled,
+        monthlyRequestCap: monthlyRequestCap ?? null,
+      });
+      await load();
+    } catch (err) {
+      errorMsg(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSaveAi = () => {
+    const draft = aiDraft;
+    if (draft.enabled && !aiSavedOn) {
+      Modal.confirm({
+        title: 'Switch on the AI helper?',
+        content: "The AI helper sends this customer's questions to the AI model. Switch on?",
+        okText: 'Switch on',
+        onOk: () => applyAi(draft),
+      });
+      return;
+    }
+    applyAi(draft);
   };
 
   const onActAs = async (values) => {
@@ -335,6 +379,55 @@ export function TenantDetail() {
               </Typography.Text>
               <Button type="primary" id="btn-save-plan" disabled={busy} onClick={onSavePlan}>
                 Save plan
+              </Button>
+            </Space>
+          </Form>
+        </Card>
+      )}
+
+      {!platform && (
+        <Card size="small" variant="borderless" title="AI helper">
+          <Form layout="vertical" style={{ maxWidth: 480 }}>
+            <Form.Item label="AI helper">
+              <Switch
+                aria-label="AI helper"
+                checked={aiDraft.enabled}
+                disabled={busy}
+                onChange={(checked) => setAiDraft((d) => ({ ...d, enabled: checked }))}
+              />
+            </Form.Item>
+            <Form.Item
+              label="Monthly request cap"
+              required={aiDraft.enabled}
+              validateStatus={aiCapMissing ? 'error' : undefined}
+              help={aiCapMissing ? 'Set a monthly cap to switch the AI helper on' : undefined}
+            >
+              <InputNumber
+                aria-label="Monthly request cap"
+                min={1}
+                precision={0}
+                placeholder="No cap"
+                style={{ width: '100%' }}
+                value={aiDraft.monthlyRequestCap}
+                disabled={busy}
+                onChange={(v) =>
+                  setAiDraft((d) => ({ ...d, monthlyRequestCap: typeof v === 'number' ? v : null }))
+                }
+              />
+            </Form.Item>
+            <Space direction="vertical">
+              <Typography.Text>
+                {aiSavedCap !== null
+                  ? `Used this month: ${aiUsed} of ${aiSavedCap}`
+                  : `Used this month: ${aiUsed}`}
+              </Typography.Text>
+              <Button
+                type="primary"
+                id="btn-save-ai"
+                disabled={busy || aiCapMissing}
+                onClick={onSaveAi}
+              >
+                Save AI helper
               </Button>
             </Space>
           </Form>

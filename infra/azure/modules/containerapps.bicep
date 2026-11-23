@@ -73,6 +73,12 @@ param brevoSmtpLogin string
 @description('Brevo validated sender email address for worker and Keycloak notifications')
 param brevoSenderEmail string = 'application@infinevocloud.com'
 
+@description('Azure OpenAI endpoint, e.g. https://oai-infinevo-dev.openai.azure.com/ (W-114.2). Empty when main.bicep deployAi is false: the two AI settings are then left out and the backend uses its stub client.')
+param aiEndpoint string = ''
+
+@description('Azure OpenAI deployment name the app calls, e.g. gpt-4.1-mini (W-114.2). Empty when deployAi is false.')
+param aiDeployment string = ''
+
 @description('Front Door endpoint hostname, bare (ep-infinevo-dev-....azurefd.net). deploy.sh reads it from the live endpoint before the deployment. Empty on a first deployment, when the endpoint does not exist yet; the Front Door settings are then left to deploy.yml.')
 param frontDoorHostName string = ''
 
@@ -216,6 +222,22 @@ var redisEnv = empty(redisHost) ? [] : [
   {
     name: 'SPRING_DATA_REDIS_PASSWORD'
     secretRef: 'redis-password'
+  }
+]
+
+// W-114.2: the AI helper's two settings, read by Spring as infinevo.ai.endpoint and
+// infinevo.ai.deployment. App container only - the worker never calls the model and holds
+// no role on it. Left out entirely, not set to '', when no endpoint is supplied, so with
+// deployAi false the app's env list is exactly what it was before this ticket. Sign-in is
+// by the identity AZURE_CLIENT_ID already names; there is no key to pass.
+var aiEnv = empty(aiEndpoint) ? [] : [
+  {
+    name: 'INFINEVO_AI_ENDPOINT'
+    value: aiEndpoint
+  }
+  {
+    name: 'INFINEVO_AI_DEPLOYMENT'
+    value: aiDeployment
   }
 ]
 
@@ -433,7 +455,7 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'BREVO_FROM_EMAIL'
               value: brevoSenderEmail
             }
-          ], redisEnv, appReleaseEnv)
+          ], redisEnv, appReleaseEnv, aiEnv)
           probes: [
             {
               type: 'Liveness'

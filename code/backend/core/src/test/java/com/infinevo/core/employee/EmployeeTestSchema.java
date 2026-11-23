@@ -1,5 +1,6 @@
 package com.infinevo.core.employee;
 
+import com.infinevo.core.subscription.SubscriptionTestSchema;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -133,6 +134,7 @@ public final class EmployeeTestSchema {
                 executeResource(conn, "db/migration/core/V209__tenant_option.sql");
             }
         }
+        SubscriptionTestSchema.apply();
     }
 
     /** Seeds the two dev tenants. Idempotent. */

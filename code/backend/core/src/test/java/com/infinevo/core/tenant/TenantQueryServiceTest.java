@@ -107,7 +107,10 @@ class TenantQueryServiceTest {
                 0L,
                 null,
                 null,
-                null);
+                null,
+                false,
+                null,
+                0);
 
         when(jdbcTemplate.query(eq("SELECT * FROM core.list_tenants()"), any(RowMapper.class)))
                 .thenReturn(List.of(overview));
@@ -141,6 +144,32 @@ class TenantQueryServiceTest {
         assertThat(unlimited.employeeLimit()).isNull();
         assertThat(unlimited.plan()).isNull();
         assertThat(unlimited.supportPlan()).isNull();
+    }
+
+    @Test
+    @DisplayName("W-114.1: the row mapper reads ai_enabled, ai_monthly_request_cap and ai_usage_this_month (V192)")
+    @SuppressWarnings("unchecked")
+    void rowMapper_readsAiColumns() throws Exception {
+        TenantContext.set(PLATFORM_TENANT);
+        ArgumentCaptor<RowMapper<TenantOverview>> mapper = ArgumentCaptor.forClass(RowMapper.class);
+        when(jdbcTemplate.query(eq("SELECT * FROM core.list_tenants()"), mapper.capture()))
+                .thenReturn(List.of());
+        tenantQueryService.list();
+
+        java.sql.ResultSet on = row(1L, null, null, null);
+        when(on.getBoolean("ai_enabled")).thenReturn(true);
+        when(on.getObject("ai_monthly_request_cap", Integer.class)).thenReturn(500);
+        when(on.getInt("ai_usage_this_month")).thenReturn(12);
+        TenantOverview mapped = mapper.getValue().mapRow(on, 0);
+        assertThat(mapped.aiEnabled()).isTrue();
+        assertThat(mapped.aiMonthlyRequestCap()).isEqualTo(500);
+        assertThat(mapped.aiUsageThisMonth()).isEqualTo(12);
+
+        // Off with no cap: the cap stays null rather than reading as 0.
+        TenantOverview off = mapper.getValue().mapRow(row(1L, null, null, null), 1);
+        assertThat(off.aiEnabled()).isFalse();
+        assertThat(off.aiMonthlyRequestCap()).isNull();
+        assertThat(off.aiUsageThisMonth()).isZero();
     }
 
     private static java.sql.ResultSet row(long employeeCount, Integer employeeLimit, String plan, String supportPlan)
@@ -177,7 +206,10 @@ class TenantQueryServiceTest {
                 0L,
                 null,
                 null,
-                null);
+                null,
+                false,
+                null,
+                0);
 
         when(jdbcTemplate.query(
                         eq("SELECT * FROM core.get_tenant_overview(?)"), any(RowMapper.class), eq(CUSTOMER_TENANT)))
@@ -298,7 +330,10 @@ class TenantQueryServiceTest {
                 0L,
                 null,
                 null,
-                null);
+                null,
+                false,
+                null,
+                0);
     }
 
     @Test

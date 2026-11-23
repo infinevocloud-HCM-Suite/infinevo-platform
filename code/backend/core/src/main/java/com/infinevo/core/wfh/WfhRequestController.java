@@ -68,14 +68,23 @@ public class WfhRequestController {
             anyOf = {"core.wfh.read_team", "core.wfh.read_own"})
     public WfhRequestResponse getRequest(@PathVariable UUID id) {
         UUID tenantId = TenantContext.require();
-        return requestService.getRequest(tenantId, id);
+        WfhRequestResponse resp = requestService.getRequest(tenantId, id);
+        if (permissionService.holds("core.wfh.read") || permissionService.holds("core.wfh.read_team")) {
+            return resp;
+        }
+        // Caller only holds core.wfh.read_own
+        UUID callerEmployeeId = requireCallerEmployeeId();
+        if (!callerEmployeeId.equals(resp.employeeId())) {
+            throw new AccessDeniedException("Cannot read another employee's WFH request");
+        }
+        return resp;
     }
 
     @PostMapping("/{id}/withdraw")
     @RequiresAction("core.wfh.apply")
     public WfhRequestResponse withdraw(@PathVariable UUID id, @RequestBody(required = false) Map<String, String> body) {
         UUID tenantId = TenantContext.require();
-        UUID callerEmployeeId = currentCallerEmployeeId();
+        UUID callerEmployeeId = authorizeOwnerOrManage(tenantId, id, "Cannot withdraw another employee's WFH request");
         String reason = body != null ? body.get("reason") : null;
         return requestService.withdraw(tenantId, id, callerEmployeeId, reason);
     }
@@ -84,13 +93,34 @@ public class WfhRequestController {
     @RequiresAction("core.wfh.apply")
     public WfhRequestResponse cancel(@PathVariable UUID id, @RequestBody(required = false) Map<String, String> body) {
         UUID tenantId = TenantContext.require();
-        UUID callerEmployeeId = currentCallerEmployeeId();
+        UUID callerEmployeeId = authorizeOwnerOrManage(tenantId, id, "Cannot cancel another employee's WFH request");
         String reason = body != null ? body.get("reason") : null;
         return requestService.cancel(tenantId, id, callerEmployeeId, reason);
     }
 
-    private UUID currentCallerEmployeeId() {
-        return employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
+    /**
+     * Ownership check before any state change, as {@code LeaveRequestController.withdraw/cancel}.
+     * A holder of {@code core.wfh.manage} acts on any request in the tenant; anyone else only on
+     * their own, and a caller with no employee record on none. A missing id is still 404, raised
+     * by the load. Returns the caller's employee id, null for a manager with no employee record.
+     */
+    private UUID authorizeOwnerOrManage(UUID tenantId, UUID requestId, String refusal) {
+        if (permissionService.holds("core.wfh.manage")) {
+            return employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
+        }
+        UUID callerEmployeeId = requireCallerEmployeeId();
+        WfhRequestResponse existing = requestService.getRequest(tenantId, requestId);
+        if (!callerEmployeeId.equals(existing.employeeId())) {
+            throw new AccessDeniedException(refusal);
+        }
+        return callerEmployeeId;
+    }
+
+    private UUID requireCallerEmployeeId() {
+        return employeeService
+                .currentEmployee()
+                .map(EmployeeResponse::id)
+                .orElseThrow(() -> new AccessDeniedException("No employee profile found for caller"));
     }
 
     @ExceptionHandler(NoSuchElementException.class)

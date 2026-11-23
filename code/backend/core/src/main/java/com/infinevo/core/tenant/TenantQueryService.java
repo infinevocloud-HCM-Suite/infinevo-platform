@@ -68,6 +68,11 @@ public class TenantQueryService {
         String plan = rs.getString("plan");
         String supportPlan = rs.getString("support_plan");
 
+        // W-114.1: V192 adds the AI helper switch, its cap (null until set) and this month's usage.
+        boolean aiEnabled = rs.getBoolean("ai_enabled");
+        Integer aiMonthlyRequestCap = rs.getObject("ai_monthly_request_cap", Integer.class);
+        int aiUsageThisMonth = rs.getInt("ai_usage_this_month");
+
         return new TenantOverview(
                 tenantId,
                 name,
@@ -82,7 +87,10 @@ public class TenantQueryService {
                 employeeCount,
                 employeeLimit,
                 plan,
-                supportPlan);
+                supportPlan,
+                aiEnabled,
+                aiMonthlyRequestCap,
+                aiUsageThisMonth);
     };
 
     private final JdbcTemplate jdbcTemplate;

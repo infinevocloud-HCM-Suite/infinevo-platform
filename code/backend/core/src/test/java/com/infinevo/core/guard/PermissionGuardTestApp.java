@@ -28,6 +28,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * <p>What it holds and why:
  *
  * <ul>
+ *   <li>{@code com.infinevo.core.ai} - {@code AiStatusController} and the usage repository (W-114.1), so
+ *       {@code SubscriptionAiIT} reads the status the switch sets over HTTP.
  *   <li>{@code com.infinevo.core.authz}, {@code .employee} and {@code .org} — the controllers under
  *       test, their services, and {@code PermissionReadServiceImpl} as the {@code ActionSource}.
  *   <li>{@link AuditController} and {@link AuditQueryService}, imported by name, with the
@@ -54,6 +56,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableAutoConfiguration
 @ComponentScan(
         basePackages = {
+            "com.infinevo.core.ai",
             "com.infinevo.core.approval",
             "com.infinevo.core.attendance",
             "com.infinevo.core.authz",
@@ -79,6 +82,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         })
 @EntityScan(
         basePackages = {
+            "com.infinevo.core.ai",
             "com.infinevo.core.approval",
             "com.infinevo.core.attendance",
             "com.infinevo.core.authz",
@@ -98,6 +102,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         })
 @EnableJpaRepositories(
         basePackages = {
+            "com.infinevo.core.ai",
             "com.infinevo.core.approval",
             "com.infinevo.core.attendance",
             "com.infinevo.core.authz",

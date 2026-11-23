@@ -4,11 +4,15 @@
 #
 # Usage:
 #   bash infra/azure/deploy.sh [--env dev|uat|prod] [--location centralindia]
-#                              [--image-tag git-<sha>]
+#                              [--image-tag git-<sha>] [--what-if]
 #
 # Without --image-tag this is an INFRASTRUCTURE-ONLY run: it reads what every Container
 # App is running and which revision holds the traffic, hands both back to the template,
 # and so changes neither. With --image-tag it declares that release instead.
+#
+# --what-if previews the deployment with the SAME parameter set a real run passes and
+# writes nothing: no Key Vault network rule, no secret seeding or persisting, no
+# deployment, no image import, no job start. It runs `az deployment sub what-if` and exits.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -23,6 +27,8 @@ LOCATION="centralindia"
 # declare a RELEASE from this script; the pipeline passes the same value through
 # backendImageTag (W-54 findings F-7 and F-8).
 IMAGE_TAG=""
+# 1 = preview only (W-114.2). Every write below is guarded on it being 0.
+WHAT_IF=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -37,6 +43,10 @@ while [[ $# -gt 0 ]]; do
     --image-tag)
       IMAGE_TAG="$2"
       shift 2
+      ;;
+    --what-if)
+      WHAT_IF=1
+      shift
       ;;
     *)
       echo "Unknown argument: $1" >&2
@@ -127,7 +137,9 @@ if [[ ! "$MY_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 KV_IP_RULE="${MY_IP}/32"
 
-if az keyvault show --name "$VAULT_NAME" >/dev/null 2>&1; then
+# Not in --what-if: adding the rule is a write. KV_IP_RULE is still computed above, because
+# a real run passes it as keyVaultAllowedIpRules and the preview must pass the same value.
+if [[ "$WHAT_IF" -eq 0 ]] && az keyvault show --name "$VAULT_NAME" >/dev/null 2>&1; then
   echo "Authorising ${KV_IP_RULE} on ${VAULT_NAME} for the duration of this script..."
   az keyvault network-rule add --name "$VAULT_NAME" --ip-address "$KV_IP_RULE" >/dev/null 2>&1 || true
   # The ACL takes several seconds to reach the data plane; without this the first secret
@@ -184,7 +196,11 @@ cleanup() {
   persist_admin_pw
   revoke_kv_ip_rule
 }
-trap cleanup EXIT
+# Not in --what-if: both jobs of the trap are writes, and a preview opened no rule and
+# deploys no server whose password would need keeping.
+if [[ "$WHAT_IF" -eq 0 ]]; then
+  trap cleanup EXIT
+fi
 
 # ── Seed canonical platform secrets (W-56) ──────────────────────────────────
 # The migration job and container apps need all canonical secrets seeded:
@@ -207,7 +223,9 @@ seed_canonical_secrets() {
     done
   fi
 }
-seed_canonical_secrets
+if [[ "$WHAT_IF" -eq 0 ]]; then
+  seed_canonical_secrets
+fi
 
 PARAM_FILE="${SCRIPT_DIR}/parameters/${ENV}.bicepparam"
 if [[ ! -f "$PARAM_FILE" ]]; then
@@ -283,24 +301,34 @@ else
   echo "Infrastructure-only deploy: no --image-tag, so no app changes image and no weight moves."
 fi
 
-# ── Read the live Front Door hostname, so this deployment keeps the apps' Front Door settings ──
-# containerapps.bicep declares KEYCLOAK_JWK_SET_URI, KC_WEB_ORIGIN, API_BASE_URL and the
-# rest from this hostname - the same values deploy.yml sets. Without it a Bicep run writes
-# the containers without them: on 2026-10-19 that left the worker crash-looping for two
-# days. Read the same way deploy.yml reads it. On a first deployment the endpoint does
-# not exist yet, the value stays empty, and deploy.yml supplies the settings.
-FRONT_DOOR_HOST=$(az afd endpoint show \
-  -g "$SHARED_RG" \
-  --profile-name afd-infinevo-shared \
-  --endpoint-name "ep-infinevo-${ENV}" \
-  --query hostName -o tsv 2>/dev/null || true)
+# ── Read the live public hostname, so this deployment keeps the apps' Front Door settings ──
+# containerapps.bicep declares KC_HOSTNAME, KEYCLOAK_ISSUER_URI, API_BASE_URL and the rest
+# from this hostname - the same values deploy.yml sets. Without it a Bicep run writes the
+# containers without them: on 2026-10-19 that left the worker crash-looping for two days.
+#
+# Resolved in the same order as deploy.yml's "Resolve Front Door hostname" step: the
+# CUSTOM_DOMAIN environment variable, then the Front Door profile's custom domain, then the
+# endpoint's own azurefd.net name. Until 2026-11-23 this script read only the endpoint name,
+# so a full run would have moved sign-in and the web app off the customer-facing domain
+# onto azurefd.net - caught by the W-114.2 what-if. On a first deployment nothing exists
+# yet, the value stays empty, and deploy.yml supplies the settings.
+FRONT_DOOR_HOST="${CUSTOM_DOMAIN:-}"
+if [[ -z "$FRONT_DOOR_HOST" ]]; then
+  FRONT_DOOR_HOST=$(az afd custom-domain list     -g "$SHARED_RG"     --profile-name afd-infinevo-shared     --query "[0].hostName" -o tsv 2>/dev/null || true)
+  [[ "$FRONT_DOOR_HOST" == "None" ]] && FRONT_DOOR_HOST=""
+fi
+if [[ -z "$FRONT_DOOR_HOST" ]]; then
+  FRONT_DOOR_HOST=$(az afd endpoint show     -g "$SHARED_RG"     --profile-name afd-infinevo-shared     --endpoint-name "ep-infinevo-${ENV}"     --query hostName -o tsv 2>/dev/null || true)
+fi
+# Lower case, as every setting carries it.
+FRONT_DOOR_HOST=$(printf '%s' "$FRONT_DOOR_HOST" | tr '[:upper:]' '[:lower:]')
 if [[ -n "$FRONT_DOOR_HOST" ]]; then
   echo "Front Door: ${FRONT_DOOR_HOST} - the apps keep their Front Door settings."
 elif [[ "$CURRENT_IMAGES_JSON" != "{}" ]]; then
   # The apps exist, so the endpoint does too: an empty answer is an expired token or an
   # ARM error, not a first deployment. Going on would write the apps without their Front
   # Door settings - the 2026-10-19 worker crash-loop. Stop, as deploy.yml does.
-  echo "FAIL: the apps in ${APP_RG} exist but Front Door endpoint ep-infinevo-${ENV} could not be read." >&2
+  echo "FAIL: the apps in ${APP_RG} exist but no public host was found (CUSTOM_DOMAIN empty, no Front Door custom domain, endpoint ep-infinevo-${ENV} unreadable)." >&2
   echo "      Check:  az afd endpoint show -g ${SHARED_RG} --profile-name afd-infinevo-shared --endpoint-name ep-infinevo-${ENV}" >&2
   exit 1
 else
@@ -308,23 +336,36 @@ else
 fi
 
 DEPLOY_NAME="infinevo-${ENV}-$(date +%Y%m%d%H%M%S)"
+
+# One parameter set for both the preview and the real run, so they cannot drift apart.
+DEPLOY_ARGS=(
+  --name "$DEPLOY_NAME"
+  --location "$LOCATION"
+  --template-file "${SCRIPT_DIR}/main.bicep"
+  --parameters "$PARAM_FILE"
+  --parameters deployerObjectId="$DEPLOYER_OID"
+  --parameters postgresAdminPassword="$ADMIN_PW"
+  --parameters postgresAdminUsername="$ADMIN_USER"
+  --parameters frontDoorBackendPrefixes="$FD_PREFIXES_JSON"
+  --parameters keyVaultAllowedIpRules="[{\"value\":\"${KV_IP_RULE}\"}]"
+  --parameters backendImageTag="${IMAGE_TAG:-$LIVE_BACKEND_TAG}"
+  --parameters containerAppCurrentImages="$CURRENT_IMAGES_JSON"
+  --parameters containerAppTrafficRevisions="$TRAFFIC_REVISIONS_JSON"
+  --parameters frontDoorHostName="$FRONT_DOOR_HOST"
+)
+
+# --what-if stops here. `az deployment sub what-if` only previews (no --confirm flag is
+# passed, so it cannot go on to deploy), and the `exit` makes everything below - the create
+# call, the secret write, the image import, the job start - unreachable in this mode.
+if [[ "$WHAT_IF" -eq 1 ]]; then
+  echo "What-if only: previewing subscription deployment ${DEPLOY_NAME}. Nothing is changed."
+  az deployment sub what-if "${DEPLOY_ARGS[@]}"
+  exit $?
+fi
+
 echo "Executing subscription deployment: ${DEPLOY_NAME}..."
 
-az deployment sub create \
-  --name "$DEPLOY_NAME" \
-  --location "$LOCATION" \
-  --template-file "${SCRIPT_DIR}/main.bicep" \
-  --parameters "$PARAM_FILE" \
-  --parameters deployerObjectId="$DEPLOYER_OID" \
-  --parameters postgresAdminPassword="$ADMIN_PW" \
-  --parameters postgresAdminUsername="$ADMIN_USER" \
-  --parameters frontDoorBackendPrefixes="$FD_PREFIXES_JSON" \
-  --parameters keyVaultAllowedIpRules="[{\"value\":\"${KV_IP_RULE}\"}]" \
-  --parameters backendImageTag="${IMAGE_TAG:-$LIVE_BACKEND_TAG}" \
-  --parameters containerAppCurrentImages="$CURRENT_IMAGES_JSON" \
-  --parameters containerAppTrafficRevisions="$TRAFFIC_REVISIONS_JSON" \
-  --parameters frontDoorHostName="$FRONT_DOOR_HOST" \
-  --output table
+az deployment sub create "${DEPLOY_ARGS[@]}" --output table
 
 echo "Deployment finished. Storing/updating administrator credentials in Key Vault..."
 az keyvault secret set --vault-name "$VAULT_NAME" --name "psql-admin-pw" --value "$ADMIN_PW" >/dev/null

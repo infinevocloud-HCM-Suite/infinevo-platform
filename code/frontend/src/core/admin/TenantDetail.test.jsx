@@ -12,7 +12,8 @@ import * as screens from '@shell/screens';
 
 vi.mock('./tenantService.js', () => ({
   tenantService: {
-    get: vi.fn(), setModules: vi.fn(), setStatus: vi.fn(), setPlan: vi.fn(), applyTemplate: vi.fn(),
+    get: vi.fn(), setModules: vi.fn(), setStatus: vi.fn(), setPlan: vi.fn(), setAi: vi.fn(),
+    applyTemplate: vi.fn(),
   },
 }));
 vi.mock('./impersonationService.js', () => ({
@@ -82,6 +83,7 @@ describe('TenantDetail', () => {
     tenantService.setModules.mockResolvedValue({});
     tenantService.setStatus.mockResolvedValue({});
     tenantService.setPlan.mockResolvedValue({});
+    tenantService.setAi.mockResolvedValue({});
     auditService.search.mockResolvedValue({ content: [], totalElements: 0 });
     document.body.querySelectorAll('.ant-modal-root').forEach((n) => n.remove());
   });
@@ -268,6 +270,76 @@ describe('TenantDetail', () => {
     expect(screen.queryByRole('combobox', { name: 'Plan' })).toBeNull();
     expect(screen.queryByRole('spinbutton', { name: 'Employee limit' })).toBeNull();
     expect(document.getElementById('btn-save-plan')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Monthly request cap' })).toBeNull();
+    expect(document.getElementById('btn-save-ai')).toBeNull();
+  });
+
+  it('W-114.1: reads as off with no cap and "Used this month: 0" when the overview has no AI fields', async () => {
+    setup();
+    const toggle = await screen.findByRole('switch', { name: 'AI helper' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('spinbutton', { name: 'Monthly request cap' }).value).toBe('');
+    expect(screen.getByText('Used this month: 0')).toBeDefined();
+    expect(document.getElementById('btn-save-ai').disabled).toBe(false);
+  });
+
+  it('W-114.1: shows this month\'s usage against the cap', async () => {
+    setup({
+      overview: { ...globex, ai_enabled: true, ai_monthly_request_cap: 500, ai_usage_this_month: 12 },
+    });
+    expect(await screen.findByText('Used this month: 12 of 500')).toBeDefined();
+    expect(screen.getByRole('switch', { name: 'AI helper' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('spinbutton', { name: 'Monthly request cap' }).value).toBe('500');
+  });
+
+  it('W-114.1: disables Save while the switch is on and the cap is empty', async () => {
+    setup();
+    fireEvent.click(await screen.findByRole('switch', { name: 'AI helper' }));
+    expect(document.getElementById('btn-save-ai').disabled).toBe(true);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monthly request cap' }), {
+      target: { value: '500' },
+    });
+    expect(document.getElementById('btn-save-ai').disabled).toBe(false);
+  });
+
+  it('W-114.1: switching on asks first, and only then calls setAi, then reloads', async () => {
+    setup();
+    fireEvent.click(await screen.findByRole('switch', { name: 'AI helper' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monthly request cap' }), {
+      target: { value: '500' },
+    });
+    fireEvent.click(document.getElementById('btn-save-ai'));
+
+    await waitFor(() => expect(confirmDialog()).not.toBeNull());
+    expect(confirmDialog().textContent).toMatch(
+      /The AI helper sends this customer's questions to the AI model\. Switch on\?/,
+    );
+    expect(tenantService.setAi).not.toHaveBeenCalled();
+
+    confirmOk('Switch on');
+    await waitFor(() =>
+      expect(tenantService.setAi).toHaveBeenCalledWith('tenant-globex', {
+        enabled: true,
+        monthlyRequestCap: 500,
+      }),
+    );
+    await waitFor(() => expect(tenantService.get).toHaveBeenCalledTimes(2));
+  });
+
+  it('W-114.1: switching off saves without asking and keeps the cap', async () => {
+    setup({
+      overview: { ...globex, ai_enabled: true, ai_monthly_request_cap: 500, ai_usage_this_month: 12 },
+    });
+    fireEvent.click(await screen.findByRole('switch', { name: 'AI helper' }));
+    fireEvent.click(document.getElementById('btn-save-ai'));
+
+    await waitFor(() =>
+      expect(tenantService.setAi).toHaveBeenCalledWith('tenant-globex', {
+        enabled: false,
+        monthlyRequestCap: 500,
+      }),
+    );
+    expect(confirmDialog()).toBeNull();
   });
 
   it('W-84.1: shows the employee count against the limit, in the overview and the Plan card', async () => {
