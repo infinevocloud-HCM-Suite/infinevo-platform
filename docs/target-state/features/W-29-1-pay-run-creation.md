@@ -291,7 +291,7 @@ Nothing is deployed. Both scripts are additive and forward-only. A run in `DRAFT
 | 1 | Who is in the run? | Everyone employed on any day of the period, then salary and bank decide `INCLUDED` or `SKIPPED`. Legacy took `ACTIVE` only and dropped leavers unpaid; that is a defect, not a rule |
 | 2 | Where do skipped employees go? | **Into `employee_payrun` with a reason.** A count (`PayRun.java:101`) tells the officer nothing they can act on |
 | 3 | What does "lock" mean? | `PayInputService.lock(period)` plus `status = LOCKED`. Not a flag on the run — `W-19` §6 |
-| 4 | Can a locked run be cancelled? | **Yes**, and the period lock stays. The next run for the period reads the same frozen inputs; `W-19`'s lock is idempotent |
+| 4 | Can a locked run be cancelled? | **Yes**, and the period lock stays. The next run for the period reads the same frozen inputs; `W-19`'s lock is idempotent. *Superseded:* D-138/D-144 remove a LOCKED month's lock on cancel; D-151 (founder, 2026-11-24) also reopens a CLOSED month when its `APPROVED` regular run is cancelled. A `PAID` run cannot be cancelled (`W-36.2` decision 9) |
 | 5 | Status values for all four parts now, or grow them? | **All eight now, with the `CHECK`.** Later parts add transitions; a status added by `ALTER … CHECK` on a live table is a lock on the hottest payroll table |
 | 6 | Where does the employee list come from? | One new read on `core` `EmployeeService`. `W-13.3`'s search is paged and free-text, the wrong shape for a batch that must be complete |
 | 7 | Snapshot employee name and number on the row? | **No.** Nothing in parts 1–4 needs it; `W-36` decides for payslips |

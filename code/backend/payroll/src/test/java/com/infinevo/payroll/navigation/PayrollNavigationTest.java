@@ -11,6 +11,7 @@ import com.infinevo.payroll.payrun.PayRunController;
 import com.infinevo.payroll.proof.ProofChaseController;
 import com.infinevo.payroll.reimbursement.ReimbursementClaimController;
 import com.infinevo.payroll.schedule.PayScheduleController;
+import com.infinevo.payroll.taxcalc.recalc.TaxRecalcFailureController;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.lang.reflect.Method;
@@ -73,6 +74,7 @@ class PayrollNavigationTest {
                         PayrollNavigation.CLAIMS,
                         PayrollNavigation.DEDUCTIONS,
                         PayrollNavigation.PROOFS,
+                        PayrollNavigation.TAX_RECALC_FAILURES,
                         PayrollNavigation.SETTINGS,
                         PayrollNavigation.COMPONENTS);
         assertThat(group.path()).isEqualTo(PayrollNavigation.DASHBOARD.path());
@@ -136,6 +138,27 @@ class PayrollNavigationTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(ProofChaseController.class
+                        .getAnnotation(RequestMapping.class)
+                        .value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(list.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
+    }
+
+    @Test
+    @DisplayName(
+            "D-151: payroll.tax_recalc_failures targets TaxRecalcFailureController's list GET, behind the same action")
+    void taxRecalcFailuresItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.TAX_RECALC_FAILURES;
+        assertThat(item.key()).isEqualTo("payroll.tax_recalc_failures");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.tax_recalc_failures");
+        assertThat(item.path()).isEqualTo("/payroll/tax/recalc-failures");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        Method list = Arrays.stream(TaxRecalcFailureController.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && m.getAnnotation(GetMapping.class).value().length == 0)
+                .findFirst()
+                .orElseThrow();
+        assertThat(TaxRecalcFailureController.class
                         .getAnnotation(RequestMapping.class)
                         .value())
                 .containsExactly(item.targetEndpoint());

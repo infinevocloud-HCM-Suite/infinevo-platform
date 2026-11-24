@@ -107,6 +107,17 @@ public interface PayInputService {
     boolean unlock(YearMonth period);
 
     /**
+     * Reopens a month whose regular run was approved and is now cancelled (D-151): removes the period's
+     * lock whatever its stage, so untagged entries post there again. Never throws for a CLOSED month, so a
+     * caller in a transaction is not marked rollback-only. Run locks are not touched. No lock is a no-op.
+     * Only the pay run calls this, and only when it cancels the month's APPROVED regular run; a PAID run
+     * cannot be cancelled, so a paid month is never reopened.
+     *
+     * @return {@code true} if a lock was removed
+     */
+    boolean reopen(YearMonth period);
+
+    /**
      * Locks a run so no further write tagged to it succeeds (W-30.1). {@code period} is stored
      * alongside the lock for reporting; it does not lock the period itself — an untagged input for
      * the same calendar period is unaffected. Locking the same run twice is a no-op.

@@ -4,12 +4,15 @@ import { EmployeeTdsCard } from './EmployeeTdsCard.jsx';
 import { employeeTdsService } from './employeeTdsService.js';
 import { currentFy, fyForApi, fyOptions } from '../tax/financialYear.js';
 import * as useCanModule from '@shell/screens';
+import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 vi.mock('./employeeTdsService.js', () => ({
   employeeTdsService: {
     get: vi.fn(),
     history: vi.fn(),
     save: vi.fn(),
+    applySuggestion: vi.fn(),
+    clearSuggestion: vi.fn(),
   },
 }));
 
@@ -143,6 +146,61 @@ describe('EmployeeTdsCard (D-145)', () => {
     const figures = within(screen.getByTestId('employee-tds-figures'));
     expect(figures.getByText('Monthly share')).toBeDefined();
     expect(screen.getByTestId('employee-tds-months-left').textContent).toBe('0');
+  });
+
+  it('D-151: a suggestion shows beside the officer figure; Apply asks first, then applies and re-reads', async () => {
+    const withSuggestion = {
+      ...RECORD,
+      suggestion: { regime: 'NEW', annual_tax: 90000, annual_gross: 1, annual_taxable_income: 1, suggested_at: '2026-11-24T05:00:00Z' },
+    };
+    employeeTdsService.get.mockResolvedValue(withSuggestion);
+    employeeTdsService.history.mockResolvedValue([withSuggestion]);
+    employeeTdsService.applySuggestion.mockResolvedValueOnce({ ...RECORD, annual_tax: 90000, source: 'DECLARATION' });
+
+    render(<EmployeeTdsCard employeeId="emp-1" />);
+
+    await waitFor(() => expect(screen.getByTestId('employee-tds-suggestion')).toBeDefined());
+    expect(screen.getByTestId('employee-tds-suggestion').textContent).toContain('90,000.00');
+    expect(screen.getByTestId('employee-tds-annual-tax').textContent).toContain('1,20,000.00');
+    const readsBefore = employeeTdsService.get.mock.calls.length;
+
+    fireEvent.click(screen.getByTestId('employee-tds-suggestion-apply'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(employeeTdsService.applySuggestion).toHaveBeenCalledWith('emp-1', fyForApi(FY)));
+    await waitFor(() => expect(successMsg).toHaveBeenCalledWith('Success', 'Suggested TDS figure applied'));
+    await waitFor(() => expect(employeeTdsService.get.mock.calls.length).toBeGreaterThan(readsBefore));
+  });
+
+  it('D-151: Clear suggestion keeps the figure; a failure says why', async () => {
+    const withSuggestion = { ...RECORD, suggestion: { regime: 'OLD', annual_tax: 90000, suggested_at: '2026-11-24T05:00:00Z' } };
+    employeeTdsService.get.mockResolvedValue(withSuggestion);
+    employeeTdsService.history.mockResolvedValue([withSuggestion]);
+    employeeTdsService.clearSuggestion.mockResolvedValueOnce(RECORD);
+    employeeTdsService.clearSuggestion.mockRejectedValueOnce({ code: 'NOT_FOUND', message: 'gone' });
+
+    render(<EmployeeTdsCard employeeId="emp-1" />);
+    await waitFor(() => expect(screen.getByTestId('employee-tds-suggestion')).toBeDefined());
+
+    fireEvent.click(screen.getByTestId('employee-tds-suggestion-clear'));
+    await waitFor(() => expect(successMsg).toHaveBeenCalledWith('Success', 'Suggested TDS figure cleared'));
+
+    await waitFor(() => expect(screen.getByTestId('employee-tds-suggestion-clear').disabled).toBe(false));
+    fireEvent.click(screen.getByTestId('employee-tds-suggestion-clear'));
+    await waitFor(() => expect(errorMsg).toHaveBeenCalledWith({ code: 'NOT_FOUND', message: 'gone' }));
+  });
+
+  it('D-151: without verify the suggestion shows with no buttons', async () => {
+    allow([READ]);
+    const withSuggestion = { ...RECORD, suggestion: { regime: 'NEW', annual_tax: 90000, suggested_at: '2026-11-24T05:00:00Z' } };
+    employeeTdsService.get.mockResolvedValueOnce(withSuggestion);
+    employeeTdsService.history.mockResolvedValueOnce([]);
+
+    render(<EmployeeTdsCard employeeId="emp-1" />);
+
+    await waitFor(() => expect(screen.getByTestId('employee-tds-suggestion')).toBeDefined());
+    expect(screen.queryByTestId('employee-tds-suggestion-apply')).toBeNull();
+    expect(screen.queryByTestId('employee-tds-suggestion-clear')).toBeNull();
   });
 
   it('without payroll.tax_declaration.verify there is no Edit', async () => {

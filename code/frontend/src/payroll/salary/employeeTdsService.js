@@ -27,4 +27,14 @@ export const employeeTdsService = {
   async save(employeeId, fy, body) {
     return unwrap(await apiClient.put(`${BASE_PATH}/${employeeId}/tds/${fy}`, body));
   },
+
+  /** D-151: the recalculation's suggested figure replaces the officer's; returns the new active record. */
+  async applySuggestion(employeeId, fy) {
+    return unwrap(await apiClient.post(`${BASE_PATH}/${employeeId}/tds/${fy}/suggestion/apply`));
+  },
+
+  /** D-151: clears the suggestion; the officer's figure stays. Returns the active record. */
+  async clearSuggestion(employeeId, fy) {
+    return unwrap(await apiClient.delete(`${BASE_PATH}/${employeeId}/tds/${fy}/suggestion`));
+  },
 };

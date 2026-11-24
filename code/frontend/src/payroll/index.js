@@ -56,6 +56,9 @@ const Form16Page = lazy(() =>
 const ProofQueuePage = lazy(() =>
   import('./proof/ProofQueuePage.jsx').then((m) => ({ default: m.ProofQueuePage }))
 );
+const TaxRecalcFailuresPage = lazy(() =>
+  import('./tax/TaxRecalcFailuresPage.jsx').then((m) => ({ default: m.TaxRecalcFailuresPage }))
+);
 const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
 );
@@ -144,6 +147,8 @@ export const routes = [
     mountWith: '/approvals',
     element: React.createElement(ProofQueuePage),
   },
+  // D-151: the menu item payroll.tax_recalc_failures names this path, so the feed mounts it.
+  { path: '/payroll/tax/recalc-failures', element: React.createElement(TaxRecalcFailuresPage) },
   {
     path: '/payroll/tax/form-16',
     element: React.createElement(Form16Page),
