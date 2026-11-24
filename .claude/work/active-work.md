@@ -32,6 +32,15 @@
 - **Left:** the ESI wage column is rebuilt at report time, not stored (`W-87` fixes it); ESI stops the month wages cross the ceiling, with no contribution-period carry-on (CA to confirm).
 - **Branches:** `dev-claude-sayeed` can be deleted; `dev-sayeed` resets to `main`. `dev-sayeed-statutory-epf-pt` and `W-69-document-migration` hold nothing unmerged and can be deleted.
 
+## 2026-11-24 — D-153, D-154 on `main`: tax workings keep their amounts; background recalculation no longer refused
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-154 | Background tax recalculation reads the date of birth through a tenant-scoped system read, not the caller's `core.employee.read` | `7f1b7850` |
+
+- Built by Claude; one independent read each; CI green on the branch.
+- **Left:** recalculations that failed before D-154 stay on the failures screen until retried.
+
 ## 2026-11-24 — D-150 to D-152 on `main`: Form 16, officer TDS, proof screens
 
 | Ticket | What | Commit |
