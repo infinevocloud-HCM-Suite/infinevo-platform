@@ -36,10 +36,13 @@
 
 | Ticket | What | Commit |
 |---|---|---|
+| D-153 | `Money` writes as its amount in JSON: tax workings and the history and recalculate APIs keep their numbers | `a1461088` |
 | D-154 | Background tax recalculation reads the date of birth through a tenant-scoped system read, not the caller's `core.employee.read` | `7f1b7850` |
 
 - Built by Claude; one independent read each; CI green on the branch.
 - **Left:** recalculations that failed before D-154 stay on the failures screen until retried.
+- **Left:** workings stored before D-153 keep no amounts until that employee's year is recalculated.
+- **Branches:** `dev-claude-d153`, `dev-claude-d154` reset to `main`.
 
 ## 2026-11-24 — D-150 to D-152 on `main`: Form 16, officer TDS, proof screens
 
