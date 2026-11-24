@@ -44,6 +44,7 @@ export const NAV_LABELS = {
   'nav.payroll.dashboard': 'Payroll dashboard',
   'nav.payroll.deductions': 'Deductions',
   'nav.payroll.prior_payroll': 'Prior payroll',
+  'nav.payroll.proofs': 'Proof of investment',
   'nav.payroll.runs': 'Payroll runs',
   'nav.payroll.settings': 'Payroll settings',
   'nav.people': 'People',

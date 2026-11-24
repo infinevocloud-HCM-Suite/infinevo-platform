@@ -28,6 +28,8 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/claims',
       '/payroll/claims/:id',
       '/payroll/deductions',
+      '/payroll/proof-of-investment',
+      '/payroll/proof-of-investment/:proofId',
       '/payroll/tax/form-16',
       '/payroll/form-16',
       '/payroll/settings/form-16',

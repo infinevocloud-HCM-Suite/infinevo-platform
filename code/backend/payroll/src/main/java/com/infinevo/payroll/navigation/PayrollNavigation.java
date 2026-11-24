@@ -59,6 +59,18 @@ public class PayrollNavigation implements NavigationContributor {
             "payroll.employee_deduction.read");
 
     /**
+     * Proof of investment (D-152, W-47.3c) — {@code ProofChaseController}'s {@code GET /api/v1/payroll/proof-of-investment}
+     * (W-34.3 §4): the verification queue and the chase list, for whoever may read any employee's proof.
+     */
+    public static final ItemDefinition PROOFS = new ItemDefinition(
+            "payroll.proofs",
+            "nav.payroll.proofs",
+            "/payroll/proof-of-investment",
+            "/api/v1/payroll/proof-of-investment",
+            PlatformModule.PAYROLL,
+            "payroll.proof.read");
+
+    /**
      * Payroll settings (D-64) — the shell mounts {@code /payroll/settings/*} only under a path the feed names.
      * The screen's landing tab is the pay schedule, so the target is {@code PayScheduleController}'s
      * {@code GET /api/v1/payroll/pay-schedule}; the action is the one every settings save asks for.
@@ -82,7 +94,7 @@ public class PayrollNavigation implements NavigationContributor {
 
     /** The module's screens, in menu order. */
     public static final List<ItemDefinition> LEAVES =
-            List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS, SETTINGS, COMPONENTS);
+            List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS, PROOFS, SETTINGS, COMPONENTS);
 
     /**
      * The one Payroll menu group (D-34). No action of its own: the feed hides it when every screen inside

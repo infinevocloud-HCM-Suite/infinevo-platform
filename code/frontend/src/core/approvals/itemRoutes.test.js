@@ -4,7 +4,6 @@ import { getItemRoute } from './itemRoutes.js';
 describe('itemRoutes', () => {
   it('returns valid path for LEAVE flow type with itemId and null for unrouted flows', () => {
     expect(getItemRoute('LEAVE', 'req-1')).toBe('/leave/requests/req-1');
-    expect(getItemRoute('PROOF_OF_INVESTMENT', 'poi-5')).toBeNull();
     expect(getItemRoute('PAY_RUN', 'run-6')).toBeNull();
   });
 
@@ -25,6 +24,11 @@ describe('itemRoutes', () => {
     expect(getItemRoute('REIMBURSEMENT', 'claim-4')).toBe('/payroll/claims/claim-4');
     expect(getItemRoute('REIMBURSEMENT', null)).toBeNull();
     expect(getItemRoute('REIMBURSEMENT', '')).toBeNull();
+  });
+
+  it('opens a proof of investment at /payroll/proof-of-investment/{proofId} (D-152)', () => {
+    expect(getItemRoute('PROOF_OF_INVESTMENT', 'poi-5')).toBe('/payroll/proof-of-investment/poi-5');
+    expect(getItemRoute('PROOF_OF_INVESTMENT', null)).toBeNull();
   });
 
   it('returns null when flowType is unknown or missing or itemId is empty', () => {

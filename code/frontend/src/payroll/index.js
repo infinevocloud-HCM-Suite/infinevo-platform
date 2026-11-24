@@ -53,6 +53,9 @@ const DeclarationPage = lazy(() =>
 const Form16Page = lazy(() =>
   import('./form16/Form16Page.jsx').then((m) => ({ default: m.Form16Page }))
 );
+const ProofQueuePage = lazy(() =>
+  import('./proof/ProofQueuePage.jsx').then((m) => ({ default: m.ProofQueuePage }))
+);
 const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
 );
@@ -133,6 +136,14 @@ export const routes = [
   { path: '/payroll/claims', element: React.createElement(ClaimList) },
   { path: '/payroll/claims/:id', element: React.createElement(ClaimDetail) },
   { path: '/payroll/deductions', element: React.createElement(DeductionList) },
+  // D-152: the verification queue and chase list, the payroll.proofs menu item (W-47.3c).
+  { path: '/payroll/proof-of-investment', element: React.createElement(ProofQueuePage) },
+  // A reviewer opens one proof from the approvals inbox (itemRoutes.js), so it mounts with /approvals too.
+  {
+    path: '/payroll/proof-of-investment/:proofId',
+    mountWith: '/approvals',
+    element: React.createElement(ProofQueuePage),
+  },
   {
     path: '/payroll/tax/form-16',
     element: React.createElement(Form16Page),
