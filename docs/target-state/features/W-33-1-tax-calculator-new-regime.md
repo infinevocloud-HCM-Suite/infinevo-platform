@@ -46,13 +46,14 @@ All citations are `legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/`,
 
 - `TaxCalculationService.compute(employeeId, fy, regime)` — one call, one `TaxComputation` result with every intermediate figure
 - The shared engine: `SalaryProjection` (taxable earnings for the year from the CTC versions), `SlabTax`, `Rebate87A`, `SurchargeAndCess` (no marginal relief, as legacy — § 13 decision 4, reversed 2026-10-02) — all reading the `reference` rule tables by financial year
-- `NewRegimeCalculator` — salary + previous employer − standard deduction → slabs → rebate → surcharge → cess − previous-employer TDS
+- `NewRegimeCalculator` — salary + previous employer + declared other income + net let-out income (a net let-out loss counts as zero) − standard deduction → slabs → rebate → surcharge → cess − previous-employer TDS
+- Changed 2026-11-23 (D-148): other income and let-out income counted.
 - `POST …/tax/compute` — computes every regime the engine knows and writes each to the summary row through `TaxSummaryService.record`; `GET …/tax` previews without writing
 - `RegimeCalculator` as the seam `.2` plugs `OLD` into. Asking for a regime with no calculator is `409 REGIME_NOT_AVAILABLE` until `.2` merges
 
 **Out of scope**
 
-- Old regime — `.2`. HRA, house property, Chapter VI-A, 80TTA/TTB are old-regime only
+- Old regime — `.2`. HRA, self-occupied home-loan interest, Chapter VI-A, 80TTA/TTB are old-regime only; declared other income and net let-out income are taxed under both regimes (D-148)
 - Writing `employee_tds`, keeping a history, reacting to a salary change — `.3`
 - Employer NPS (80CCD(2)) — allowed in the new regime (`V005__reference_tax_seed.sql:204`) but there is no benefit component flagged for it yet; § 14
 - Mid-year exit — there is no exit date on `core.employee` yet; the projection runs to March (§ 9)
@@ -84,9 +85,9 @@ compute(employeeId, fy, regime):
 
 | Step | Rule | Reference row |
 |---|---|---|
-| 1 | `incomeFromSalary = salary + prevEmployment.INCOME` | — (`:155-163`) |
+| 1 | `incomeFromSalary = salary + prevEmployment.INCOME`; `grossTotalIncome = incomeFromSalary + Σ otherIncome + max(0, Σ letOut.netIncomeLoss)` (let-out only when the header says so; a loss is not set off, Section 115BAC(2); D-148) | — (`:155-163`) |
 | 2 | `standardDeduction = min(rule.amount, incomeFromSalary)` | `standard_deduction_rule_master (fy, 'NEW')` — `V005:105` gives 75,000 for 2025-2026 |
-| 3 | `taxableIncome = max(0, incomeFromSalary − standardDeduction)`, rounded to the nearest rupee (`HALF_UP`; founder decision 2026-10-02) | (`:177-181`) |
+| 3 | `taxableIncome = max(0, grossTotalIncome − standardDeduction)`, rounded to the nearest rupee (`HALF_UP`; founder decision 2026-10-02) | (`:177-181`) |
 | 4 | `taxBeforeRebate = SlabTax.of(taxableIncome, slabs)` — consume the income bracket by bracket, `to_amount NULL` is open-ended | `tax_slab_master (regime, fy, age_category = GENERAL)` + `tax_slab_detail_history` ordered by `slab_order`. `NEW` has no age rows by design (`V027:8`) |
 | 5 | `rebate = taxableIncome <= income_threshold ? (is_full_rebate ? taxBeforeRebate : min(taxBeforeRebate, max_rebate_amount)) : 0` | `section87a_rebate_rule_master (fy, regime)` — `V005:119` |
 | 6 | `surcharge` = the one `SURCHARGE` band with `income_from <= taxableIncome < income_to` (or `income_to NULL`), rate on `taxAfterRebate`, in full. **No marginal relief**, as legacy (founder decision 2026-10-02): `is_marginal_relief_applicable` stays on the rule row and is not read. The relief formula built under the first version of this step is removed by `W-33.3` | `cess_surcharge_rule_master (fy, rule_type, tax_regime IN (regime, 'BOTH'))` — `V005:228-233` |
