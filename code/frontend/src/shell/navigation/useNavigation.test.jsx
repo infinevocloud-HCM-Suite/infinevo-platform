@@ -32,6 +32,12 @@ vi.mock('../auth/useMe.js', () => ({
   markWelcomeSeen: vi.fn().mockResolvedValue(undefined),
 }));
 
+// The AI helper launcher asks for its status through the same client (W-114.5); stubbed for the
+// same reason as /me, so every call the client sees here is the feed's.
+vi.mock('../assistant/assistantService.js', () => ({
+  assistantService: { getStatus: vi.fn().mockResolvedValue({ enabled: false }) },
+}));
+
 vi.mock('../auth/keycloak.js', () => {
   const listeners = new Set();
   return {
