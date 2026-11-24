@@ -54,6 +54,15 @@ public interface EmployeeService {
     EmployeeResponse linkLogin(UUID id, UUID userAccountId);
 
     /**
+     * Retrieves employees by IDs in the bound tenant, including soft-deleted employees.
+     * Used for historical reports (such as statutory filings) to retrieve employee details
+     * for records generated before deletion.
+     */
+    default java.util.Map<UUID, EmployeeResponse> findByIdInIncludingDeleted(java.util.Collection<UUID> ids) {
+        return java.util.Map.of();
+    }
+
+    /**
      * Everyone employed on any day of {@code [start, end]} in the bound tenant — the batch a pay run
      * considers (W-29.1 §3): not soft-deleted, joined on or before {@code end}, and either
      * {@code ACTIVE} or {@code TERMINATED} on or after {@code start}. A {@code SUSPENDED} employee is

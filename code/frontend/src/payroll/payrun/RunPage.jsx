@@ -19,6 +19,7 @@ import {
   Modal,
   DatePicker,
   Form,
+  Dropdown,
   theme,
 } from 'antd';
 import {
@@ -29,6 +30,7 @@ import {
   CheckCircleOutlined,
   DollarOutlined,
   DownloadOutlined,
+  DownOutlined,
   ScheduleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -103,6 +105,7 @@ export function RunPage() {
   const canExecute = useCan('payroll.run.execute');
   const canApproveAction = useCan('payroll.run.approve');
   const canPayAction = useCan('payroll.payslip.publish');
+  const canReadStatutory = useCan('payroll.statutory_report.read');
 
   const runFromStore = useSelector((state) => state.payrun?.byId?.[id]);
   const [localRun, setLocalRun] = useState(null);
@@ -114,6 +117,7 @@ export function RunPage() {
   const [paidOn, setPaidOn] = useState(null);
   const [payNotice, setPayNotice] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [statutoryLoading, setStatutoryLoading] = useState(false);
   // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
   const [loadError, setLoadError] = useState(null);
 
@@ -189,6 +193,53 @@ export function RunPage() {
       setExportLoading(false);
     }
   };
+
+  const handleStatutoryDownload = async (type, format) => {
+    try {
+      setStatutoryLoading(true);
+      const isEsi = type === 'ESI';
+      const blob = isEsi
+        ? await payrunService.downloadEsiReturn(id, format)
+        : await payrunService.downloadPtReturn(id, format);
+      const ext = format.toLowerCase();
+      const filename = `${isEsi ? 'esi' : 'pt'}-return-${run?.period || 'monthly'}.${ext}`;
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError(err?.message || 'Failed to download statutory return');
+    } finally {
+      setStatutoryLoading(false);
+    }
+  };
+
+  const statutoryMenuItems = [
+    {
+      key: 'esi-xlsx',
+      label: 'ESI Monthly Return (.xlsx)',
+      onClick: () => handleStatutoryDownload('ESI', 'XLSX'),
+    },
+    {
+      key: 'esi-csv',
+      label: 'ESI Monthly Return (.csv)',
+      onClick: () => handleStatutoryDownload('ESI', 'CSV'),
+    },
+    {
+      key: 'pt-xlsx',
+      label: 'Professional Tax Return (.xlsx)',
+      onClick: () => handleStatutoryDownload('PT', 'XLSX'),
+    },
+    {
+      key: 'pt-csv',
+      label: 'Professional Tax Return (.csv)',
+      onClick: () => handleStatutoryDownload('PT', 'CSV'),
+    },
+  ];
 
   const handleCompute = () => runAction(() => payrunService.compute(id), 'Compute failed');
   // W-73.6 follow-up: a schedule added after the run was created, or dated into this month, lands
@@ -297,6 +348,7 @@ export function RunPage() {
   const totalDeductions = run.total_deductions !== undefined ? run.total_deductions : run.totalDeductions;
   const totalNet = run.total_net_pay !== undefined ? run.total_net_pay : run.totalNetPay;
   const isComputed = status === 'COMPUTED' || status === 'APPROVED' || status === 'PAID';
+  const canDownloadStatutory = canReadStatutory && isComputed && isRegular;
   const failureReason = status === 'FAILED' ? failureReasonOf(run) : null;
   const approver = approverOf(run);
 
@@ -431,6 +483,21 @@ export function RunPage() {
             >
               Export to Excel
             </Button>
+
+            <Dropdown
+              menu={{ items: statutoryMenuItems }}
+              disabled={!canDownloadStatutory}
+              trigger={['click']}
+            >
+              <Button
+                icon={<DownloadOutlined />}
+                loading={statutoryLoading}
+                disabled={!canDownloadStatutory}
+                data-testid="statutory-returns-dropdown"
+              >
+                Statutory Returns <DownOutlined />
+              </Button>
+            </Dropdown>
           </Space>
         }
       />

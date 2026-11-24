@@ -217,4 +217,30 @@ describe('payrunService (W-47.2 §7)', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/v1/employees', { params: { q: 'John' } });
     expect(res).toHaveLength(1);
   });
+
+  it('hits downloadEsiReturn with XLSX or CSV format', async () => {
+    const fakeBlob = new Blob(['esi-content']);
+    apiClient.get.mockResolvedValueOnce({ data: fakeBlob });
+
+    const res = await payrunService.downloadEsiReturn('run-1', 'XLSX');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/payroll/payruns/run-1/reports/esi', {
+      params: { format: 'XLSX' },
+      responseType: 'blob',
+    });
+    expect(res).toBe(fakeBlob);
+  });
+
+  it('hits downloadPtReturn with format and optional state', async () => {
+    const fakeBlob = new Blob(['pt-content']);
+    apiClient.get.mockResolvedValueOnce({ data: fakeBlob });
+
+    const res = await payrunService.downloadPtReturn('run-1', 'CSV', 'KA');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/payroll/payruns/run-1/reports/pt', {
+      params: { format: 'CSV', state: 'KA' },
+      responseType: 'blob',
+    });
+    expect(res).toBe(fakeBlob);
+  });
 });

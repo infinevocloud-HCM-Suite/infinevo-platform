@@ -68,6 +68,37 @@ export const payrunService = {
   },
 
   /**
+   * Download ESI monthly return (W-95).
+   * @param {string} id Payrun ID
+   * @param {string} [format='XLSX'] 'XLSX' | 'CSV'
+   * @returns {Promise<Blob>}
+   */
+  async downloadEsiReturn(id, format = 'XLSX') {
+    const res = await apiClient.get(`${BASE_PATH}/${id}/reports/esi`, {
+      params: { format },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
+  /**
+   * Download state-wise Professional Tax return (W-95).
+   * @param {string} id Payrun ID
+   * @param {string} [format='XLSX'] 'XLSX' | 'CSV'
+   * @param {string} [state] Optional state code filter (e.g. 'KA')
+   * @returns {Promise<Blob>}
+   */
+  async downloadPtReturn(id, format = 'XLSX', state) {
+    const params = { format };
+    if (state) params.state = state;
+    const res = await apiClient.get(`${BASE_PATH}/${id}/reports/pt`, {
+      params,
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
+  /**
    * List employees considered in this run, paged with optional inclusion filter.
    */
   async employees(id, params = {}) {

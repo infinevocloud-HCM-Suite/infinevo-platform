@@ -22,6 +22,8 @@ public interface EmployeePayRunLineRepository extends JpaRepository<EmployeePayR
 
     List<EmployeePayRunLine> findByTenantIdAndEmployeePayrunIdOrderBySortOrderAsc(UUID tenantId, UUID employeePayrunId);
 
+    List<EmployeePayRunLine> findByTenantIdAndPayrunId(UUID tenantId, UUID payrunId);
+
     long countByTenantIdAndPayrunId(UUID tenantId, UUID payrunId);
 
     /**
