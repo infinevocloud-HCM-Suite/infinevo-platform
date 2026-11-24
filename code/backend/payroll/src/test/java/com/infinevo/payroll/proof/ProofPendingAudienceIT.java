@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.notification.ReminderRule;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
+import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -41,7 +42,8 @@ class ProofPendingAudienceIT extends ProofIntegrationTestBase {
 
         // 2. Declaration in DRAFT status
         UUID emp2 = TaxDeclarationTestSchema.seedEmployee(TENANT_A, "EMP-002", "emp2@acme.com", "Emp", "Two");
-        taxDeclarationService.read(emp2, fy);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(emp2, fy, new TaxDeclarationRequest(null, null, null, null));
 
         // 3. Submitted declaration, no proof row (NOT_STARTED)
         UUID emp3 = TaxDeclarationTestSchema.seedEmployee(TENANT_A, "EMP-003", "emp3@acme.com", "Emp", "Three");

@@ -41,7 +41,7 @@ not one (`W-25` §4). This ticket owns both screens; the panel bean is §14 deci
 
 - Settings screen: declaration window per financial year — dates, lock, default regime, regime change allowed, PAN-for-rent rule, the two notify flags (`W-32.1` §4)
 - Employee declaration under `/me`: one page, financial-year picker, header (regime and the three yes/no questions), then four sections as `Collapse` panels: **Housing** (house rent rows, home loan rows, let-out property rows with lines), **Deductions** (section 6A rows picked from the item catalogue, pre-tax rows, previous employment rows), **Other income**, **Summary** (declared totals; computed figures shown when present, "not yet computed" otherwise). Submit and Reopen buttons following `editable` and `window_open` from the header
-- Officer view: `/payroll/tax-declarations/:employeeId/:fy`, the header read-only (the only officer endpoint `W-32.x` defines)
+- Officer view: `/employees/:employeeId/tax-declaration/:fy`, the header read-only (the only officer endpoint `W-32.x` defines)
 - Registering routes, the `tax` slice and the `taxDeclaration` portal panel component from `src/payroll/index.js`
 
 **Out of scope**

@@ -88,7 +88,8 @@ public class NewRegimeCalculator implements RegimeCalculator {
         if (taxableRaw.isNegative()) {
             taxableRaw = Money.ZERO;
         }
-        Money taxableIncome = Money.of(taxableRaw.raw().setScale(0, RoundingMode.HALF_UP));
+        // D-147: never rounded above gross total income, which the TDS record refuses.
+        Money taxableIncome = TaxableIncomeRounding.toRupee(taxableRaw, grossTotalIncome);
 
         // Step 4: Slabs computation
         List<TaxSlabDetail> slabs = ruleReader.slabs(fy, TaxRegime.NEW, input.ageCategory());

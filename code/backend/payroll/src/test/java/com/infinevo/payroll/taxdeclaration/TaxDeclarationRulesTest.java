@@ -304,4 +304,66 @@ class TaxDeclarationRulesTest {
             TenantContext.clear();
         }
     }
+
+    @Test
+    @DisplayName("D-147: the officer read of a missing declaration is not found and saves nothing")
+    void officerReadNeverCreates() {
+        EmployeeInvestmentDeclarationRepository declRepo = Mockito.mock(EmployeeInvestmentDeclarationRepository.class);
+        TaxDeclarationWindowService windowService = Mockito.mock(TaxDeclarationWindowService.class);
+        com.infinevo.core.employee.EmployeeService employeeService =
+                Mockito.mock(com.infinevo.core.employee.EmployeeService.class);
+        TaxDeclarationService service = new TaxDeclarationServiceImpl(
+                declRepo,
+                windowService,
+                employeeService,
+                Mockito.mock(com.infinevo.payroll.taxdeclaration.housing.HraRuleReader.class));
+
+        TenantContext.set(TENANT_ID);
+        try {
+            Mockito.when(declRepo.findByTenantIdAndEmployeeIdAndFinancialYear(TENANT_ID, EMPLOYEE_ID, FY))
+                    .thenReturn(Optional.empty());
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.read(EMPLOYEE_ID, FY))
+                    .isInstanceOf(com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException.class);
+            Mockito.verify(declRepo, Mockito.never()).save(Mockito.any());
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("D-147: the employee's own read still starts the year's draft")
+    void ownReadCreatesDraft() {
+        EmployeeInvestmentDeclarationRepository declRepo = Mockito.mock(EmployeeInvestmentDeclarationRepository.class);
+        TaxDeclarationWindowService windowService = Mockito.mock(TaxDeclarationWindowService.class);
+        com.infinevo.core.employee.EmployeeService employeeService =
+                Mockito.mock(com.infinevo.core.employee.EmployeeService.class);
+        TaxDeclarationService service = new TaxDeclarationServiceImpl(
+                declRepo,
+                windowService,
+                employeeService,
+                Mockito.mock(com.infinevo.payroll.taxdeclaration.housing.HraRuleReader.class));
+
+        TenantContext.set(TENANT_ID);
+        try {
+            com.infinevo.core.employee.EmployeeResponse me =
+                    Mockito.mock(com.infinevo.core.employee.EmployeeResponse.class);
+            Mockito.when(me.id()).thenReturn(EMPLOYEE_ID);
+            Mockito.when(employeeService.currentEmployee()).thenReturn(Optional.of(me));
+            Mockito.when(declRepo.findByTenantIdAndEmployeeIdAndFinancialYear(TENANT_ID, EMPLOYEE_ID, FY))
+                    .thenReturn(Optional.empty());
+            Mockito.when(windowService.findOrCreateDefault(TENANT_ID, FY))
+                    .thenReturn(new IncomeTaxDeclarationWindow(TENANT_ID, FY, opens, closes, "OLD", true, true));
+            Mockito.when(declRepo.save(Mockito.any(EmployeeInvestmentDeclaration.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse own = service.readOwn(FY);
+
+            assertThat(own.status()).isEqualTo(DeclarationStatus.DRAFT);
+            assertThat(own.taxRegime()).isEqualTo("OLD");
+            Mockito.verify(declRepo).save(Mockito.any(EmployeeInvestmentDeclaration.class));
+        } finally {
+            TenantContext.clear();
+        }
+    }
 }

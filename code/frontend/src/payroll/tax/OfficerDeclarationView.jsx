@@ -32,7 +32,7 @@ import { EMPTY, formatDate } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
-// The employee comes from the route (`/payroll/tax-declarations/:employeeId/:fy`); the officer
+// The employee comes from the route (`/employees/:employeeId/tax-declaration/:fy`); the officer
 // endpoint takes a UUID and answers anything else with 400, so nothing else is sent.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

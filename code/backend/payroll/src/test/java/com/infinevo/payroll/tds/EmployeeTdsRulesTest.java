@@ -10,6 +10,8 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
 import com.infinevo.payroll.payrun.PayRunRepository;
+import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxcalc.TaxRegime;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
@@ -21,6 +23,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -241,6 +244,97 @@ class EmployeeTdsRulesTest {
         EmployeeTds saved = atMidnight.record(EMPLOYEE_ID, "2026-2027", figures(null));
 
         assertThat(saved.getEffectiveFromPeriod()).isEqualTo("2026-05");
+    }
+
+    @Test
+    @DisplayName("D-147: an earlier month whose regular run is still open is where a new record starts")
+    void defaultPeriodIsEarliestOpenRun() {
+        PayRunRepository payRuns = mock(PayRunRepository.class);
+        Clock november = Clock.fixed(Instant.parse("2026-11-20T06:00:00Z"), ZoneOffset.UTC);
+        EmployeeTdsServiceImpl withRuns =
+                new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, priorTax, payRuns, november);
+        when(repository.saveAndFlush(any(EmployeeTds.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(payRuns.findEarliestOpenPeriod(
+                        TENANT_ID,
+                        PayRunType.REGULAR,
+                        EmployeeTdsServiceImpl.CLOSED_RUN_STATUSES,
+                        "2026-04",
+                        "2026-10"))
+                .thenReturn(Optional.of("2026-09"));
+
+        EmployeeTds saved = withRuns.record(EMPLOYEE_ID, "2026-2027", figures(null));
+
+        assertThat(saved.getEffectiveFromPeriod()).isEqualTo("2026-09");
+    }
+
+    @Test
+    @DisplayName("D-147: every earlier month closed (or never run) - the current month stays the floor")
+    void defaultPeriodIsCurrentMonthWhenEarlierRunsClosed() {
+        PayRunRepository payRuns = mock(PayRunRepository.class);
+        Clock november = Clock.fixed(Instant.parse("2026-11-20T06:00:00Z"), ZoneOffset.UTC);
+        EmployeeTdsServiceImpl withRuns =
+                new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, priorTax, payRuns, november);
+        when(repository.saveAndFlush(any(EmployeeTds.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(payRuns.findEarliestOpenPeriod(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+
+        EmployeeTds saved = withRuns.record(EMPLOYEE_ID, "2026-2027", figures(null));
+
+        assertThat(saved.getEffectiveFromPeriod()).isEqualTo("2026-11");
+    }
+
+    @Test
+    @DisplayName("D-147: APPROVED, PAID and CANCELLED runs count as closed; the rest are open")
+    void closedStatuses() {
+        assertThat(EmployeeTdsServiceImpl.CLOSED_RUN_STATUSES)
+                .containsExactlyInAnyOrder(PayRunStatus.APPROVED, PayRunStatus.PAID, PayRunStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("D-147: in April there is no earlier month, so no run lookup; an explicit period is kept as given")
+    void noLookupInAprilOrWithGivenPeriod() {
+        PayRunRepository payRuns = mock(PayRunRepository.class);
+        EmployeeTdsServiceImpl withRuns =
+                new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, priorTax, payRuns, FIXED_CLOCK);
+        when(repository.saveAndFlush(any(EmployeeTds.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(withRuns.record(EMPLOYEE_ID, "2026-2027", figures(null)).getEffectiveFromPeriod())
+                .isEqualTo("2026-04");
+        assertThat(withRuns.record(EMPLOYEE_ID, "2026-2027", figures("2026-06")).getEffectiveFromPeriod())
+                .isEqualTo("2026-06");
+        org.mockito.Mockito.verifyNoInteractions(payRuns);
+    }
+
+    @Test
+    @DisplayName("D-147: the recalculation bridge saves a salary-default record as DECLARATION, not OFFICER")
+    void bridgeSavesCalculatorSource() {
+        EmployeeTdsService delegate = mock(EmployeeTdsService.class);
+        EmployeeTdsServiceBridge bridge = new EmployeeTdsServiceBridge(delegate);
+
+        bridge.record(
+                EMPLOYEE_ID,
+                "2026-2027",
+                new com.infinevo.payroll.taxcalc.recalc.EmployeeTdsService.TdsFigures(
+                        "NEW",
+                        new BigDecimal("1200000.00"),
+                        new BigDecimal("1125000.00"),
+                        new BigDecimal("93600.00"),
+                        null,
+                        "SALARY_DEFAULT " + UUID.randomUUID()));
+
+        org.mockito.ArgumentCaptor<TdsFigures> sent = org.mockito.ArgumentCaptor.forClass(TdsFigures.class);
+        org.mockito.Mockito.verify(delegate)
+                .record(
+                        org.mockito.ArgumentMatchers.eq(EMPLOYEE_ID),
+                        org.mockito.ArgumentMatchers.eq("2026-2027"),
+                        sent.capture());
+        assertThat(sent.getValue().source()).isEqualTo(TdsSource.DECLARATION);
+        assertThat(sent.getValue().declarationId()).isNull();
+    }
+
+    @Test
+    @DisplayName("An officer's figures with no declaration are still OFFICER")
+    void officerFiguresStayOfficer() {
+        assertThat(figures("2026-04").source()).isEqualTo(TdsSource.OFFICER);
     }
 
     @Test

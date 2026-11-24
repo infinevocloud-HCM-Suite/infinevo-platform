@@ -400,6 +400,10 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "employee_tds")) {
                 st.execute("DELETE FROM payroll.employee_tds");
             }
+            // D-147: failed recalculations reference core.employee too.
+            if (tableExists(conn, "payroll", "tax_recalc_failure")) {
+                st.execute("DELETE FROM payroll.tax_recalc_failure");
+            }
             if (tableExists(conn, "core", "employee_bank")) {
                 st.execute("DELETE FROM core.employee_bank");
             }

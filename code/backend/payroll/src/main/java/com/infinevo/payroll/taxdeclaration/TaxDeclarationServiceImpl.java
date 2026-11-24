@@ -102,7 +102,8 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
     @Override
     public TaxDeclarationResponse readOwn(String financialYear) {
         EmployeeResponse current = currentEmployeeOrDeny("payroll.tax_declaration.read_own");
-        return read(current.id(), financialYear);
+        // Only the employee's own read starts the year's draft; the officer's read never creates (D-147).
+        return readInternal(current.id(), financialYear, true);
     }
 
     @Override
@@ -123,19 +124,32 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
         return reopenInternal(current.id(), financialYear, false, true);
     }
 
+    /**
+     * The officer's read (D-147): never creates a declaration.
+     *
+     * @throws DeclarationNotFoundException if the employee has none for the year (404)
+     */
     @Override
     public TaxDeclarationResponse read(UUID employeeId, String financialYear) {
+        return readInternal(employeeId, financialYear, false);
+    }
+
+    private TaxDeclarationResponse readInternal(UUID employeeId, String financialYear, boolean createDraft) {
         FinancialYear fy = FinancialYear.parse(financialYear);
         UUID tenantId = TenantContext.require();
         employeeService.get(employeeId);
-        EmployeeInvestmentDeclaration decl = declarationRepository
-                .findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, employeeId, fy.label())
-                .orElseGet(() -> {
-                    IncomeTaxDeclarationWindow window = windowService.findOrCreateDefault(tenantId, fy.label());
-                    EmployeeInvestmentDeclaration newDecl = new EmployeeInvestmentDeclaration(
-                            tenantId, employeeId, fy.label(), window.getDefaultTaxRegime());
-                    return declarationRepository.save(newDecl);
-                });
+        Optional<EmployeeInvestmentDeclaration> found =
+                declarationRepository.findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, employeeId, fy.label());
+        EmployeeInvestmentDeclaration decl;
+        if (found.isPresent()) {
+            decl = found.get();
+        } else if (createDraft) {
+            IncomeTaxDeclarationWindow window = windowService.findOrCreateDefault(tenantId, fy.label());
+            decl = declarationRepository.save(
+                    new EmployeeInvestmentDeclaration(tenantId, employeeId, fy.label(), window.getDefaultTaxRegime()));
+        } else {
+            throw new DeclarationNotFoundException(employeeId, fy.label());
+        }
         IncomeTaxDeclarationWindow window = windowService.findOrCreateDefault(tenantId, fy.label());
         return toResponse(decl, window, TaxDeclarationRules.today(clock));
     }
@@ -171,7 +185,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
         decl.setLocked(true);
         decl.setLockedAt(Instant.now());
-        decl = declarationRepository.save(decl);
+        decl = declarationRepository.saveAndFlush(decl); // D-147: flushed, so updated_at is the new one
 
         IncomeTaxDeclarationWindow window = windowService.findOrCreateDefault(tenantId, fy.label());
         return toResponse(decl, window, TaxDeclarationRules.today(clock));
@@ -188,7 +202,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
         decl.setLocked(false);
         decl.setLockedAt(null);
-        decl = declarationRepository.save(decl);
+        decl = declarationRepository.saveAndFlush(decl); // D-147: flushed, so updated_at is the new one
 
         IncomeTaxDeclarationWindow window = windowService.findOrCreateDefault(tenantId, fy.label());
         return toResponse(decl, window, TaxDeclarationRules.today(clock));
@@ -285,7 +299,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             }
         }
 
-        decl = declarationRepository.save(decl);
+        decl = declarationRepository.saveAndFlush(decl); // D-147: flushed, so updated_at is the new one
         return toResponse(decl, window, today);
     }
 
@@ -317,7 +331,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
         decl.setStatus(DeclarationStatus.SUBMITTED);
         decl.setSubmittedAt(Instant.now());
-        decl = declarationRepository.save(decl);
+        decl = declarationRepository.saveAndFlush(decl); // D-147: flushed, so updated_at is the new one
 
         if (publisher != null) {
             publisher.publishEvent(new com.infinevo.payroll.taxcalc.recalc.event.DeclarationSubmittedEvent(
@@ -356,7 +370,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
         }
 
         decl.setStatus(DeclarationStatus.DRAFT);
-        decl = declarationRepository.save(decl);
+        decl = declarationRepository.saveAndFlush(decl); // D-147: flushed, so updated_at is the new one
         return toResponse(decl, window, today);
     }
 
@@ -388,6 +402,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
                 decl.isLocked(),
                 decl.getSubmittedAt(),
                 decl.getLockedAt(),
+                decl.getUpdatedAt(),
                 windowOpen,
                 isEditable,
                 panRequired,

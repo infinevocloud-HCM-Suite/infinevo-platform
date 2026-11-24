@@ -278,7 +278,8 @@ class ProofTaxRecalcIT extends ProofIntegrationTestBase {
     private static void clearRecalcRows() throws SQLException {
         try (Connection conn = TaxDeclarationTestSchema.migrationConnection();
                 Statement st = conn.createStatement()) {
-            for (String table : List.of("payroll.employee_tds", "payroll.tax_computation")) {
+            for (String table :
+                    List.of("payroll.employee_tds", "payroll.tax_computation", "payroll.tax_recalc_failure")) {
                 st.execute("DELETE FROM " + table + " WHERE tenant_id IN ('" + TENANT_A + "', '" + TENANT_B + "')");
             }
         }

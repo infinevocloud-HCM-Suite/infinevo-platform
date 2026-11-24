@@ -20,6 +20,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * <p>Each handler saves and restores the previous {@link TenantContext} so the listener is safe
  * to run on either a dedicated async thread (production) or the caller's thread
  * ({@code SyncTaskExecutor} in integration tests).
+ *
+ * <p>D-147: a recalculation that fails has rolled back whole; the failure is recorded through
+ * {@link TaxRecalcFailureService} so the payroll officer sees it and can retry, rather than only logged.
+ * The employee's submit, already committed, is unaffected.
  */
 @Component
 public class TaxRecalculationListener {
@@ -27,9 +31,11 @@ public class TaxRecalculationListener {
     private static final Logger log = LoggerFactory.getLogger(TaxRecalculationListener.class);
 
     private final TaxRecalculationService service;
+    private final TaxRecalcFailureService failureService;
 
-    public TaxRecalculationListener(TaxRecalculationService service) {
+    public TaxRecalculationListener(TaxRecalculationService service, TaxRecalcFailureService failureService) {
         this.service = Objects.requireNonNull(service, "service must not be null");
+        this.failureService = Objects.requireNonNull(failureService, "failureService must not be null");
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -50,6 +56,8 @@ public class TaxRecalculationListener {
                     event.financialYear(),
                     e.getMessage(),
                     e);
+            failureService.recordFailure(
+                    event.tenantId(), event.employeeId(), event.financialYear(), TaxTrigger.DECLARATION_SUBMITTED, e);
         } finally {
             restoreTenant(previous);
         }
@@ -74,6 +82,7 @@ public class TaxRecalculationListener {
                         fy,
                         e.getMessage(),
                         e);
+                failureService.recordFailure(event.tenantId(), event.employeeId(), fy, TaxTrigger.SALARY_REVISION, e);
             }
         }
         restoreTenant(previous);
@@ -97,6 +106,8 @@ public class TaxRecalculationListener {
                     event.financialYear(),
                     e.getMessage(),
                     e);
+            failureService.recordFailure(
+                    event.tenantId(), event.employeeId(), event.financialYear(), TaxTrigger.PROOF_VERIFIED, e);
         } finally {
             restoreTenant(previous);
         }

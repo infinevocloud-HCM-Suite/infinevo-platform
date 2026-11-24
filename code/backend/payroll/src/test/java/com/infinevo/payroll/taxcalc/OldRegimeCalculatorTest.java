@@ -268,6 +268,43 @@ class OldRegimeCalculatorTest {
     }
 
     @Test
+    @DisplayName("D-147: no Chapter VI-A and gross ending in 50 paise - taxable rounds down, never above gross")
+    void taxableNeverRoundsAboveGross() {
+        given(ruleReader.slabs(FY_2025_2026, TaxRegime.OLD, AgeCategory.GENERAL))
+                .willReturn(generalOldSlabs());
+
+        SalaryProjectionResult salaryResult = new SalaryProjectionResult(Money.of("530000.50"), List.of(), List.of());
+
+        TaxInput input = new TaxInput(
+                EMPLOYEE_ID,
+                DECLARATION_ID,
+                salaryResult,
+                Map.of(),
+                AgeCategory.GENERAL,
+                false,
+                false,
+                false,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                Map.of(),
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of());
+
+        // Salary 5,30,000.50 - std ded 50,000 = gross total income 4,80,000.50; half-up would give 4,80,001.
+        TaxComputation computation = calculator.compute(input, FY_2025_2026);
+
+        assertThat(computation.grossTotalIncome().compareTo(Money.of("480000.50")))
+                .isZero();
+        assertThat(computation.taxableIncome().compareTo(Money.of("480000"))).isZero();
+        assertThat(computation.taxableIncome().toAmount())
+                .isLessThanOrEqualTo(computation.grossTotalIncome().toAmount());
+    }
+
+    @Test
     @DisplayName("Low income employee (taxable 4.8L): slab tax 11,500, rebate 11,500 -> annual tax 0")
     void lowIncomeRebate87AFullRelief() {
         given(ruleReader.slabs(FY_2025_2026, TaxRegime.OLD, AgeCategory.GENERAL))

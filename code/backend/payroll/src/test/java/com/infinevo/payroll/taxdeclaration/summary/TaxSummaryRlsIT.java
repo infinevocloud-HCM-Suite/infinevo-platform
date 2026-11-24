@@ -7,6 +7,7 @@ import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationService;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
+import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationWindowRequest;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException;
 import com.infinevo.payroll.taxdeclaration.summary.dto.OtherIncomeRequest;
@@ -82,7 +83,8 @@ class TaxSummaryRlsIT extends AbstractIntegrationTest {
                 FY,
                 new TaxDeclarationWindowRequest(
                         LocalDate.of(2024, 4, 1), LocalDate.of(2024, 4, 30), false, "OLD", true, true, false, false));
-        taxDeclarationService.read(employeeA, FY);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(employeeA, FY, new TaxDeclarationRequest(null, null, null, null));
         otherIncomeService.replace(
                 employeeA,
                 FY,
@@ -95,7 +97,8 @@ class TaxSummaryRlsIT extends AbstractIntegrationTest {
                 FY,
                 new TaxDeclarationWindowRequest(
                         LocalDate.of(2024, 4, 1), LocalDate.of(2024, 4, 30), false, "OLD", true, true, false, false));
-        taxDeclarationService.read(employeeB, FY);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(employeeB, FY, new TaxDeclarationRequest(null, null, null, null));
         otherIncomeService.replace(
                 employeeB,
                 FY,

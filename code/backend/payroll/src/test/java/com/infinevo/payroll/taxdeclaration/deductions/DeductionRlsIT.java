@@ -12,6 +12,7 @@ import com.infinevo.payroll.taxdeclaration.deductions.dto.PreTaxDeductionRequest
 import com.infinevo.payroll.taxdeclaration.deductions.dto.PrevEmploymentRequest;
 import com.infinevo.payroll.taxdeclaration.deductions.dto.Section6AItemResponse;
 import com.infinevo.payroll.taxdeclaration.deductions.dto.Section6ALineRequest;
+import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationWindowRequest;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
@@ -82,7 +83,8 @@ class DeductionRlsIT extends AbstractIntegrationTest {
                 FY,
                 new TaxDeclarationWindowRequest(
                         LocalDate.of(2024, 4, 1), LocalDate.of(2024, 4, 30), false, "OLD", true, true, false, false));
-        taxDeclarationService.read(employeeA, FY);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(employeeA, FY, new TaxDeclarationRequest(null, null, null, null));
         List<Section6AItemResponse> itemsA = deductionService.getSection6AItems(employeeA, FY);
         item80cA = itemsA.stream()
                 .filter(i -> "80C".equalsIgnoreCase(i.sectionCode()))
@@ -107,7 +109,8 @@ class DeductionRlsIT extends AbstractIntegrationTest {
                 FY,
                 new TaxDeclarationWindowRequest(
                         LocalDate.of(2024, 4, 1), LocalDate.of(2024, 4, 30), false, "OLD", true, true, false, false));
-        taxDeclarationService.read(employeeB, FY);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(employeeB, FY, new TaxDeclarationRequest(null, null, null, null));
         List<Section6AItemResponse> itemsB = deductionService.getSection6AItems(employeeB, FY);
         UUID item80cB = itemsB.stream()
                 .filter(i -> "80C".equalsIgnoreCase(i.sectionCode()))

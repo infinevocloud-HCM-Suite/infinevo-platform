@@ -50,6 +50,19 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
             @Param("fromPeriod") String fromPeriod,
             @Param("toPeriod") String toPeriod);
 
+    /**
+     * D-147: the earliest period in the range with a run of the type that is still open, i.e. not in one of
+     * {@code closedStatuses}. A new TDS record starts there so that month's run gets its tax line when computed.
+     */
+    @Query("SELECT MIN(r.period) FROM PayRun r WHERE r.tenantId = :tenantId AND r.runType = :runType "
+            + "AND r.status NOT IN :closedStatuses AND r.period >= :fromPeriod AND r.period <= :toPeriod")
+    Optional<String> findEarliestOpenPeriod(
+            @Param("tenantId") UUID tenantId,
+            @Param("runType") PayRunType runType,
+            @Param("closedStatuses") Collection<PayRunStatus> closedStatuses,
+            @Param("fromPeriod") String fromPeriod,
+            @Param("toPeriod") String toPeriod);
+
     /** The tenant's earliest run of a type, ignoring one status (W-38.3 §3: first regular run not cancelled). */
     Optional<PayRun> findFirstByTenantIdAndRunTypeAndStatusNotOrderByPeriodAsc(
             UUID tenantId, PayRunType runType, PayRunStatus status);
