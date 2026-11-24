@@ -76,6 +76,30 @@ public class EmployeeTds {
     @Column(name = "note", length = 255, updatable = false)
     private String note;
 
+    // D-151: what an automatic recalculation computed while an officer's figure is active. Shown to the
+    // officer, never used by the pay run; all null, or all set together (V223's CHECK).
+    @Enumerated(EnumType.STRING)
+    @Column(name = "suggested_regime", length = 3)
+    private TaxRegime suggestedRegime;
+
+    @Column(name = "suggested_declaration_id")
+    private UUID suggestedDeclarationId;
+
+    @Column(name = "suggested_annual_gross", precision = 19, scale = 4)
+    private BigDecimal suggestedAnnualGross;
+
+    @Column(name = "suggested_annual_taxable_income", precision = 19, scale = 4)
+    private BigDecimal suggestedAnnualTaxableIncome;
+
+    @Column(name = "suggested_annual_tax", precision = 19, scale = 4)
+    private BigDecimal suggestedAnnualTax;
+
+    @Column(name = "suggested_note", length = 255)
+    private String suggestedNote;
+
+    @Column(name = "suggested_at")
+    private Instant suggestedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -133,6 +157,48 @@ public class EmployeeTds {
         this.supersededAt = Objects.requireNonNull(at, "at must not be null");
         this.updatedAt = at;
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    /**
+     * D-151: keeps an automatic recalculation's figures on this officer-set row as a suggestion, replacing
+     * any earlier one. The row's own figures, which the pay run uses, are unchanged.
+     */
+    public void suggest(
+            TaxRegime regime,
+            UUID declarationId,
+            BigDecimal annualGross,
+            BigDecimal annualTaxableIncome,
+            BigDecimal annualTax,
+            String note,
+            Instant at,
+            String actor) {
+        this.suggestedRegime = Objects.requireNonNull(regime, "regime must not be null");
+        this.suggestedDeclarationId = declarationId;
+        this.suggestedAnnualGross = Objects.requireNonNull(annualGross, "annualGross must not be null");
+        this.suggestedAnnualTaxableIncome =
+                Objects.requireNonNull(annualTaxableIncome, "annualTaxableIncome must not be null");
+        this.suggestedAnnualTax = Objects.requireNonNull(annualTax, "annualTax must not be null");
+        this.suggestedNote = note;
+        this.suggestedAt = Objects.requireNonNull(at, "at must not be null");
+        this.updatedAt = at;
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    /** D-151: the officer cleared the suggestion; the row's own figures stay. */
+    public void clearSuggestion(Instant at, String actor) {
+        this.suggestedRegime = null;
+        this.suggestedDeclarationId = null;
+        this.suggestedAnnualGross = null;
+        this.suggestedAnnualTaxableIncome = null;
+        this.suggestedAnnualTax = null;
+        this.suggestedNote = null;
+        this.suggestedAt = null;
+        this.updatedAt = Objects.requireNonNull(at, "at must not be null");
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    public boolean hasSuggestion() {
+        return suggestedAt != null;
     }
 
     @PrePersist
@@ -211,6 +277,34 @@ public class EmployeeTds {
 
     public String getNote() {
         return note;
+    }
+
+    public TaxRegime getSuggestedRegime() {
+        return suggestedRegime;
+    }
+
+    public UUID getSuggestedDeclarationId() {
+        return suggestedDeclarationId;
+    }
+
+    public BigDecimal getSuggestedAnnualGross() {
+        return suggestedAnnualGross;
+    }
+
+    public BigDecimal getSuggestedAnnualTaxableIncome() {
+        return suggestedAnnualTaxableIncome;
+    }
+
+    public BigDecimal getSuggestedAnnualTax() {
+        return suggestedAnnualTax;
+    }
+
+    public String getSuggestedNote() {
+        return suggestedNote;
+    }
+
+    public Instant getSuggestedAt() {
+        return suggestedAt;
     }
 
     public Instant getCreatedAt() {

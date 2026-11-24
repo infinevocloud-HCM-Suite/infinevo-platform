@@ -63,9 +63,22 @@ describe('EmployeeTdsDrawer (D-145)', () => {
     expect(document.getElementById('tds-input-effective-month').value).toBe('Oct 2026');
     expect(screen.getByTestId('employee-tds-regime').textContent).toBe('Old');
     expect(screen.getByTestId('employee-tds-replace-warning').textContent).toContain(
-      'A later declaration submit, proof verification or salary revision will replace this figure'
+      'This figure stays until you change it or apply a suggested figure'
     );
+    expect(screen.getByTestId('employee-tds-replace-warning').textContent).not.toContain('will replace this figure');
+    expect(screen.queryByTestId('employee-tds-drawer-suggestion')).toBeNull();
     expect(note().value).toBe('');
+  });
+
+  it('D-151: shows the suggestion a recalculation left beside the figure', async () => {
+    renderDrawer({
+      record: { ...RECORD, source: 'OFFICER', suggestion: { regime: 'NEW', annual_tax: 90000, suggested_at: '2026-11-24T05:00:00Z' } },
+    });
+
+    await waitFor(() => expect(annualTax().value).toBe('120000'));
+    const shown = screen.getByTestId('employee-tds-drawer-suggestion').textContent;
+    expect(shown).toContain('90,000.00');
+    expect(shown).toContain('New regime');
   });
 
   it('saves the annual tax as text with the carried figures, then says so and closes', async () => {

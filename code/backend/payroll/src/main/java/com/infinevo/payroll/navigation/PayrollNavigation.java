@@ -71,6 +71,19 @@ public class PayrollNavigation implements NavigationContributor {
             "payroll.proof.read");
 
     /**
+     * Failed tax recalculations (D-151) — {@code TaxRecalcFailureController}'s
+     * {@code GET /api/v1/payroll/tax-recalc-failures}, behind the same action; the retry asks for
+     * {@code payroll.tax_declaration.verify}.
+     */
+    public static final ItemDefinition TAX_RECALC_FAILURES = new ItemDefinition(
+            "payroll.tax_recalc_failures",
+            "nav.payroll.tax_recalc_failures",
+            "/payroll/tax/recalc-failures",
+            "/api/v1/payroll/tax-recalc-failures",
+            PlatformModule.PAYROLL,
+            "payroll.tax_declaration.read");
+
+    /**
      * Payroll settings (D-64) — the shell mounts {@code /payroll/settings/*} only under a path the feed names.
      * The screen's landing tab is the pay schedule, so the target is {@code PayScheduleController}'s
      * {@code GET /api/v1/payroll/pay-schedule}; the action is the one every settings save asks for.
@@ -93,8 +106,8 @@ public class PayrollNavigation implements NavigationContributor {
             "payroll.structure.read");
 
     /** The module's screens, in menu order. */
-    public static final List<ItemDefinition> LEAVES =
-            List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS, PROOFS, SETTINGS, COMPONENTS);
+    public static final List<ItemDefinition> LEAVES = List.of(
+            DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS, PROOFS, TAX_RECALC_FAILURES, SETTINGS, COMPONENTS);
 
     /**
      * The one Payroll menu group (D-34). No action of its own: the feed hides it when every screen inside

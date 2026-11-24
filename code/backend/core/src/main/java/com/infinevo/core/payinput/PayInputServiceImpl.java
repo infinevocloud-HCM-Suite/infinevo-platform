@@ -207,6 +207,16 @@ public class PayInputServiceImpl implements PayInputService {
 
     @Override
     @Transactional
+    public boolean reopen(YearMonth period) {
+        Objects.requireNonNull(period, "period must not be null");
+        UUID tenantId = TenantContext.require();
+        boolean removed = locks.deletePeriodLock(tenantId, period.toString()) == 1;
+        log.info("Reopened pay input period {} in tenant {} (lock removed: {})", period, tenantId, removed);
+        return removed;
+    }
+
+    @Override
+    @Transactional
     public void lockRun(UUID runRef, YearMonth period) {
         Objects.requireNonNull(runRef, "runRef must not be null");
         Objects.requireNonNull(period, "period must not be null");

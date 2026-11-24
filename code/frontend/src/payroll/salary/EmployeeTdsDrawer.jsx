@@ -8,6 +8,7 @@ import { isDecimal, compareDecimal } from './decimal.js';
 import { fyMonthBounds, isMonthOutsideFy, defaultEffectiveMonth } from './tdsMonths.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { humanize } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Text } = Typography;
 
@@ -110,12 +111,26 @@ export function EmployeeTdsDrawer({ open, onClose, employeeId, fy, record = null
       }
     >
       <Alert
-        type="warning"
+        type="info"
         showIcon
         style={{ marginBottom: 16 }}
         data-testid="employee-tds-replace-warning"
-        message="A later declaration submit, proof verification or salary revision will replace this figure"
+        message="This figure stays until you change it or apply a suggested figure. A later declaration submit, proof verification or salary revision does not replace it: its figure is shown on the TDS card as a suggestion you can apply or clear"
       />
+      {record?.suggestion && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          data-testid="employee-tds-drawer-suggestion"
+          message={
+            <span>
+              Suggested by the last recalculation: <MoneyText value={record.suggestion.annual_tax} /> (
+              {humanize(record.suggestion.regime)} regime)
+            </span>
+          }
+        />
+      )}
       <Form form={form} layout="vertical" name="employee-tds">
         <Form.Item label="Regime">
           <Text id="tds-regime" data-testid="employee-tds-regime">

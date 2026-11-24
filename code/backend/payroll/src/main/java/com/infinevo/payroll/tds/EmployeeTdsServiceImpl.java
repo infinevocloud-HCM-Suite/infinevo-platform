@@ -9,9 +9,11 @@ import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationRules;
 import com.infinevo.payroll.tds.exception.EmployeeTdsConflictException;
+import com.infinevo.payroll.tds.exception.EmployeeTdsNotFoundException;
 import com.infinevo.payroll.tds.exception.EmployeeTdsValidationException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.YearMonth;
@@ -89,6 +91,58 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
     @Override
     @Transactional
     public EmployeeTds record(UUID employeeId, String financialYear, TdsFigures figures) {
+        return write(employeeId, financialYear, figures, true);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeTds applySuggestion(UUID employeeId, String financialYear) {
+        Objects.requireNonNull(employeeId, "employeeId must not be null");
+        UUID tenantId = TenantContext.require();
+        employeeService.get(employeeId);
+        FinancialYear fy = validateAndParseFinancialYear(financialYear);
+        EmployeeTds active = repository
+                .findActiveForUpdate(tenantId, employeeId, fy.label())
+                .filter(EmployeeTds::hasSuggestion)
+                .orElseThrow(() -> new EmployeeTdsNotFoundException(
+                        "No suggested TDS figure for employee " + employeeId + " in financial year " + fy.label()));
+        // The suggestion becomes the active figure as the calculator would have written it: source
+        // DECLARATION, from the current open month. The officer's row is superseded, as by any record.
+        // The columns are NUMERIC(19,4); the figures were stored from two-place amounts, so scale 2 is exact.
+        TdsFigures figures = new TdsFigures(
+                active.getSuggestedRegime(),
+                toAmount(active.getSuggestedAnnualGross()),
+                toAmount(active.getSuggestedAnnualTaxableIncome()),
+                toAmount(active.getSuggestedAnnualTax()),
+                null,
+                active.getSuggestedDeclarationId(),
+                active.getSuggestedNote(),
+                TdsSource.DECLARATION);
+        return write(employeeId, fy.label(), figures, false);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeTds clearSuggestion(UUID employeeId, String financialYear) {
+        Objects.requireNonNull(employeeId, "employeeId must not be null");
+        UUID tenantId = TenantContext.require();
+        employeeService.get(employeeId);
+        FinancialYear fy = validateAndParseFinancialYear(financialYear);
+        EmployeeTds active = repository
+                .findActiveForUpdate(tenantId, employeeId, fy.label())
+                .orElseThrow(() -> new EmployeeTdsNotFoundException(employeeId, fy.label()));
+        if (!active.hasSuggestion()) {
+            return active;
+        }
+        active.clearSuggestion(Instant.now(clock).truncatedTo(ChronoUnit.MICROS), currentActor());
+        return repository.saveAndFlush(active);
+    }
+
+    /**
+     * Records the figures. With {@code keepOfficerFigure}, an automatic figure ({@code DECLARATION}) does
+     * not replace an active figure an officer set: it is kept on that row as a suggestion (D-151).
+     */
+    private EmployeeTds write(UUID employeeId, String financialYear, TdsFigures figures, boolean keepOfficerFigure) {
         Objects.requireNonNull(employeeId, "employeeId must not be null");
         Objects.requireNonNull(figures, "figures must not be null");
 
@@ -109,6 +163,22 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
 
         if (existingActive.isPresent()) {
             EmployeeTds active = existingActive.get();
+            if (keepOfficerFigure
+                    && active.getSource() == TdsSource.OFFICER
+                    && figures.source() == TdsSource.DECLARATION) {
+                // D-151: the officer's figure stays and the pay run keeps using it; the officer sees this
+                // one as a suggestion and applies or clears it.
+                active.suggest(
+                        figures.regime(),
+                        figures.declarationId(),
+                        figures.annualGross(),
+                        figures.annualTaxableIncome(),
+                        figures.annualTax(),
+                        figures.note(),
+                        now,
+                        actor);
+                return repository.saveAndFlush(active);
+            }
             active.supersede(now, actor);
             repository.saveAndFlush(active);
         }
@@ -287,6 +357,10 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
                 fyStart.toString(),
                 floor.minusMonths(1).toString());
         return earliestOpen.filter(p -> PERIOD_PATTERN.matcher(p).matches()).orElse(floor.toString());
+    }
+
+    private static BigDecimal toAmount(BigDecimal stored) {
+        return stored.setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String currentActor() {

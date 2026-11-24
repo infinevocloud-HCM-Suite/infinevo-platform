@@ -189,4 +189,21 @@ class PayInputPostingTest {
         assertThat(service.unlock(OCTOBER)).isFalse();
         verify(locks, never()).deleteIfLocked(any(), any());
     }
+
+    @Test
+    @DisplayName("D-151: reopen removes the period lock whatever its stage and never throws")
+    void reopenRemovesTheLock() {
+        when(locks.deletePeriodLock(TENANT, "2026-10")).thenReturn(1);
+
+        assertThat(service.reopen(OCTOBER)).isTrue();
+        verify(locks, never()).deleteIfLocked(any(), any());
+    }
+
+    @Test
+    @DisplayName("D-151: reopen with no lock is a no-op")
+    void reopenNothing() {
+        when(locks.deletePeriodLock(TENANT, "2026-10")).thenReturn(0);
+
+        assertThat(service.reopen(OCTOBER)).isFalse();
+    }
 }

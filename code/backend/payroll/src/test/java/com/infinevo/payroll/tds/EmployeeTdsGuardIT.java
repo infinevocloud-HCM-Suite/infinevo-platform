@@ -7,7 +7,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -163,6 +165,62 @@ class EmployeeTdsGuardIT {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/payroll/employees/{id}/tds/{fy}/history", employeeId, FY))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName(
+            "D-151: read alone cannot apply or clear a suggestion; GET shows the suggestion beside the officer's figure")
+    void suggestionNeedsVerify() throws Exception {
+        given(permissionService.holds(READ)).willReturn(true);
+        UUID employeeId = UUID.randomUUID();
+        EmployeeTds record = sample(employeeId);
+        record.suggest(
+                TaxRegime.NEW,
+                null,
+                new BigDecimal("1300000.00"),
+                new BigDecimal("1100000.00"),
+                new BigDecimal("90000.00"),
+                "SALARY_REVISION x",
+                Instant.parse("2026-11-24T05:00:00Z"),
+                "system");
+        given(service.active(employeeId, FY)).willReturn(Optional.of(record));
+        given(service.yearToDate(employeeId, FY)).willReturn(BigDecimal.ZERO);
+
+        mvc.perform(post("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion/apply", employeeId, FY))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion", employeeId, FY))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/payroll/employees/{id}/tds/{fy}", employeeId, FY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.annual_tax").value(120000.0))
+                .andExpect(jsonPath("$.data.source").value("OFFICER"))
+                .andExpect(jsonPath("$.data.suggestion.annual_tax").value(90000.0))
+                .andExpect(jsonPath("$.data.suggestion.note").value("SALARY_REVISION x"));
+
+        verify(service, never()).applySuggestion(any(), any());
+        verify(service, never()).clearSuggestion(any(), any());
+    }
+
+    @Test
+    @DisplayName("D-151: verify applies and clears a suggestion; no suggestion to apply is 404")
+    void verifyAppliesAndClears() throws Exception {
+        given(permissionService.holds(VERIFY)).willReturn(true);
+        UUID employeeId = UUID.randomUUID();
+        UUID none = UUID.randomUUID();
+        given(service.applySuggestion(employeeId, FY)).willReturn(sample(employeeId));
+        given(service.clearSuggestion(employeeId, FY)).willReturn(sample(employeeId));
+        given(service.yearToDate(employeeId, FY)).willReturn(BigDecimal.ZERO);
+        given(service.applySuggestion(none, FY))
+                .willThrow(new com.infinevo.payroll.tds.exception.EmployeeTdsNotFoundException("no suggestion"));
+
+        mvc.perform(post("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion/apply", employeeId, FY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.employee_id").value(employeeId.toString()));
+        mvc.perform(delete("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion", employeeId, FY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.suggestion").doesNotExist());
+        mvc.perform(post("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion/apply", none, FY))
+                .andExpect(status().isNotFound());
     }
 
     private static EmployeeTds sample(UUID employeeId) {

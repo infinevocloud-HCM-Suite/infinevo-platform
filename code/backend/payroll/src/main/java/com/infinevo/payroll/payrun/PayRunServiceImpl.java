@@ -653,15 +653,23 @@ public class PayRunServiceImpl implements PayRunService {
     @Transactional
     public PayRunResponse cancel(UUID id) {
         PayRun run = requireForUpdate(id);
+        PayRunStatus before = run.getStatus();
+        // A PAID run has no transition to CANCELLED (W-36.2 decision 9): this throws 409 before any lock moves.
         run.cancel(currentActor(), Instant.now().truncatedTo(ChronoUnit.MICROS));
         if (run.getRunType() == PayRunType.REGULAR) {
             // D-144, D-138: a cancelled run no longer holds its month, so entries for it post there
             // again. An off-cycle run's own lock stays - nothing may be tagged to a cancelled run.
-            // A CLOSED month (approved, then cancelled) stays closed. The stage is read first rather
-            // than unlock's 409 caught: an exception out of the transactional call would mark this
+            // D-151 (founder 2026-11-24): an APPROVED run's month is CLOSED; cancelling the run reopens
+            // it, so entries post there again and a new regular run can be created. The stage is read
+            // first and reopen never throws: an exception out of the transactional call would mark this
             // transaction rollback-only even when caught (UnexpectedRollbackException at commit).
-            if (payInputService.periodStage(run.getPeriod()).orElse(null) == PayInputLockStage.LOCKED) {
+            PayInputLockStage stage =
+                    payInputService.periodStage(run.getPeriod()).orElse(null);
+            if (stage == PayInputLockStage.LOCKED) {
                 payInputService.unlock(run.getPeriod());
+            } else if (stage == PayInputLockStage.CLOSED && before == PayRunStatus.APPROVED) {
+                payInputService.reopen(run.getPeriod());
+                log.info("Pay run {} cancelled after approval; period {} reopened", run.getId(), run.getPeriod());
             } else {
                 log.info("Pay run {} cancelled; period {} has no LOCKED lock to remove", run.getId(), run.getPeriod());
             }
