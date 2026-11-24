@@ -670,8 +670,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
 
             // State summary (spec section 4B), after one blank line; left out when no employee is liable.
             if (!summaries.isEmpty()) {
-                writer.write("
-");
+                writer.write("\r\n");
                 writeCsvLine(writer, PT_SUMMARY_HEADERS);
                 for (PtStateSummary s : summaries) {
                     writeCsvLine(
