@@ -11,10 +11,13 @@
 | Ticket | What | Commit |
 |---|---|---|
 | D-150 | Form 16: true salary when old-regime income is floored; an "Approved, not yet paid" line; a nil statement when there is no TDS record | `86a71006` |
+| D-151 | Officer TDS figure sticks (recalculation leaves a suggestion); tax recalculation failures screen; cancelling an approved run reopens its month. `V223` | `deba472a` |
 | D-152 | Proof-of-investment screens: employee receipts tab, officer verification queue and review drawer, chase list with the POI reminder; inbox link. Closes D-95 | `985b1ec2` |
 
 - Built by Claude; one independent read each, defects fixed on the branch, CI green.
 - **Left:** the stored tax working holds no amounts (`Money` has no JSON serializer).
+- **Left (D-151):** a background recalculation can fail on `core.employee.read` (seen in CI); no isolated test of the lock DELETE policy.
+- **Branches:** `dev-claude-d150` to `dev-claude-d152` reset to `main`.
 - **Left (D-152):** payroll officers see proofs read-only (verifying needs `payroll.proof.review`); no screen for proof item comments.
 
 ## 2026-11-24 — D-149 Form 16 fixes on `main`
