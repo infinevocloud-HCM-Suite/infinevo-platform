@@ -79,8 +79,9 @@ export function Form16Page() {
       } else if (status === 404 || apiCode === 'NOT_FOUND') {
         setStatementError({
           type: '404',
-          message: 'No Active TDS Record Found',
-          description: `No active tax or TDS records were found for this employee in Financial Year ${selectedFy}.`,
+          message: 'Employee Not Found',
+          // D-150: no TDS record is a nil statement now; 404 means the employee is not in this company
+          description: 'This employee could not be found in this company.',
         });
       } else {
         setStatementError({

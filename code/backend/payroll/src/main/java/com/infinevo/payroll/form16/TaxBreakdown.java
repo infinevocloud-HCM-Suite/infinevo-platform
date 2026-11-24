@@ -5,11 +5,15 @@ import java.math.RoundingMode;
 
 /**
  * Breakdown of the tax calculation matching the 14 headline computation fields (W-36.4).
+ *
+ * <p>D-150: {@code grossTotalIncomeFloored} is true when income from salary, house property and other income
+ * sum below zero under the old regime; gross total income then prints as zero, as the Act has it.
  */
 public record TaxBreakdown(
         BigDecimal grossSalary,
         BigDecimal incomeFromSalary,
         BigDecimal grossTotalIncome,
+        boolean grossTotalIncomeFloored,
         BigDecimal hraExemption,
         BigDecimal standardDeduction,
         BigDecimal professionalTax,

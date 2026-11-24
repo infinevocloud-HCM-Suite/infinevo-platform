@@ -8,6 +8,7 @@ import com.infinevo.payroll.component.EarningController;
 import com.infinevo.payroll.dashboard.PayrollDashboardController;
 import com.infinevo.payroll.deduction.EmployeeDeductionController;
 import com.infinevo.payroll.payrun.PayRunController;
+import com.infinevo.payroll.proof.ProofChaseController;
 import com.infinevo.payroll.reimbursement.ReimbursementClaimController;
 import com.infinevo.payroll.schedule.PayScheduleController;
 import com.infinevo.shared.authz.RequiresAction;
@@ -71,6 +72,7 @@ class PayrollNavigationTest {
                         PayrollNavigation.PRIOR_PAYROLL,
                         PayrollNavigation.CLAIMS,
                         PayrollNavigation.DEDUCTIONS,
+                        PayrollNavigation.PROOFS,
                         PayrollNavigation.SETTINGS,
                         PayrollNavigation.COMPONENTS);
         assertThat(group.path()).isEqualTo(PayrollNavigation.DASHBOARD.path());
@@ -117,6 +119,27 @@ class PayrollNavigationTest {
         assertThat(item.path()).isEqualTo("/payroll/deductions");
         assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
         assertResolvesToGet(EmployeeDeductionController.class, item);
+    }
+
+    @Test
+    @DisplayName("D-152: payroll.proofs targets ProofChaseController's list GET, behind payroll.proof.read")
+    void proofsItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.PROOFS;
+        assertThat(item.key()).isEqualTo("payroll.proofs");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.proofs");
+        assertThat(item.path()).isEqualTo("/payroll/proof-of-investment");
+        assertThat(item.requiredAction()).isEqualTo("payroll.proof.read");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        Method list = Arrays.stream(ProofChaseController.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && m.getAnnotation(GetMapping.class).value().length == 0)
+                .findFirst()
+                .orElseThrow();
+        assertThat(ProofChaseController.class
+                        .getAnnotation(RequestMapping.class)
+                        .value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(list.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
     }
 
     @Test

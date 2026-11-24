@@ -32,6 +32,7 @@ import {
   DollarCircleOutlined,
   CalculatorOutlined,
   SafetyCertificateOutlined,
+  PaperClipOutlined,
 } from '@ant-design/icons';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
@@ -51,8 +52,12 @@ import { DeductionsSection } from './DeductionsSection';
 import { OtherIncomeSection } from './OtherIncomeSection';
 import { SummarySection } from './SummarySection';
 import { EmployeeForm16Panel } from '../form16/EmployeeForm16Panel';
+import { MyProofPanel } from '../proof/MyProofPanel';
 
 const { Title, Text, Paragraph } = Typography;
+
+// Tabs a link may open with ?tab= (W-47.3, D-152).
+const URL_TABS = ['form-16', 'proof'];
 
 const RELOAD_HEADER_CODES = ['ALREADY_SUBMITTED', 'NOT_EDITABLE', 'WINDOW_CLOSED', 'LOCKED', 'OFFICER_ENTERED'];
 
@@ -64,7 +69,7 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
   const selectedFy = sliceFy || initialFy || currentFy();
 
   const urlTab = typeof window !== 'undefined' ? new URLSearchParams(window.location?.search).get('tab') : null;
-  const [activeMainTab, setActiveMainTab] = useState(defaultTab || (urlTab === 'form-16' ? 'form-16' : 'declaration'));
+  const [activeMainTab, setActiveMainTab] = useState(defaultTab || (URL_TABS.includes(urlTab) ? urlTab : 'declaration'));
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -286,8 +291,8 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
     if (typeof window !== 'undefined' && window.history?.replaceState) {
       try {
         const url = new URL(window.location.href);
-        if (key === 'form-16') {
-          url.searchParams.set('tab', 'form-16');
+        if (URL_TABS.includes(key)) {
+          url.searchParams.set('tab', key);
         } else {
           url.searchParams.delete('tab');
         }
@@ -537,6 +542,15 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
         </Spin>
       </Card>
     ),
+  },
+  {
+    key: 'proof',
+    label: (
+      <span data-testid="tab-proof">
+        <PaperClipOutlined /> Proof of Investment
+      </span>
+    ),
+    children: <MyProofPanel fy={selectedFy} />,
   },
   {
     key: 'form-16',

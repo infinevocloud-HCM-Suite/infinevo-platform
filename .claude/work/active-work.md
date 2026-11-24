@@ -6,6 +6,17 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — D-150 to D-152 on `main`: Form 16, officer TDS, proof screens
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-150 | Form 16: true salary when old-regime income is floored; an "Approved, not yet paid" line; a nil statement when there is no TDS record | `86a71006` |
+| D-152 | Proof-of-investment screens: employee receipts tab, officer verification queue and review drawer, chase list with the POI reminder; inbox link. Closes D-95 | `985b1ec2` |
+
+- Built by Claude; one independent read each, defects fixed on the branch, CI green.
+- **Left:** the stored tax working holds no amounts (`Money` has no JSON serializer).
+- **Left (D-152):** payroll officers see proofs read-only (verifying needs `payroll.proof.review`); no screen for proof item comments.
+
 ## 2026-11-24 — D-149 Form 16 fixes on `main`
 
 | Ticket | What | Commit |

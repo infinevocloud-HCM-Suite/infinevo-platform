@@ -34,10 +34,23 @@ export function Form16StatementView({ statement }) {
     totalDeducted = 0,
     annualTax = 0,
     balance = 0,
+    approvedNotPaid = 0,
     breakdown,
     breakdownNote,
+    statementNote,
     generatedAt,
   } = statement;
+
+  // D-150: no TDS record for the year; the tax is nil and only paid runs' tax shows as deducted
+  const noTdsRecord = statementNote === 'NO_TDS_RECORD';
+  const approvedNotPaidNumber = Number(approvedNotPaid) || 0;
+  // D-150: under the old regime gross total income is floored at zero; lines 5 + 6 + 7 may sum below it
+  const gtiFloored = Boolean(breakdown?.grossTotalIncomeFloored);
+  const sumOfHeads = breakdown
+    ? (Number(breakdown.incomeFromSalary) || 0) +
+      (Number(breakdown.housePropertyIncome) || 0) +
+      (Number(breakdown.otherIncome) || 0)
+    : 0;
 
   const handlePrint = () => {
     window.print();
@@ -82,7 +95,14 @@ export function Form16StatementView({ statement }) {
         { key: '5', item: '5. Income from Salary (1 - 2 - 3 - 4)', amount: breakdown.incomeFromSalary, isTotal: true },
         { key: '6', item: '6. Add: Income / (Loss) from House Property', amount: breakdown.housePropertyIncome, isDeduction: false },
         { key: '7', item: '7. Add: Income from Other Sources', amount: breakdown.otherIncome, isDeduction: false },
-        { key: '8', item: '8. Gross Total Income (5 + 6 + 7)', amount: breakdown.grossTotalIncome, isTotal: true },
+        {
+          key: '8',
+          item: gtiFloored
+            ? '8. Gross Total Income (5 + 6 + 7, not below zero)'
+            : '8. Gross Total Income (5 + 6 + 7)',
+          amount: breakdown.grossTotalIncome,
+          isTotal: true,
+        },
         { key: '9', item: '9. Less: Chapter VI-A Deductions (incl. 80TTA/80TTB, 80EE/80EEA)', amount: breakdown.chapterVia, isDeduction: true },
         { key: '10', item: '10. Total Taxable Income (8 - 9, rounded)', amount: breakdown.taxableIncome, isTotal: true },
         { key: '11', item: '11. Tax on Total Income', amount: breakdown.taxBeforeRebate, isDeduction: false },
@@ -146,7 +166,7 @@ export function Form16StatementView({ statement }) {
                 <Tag color={isFinal ? 'success' : 'warning'} icon={isFinal ? <CheckCircleOutlined /> : <ClockCircleOutlined />}>
                   {isFinal ? 'FINAL' : 'PROVISIONAL'}
                 </Tag>
-                <Tag color="blue">{regime || 'NEW'} REGIME</Tag>
+                {regime && <Tag color="blue">{regime} REGIME</Tag>}
                 <Tag color="cyan">FY {financialYear}</Tag>
                 <Tag color="purple">AY {assessmentYear}</Tag>
               </div>
@@ -162,6 +182,17 @@ export function Form16StatementView({ statement }) {
           </Col>
         </Row>
       </Card>
+
+      {noTdsRecord && (
+        <Alert
+          type="info"
+          showIcon
+          data-testid="form16-no-tds-record"
+          message="No TDS record for this year"
+          description="There is no TDS record for this employee and financial year, so the annual tax shows as nil. Tax deducted shows only what paid pay runs actually withheld."
+          style={{ marginBottom: token.marginMD }}
+        />
+      )}
 
       {/* Entity Details (Employer & Employee) */}
       <Row gutter={[16, 16]} style={{ marginBottom: token.marginMD }}>
@@ -210,7 +241,7 @@ export function Form16StatementView({ statement }) {
               <div><Text strong>Name:</Text> <Text>{employee?.name || '-'}</Text></div>
               <div><Text strong>PAN:</Text> <Text code>{employee?.pan || '-'}</Text></div>
               <div><Text strong>Designation:</Text> <Text>{employee?.designation || '-'}</Text></div>
-              <div><Text strong>Tax Regime:</Text> <Tag color="blue">{regime || 'NEW'}</Tag></div>
+              <div><Text strong>Tax Regime:</Text> {regime ? <Tag color="blue">{regime}</Tag> : <Text>-</Text>}</div>
               {generatedAt && (
                 <div><Text strong>Generated On:</Text> <Text type="secondary">{new Date(generatedAt).toLocaleDateString()}</Text></div>
               )}
@@ -273,6 +304,19 @@ export function Form16StatementView({ statement }) {
                   <Text strong style={{ color: token.colorPrimary }}>₹{formatAmount(totalDeducted)}</Text>
                 </Table.Summary.Cell>
               </Table.Summary.Row>
+              {approvedNotPaidNumber > 0 && (
+                <Table.Summary.Row data-testid="form16-approved-not-paid">
+                  <Table.Summary.Cell index={0} colSpan={2}>
+                    <Text>Approved, not yet paid</Text>{' '}
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                      (tax on approved pay runs; counted as deducted once the run is paid)
+                    </Text>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right">
+                    <Text>₹{formatAmount(approvedNotPaid)}</Text>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              )}
             </Table.Summary>
           )}
         />
@@ -305,17 +349,30 @@ export function Form16StatementView({ statement }) {
           />
         )}
 
+        {breakdownNote === 'NO_TDS_RECORD' && (
+          <Text type="secondary">No working is shown because there is no TDS record for this year.</Text>
+        )}
+
         {breakdownRows.length > 0 ? (
-          <Table
-            className="saas-table"
-            columns={breakdownColumns}
-            dataSource={breakdownRows}
-            pagination={false}
-            size="middle"
-            rowClassName={(record) => (record.isTotal ? 'form-16-total-row' : '')}
-          />
+          <>
+            <Table
+              className="saas-table"
+              columns={breakdownColumns}
+              dataSource={breakdownRows}
+              pagination={false}
+              size="middle"
+              rowClassName={(record) => (record.isTotal ? 'form-16-total-row' : '')}
+            />
+            {gtiFloored && (
+              <Text type="secondary" data-testid="form16-gti-floored" style={{ display: 'block', marginTop: token.marginSM }}>
+                Gross total income cannot be below zero. Lines 5 + 6 + 7 come to (-) ₹{formatAmount(Math.abs(sumOfHeads))},
+                so line 8 is nil.
+              </Text>
+            )}
+          </>
         ) : (
-          breakdownNote !== 'NO_COMPUTATION' && (
+          breakdownNote !== 'NO_COMPUTATION' &&
+          breakdownNote !== 'NO_TDS_RECORD' && (
             <Text type="secondary">Detailed calculation breakdown is not available for this record.</Text>
           )
         )}
@@ -333,7 +390,9 @@ Form16StatementView.propTypes = {
     totalDeducted: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     annualTax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     balance: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    approvedNotPaid: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     breakdownNote: PropTypes.string,
+    statementNote: PropTypes.string,
     generatedAt: PropTypes.string,
     deductor: PropTypes.shape({
       name: PropTypes.string,
