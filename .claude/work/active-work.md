@@ -6,6 +6,19 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — D-49 and D-51 on `main` (`b2642fc5`): leave import; Sayeed's October defect rows settled
+
+| Defect | What |
+|---|---|
+| `D-49` | Leave import: the Leave Year box is a dropdown built from the company's leave year start month; an April company sends `2026-27`, a January one `2026` |
+| `D-51` | Leave import: a "Download error report" button opens the stored report |
+| `D-54`, `D-57` | Rows corrected: both were fixed on `50ea654d` (2026-10-14) |
+| `D-43`–`D-48` | Cancelled by the founder 2026-11-24: by design in the specs, or small improvements |
+
+- Built by Claude on `dev-claude-d49-d51`. Frontend only, `core/leave/LeaveImport.jsx`.
+- **Left:** the on-screen table of failed rows (`W-46.2`) needs the import reply to carry the rows; not checked that an HR login may fetch the error report's document link.
+- **Sayeed has no open defect.** His queue is `W-112`, `W-110`, `W-111`, then `W-87` and `W-92` after the CA review.
+
 ## 2026-11-24 — W-95 and W-93 on `main` (`6833cd7b`): ESI and PT reports, guided statutory setup
 
 | Ticket | What | Where |
