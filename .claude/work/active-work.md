@@ -6,6 +6,21 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — D-144 to D-148 on `main`: ledger pickup month, TDS screens, tax declaration fixes
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-144 | A pay input for a locked month stays in that month until the run is approved; an approved month refuses hand entries (409); cancel releases the lock; approve is refused when inputs arrived after compute. Closes D-138. `V220`, `V221` | `d58fc4e2` |
+| D-145 | Employee TDS box disabled with a note while company TDS is off; TDS card and officer edit drawer on the Salary tab; `TdsSpread` shared by the pay run and the card | `9aaea36d` |
+| D-146 | A deduction can be entered for any future month; grid cap and server rule both removed | `68938a69` |
+| D-147 | Failed tax recalculations are recorded (`payroll.tax_recalc_failure`, `V222`) and retryable; a new TDS record starts at the earliest open month; the officer's read never creates a declaration | `93759220` |
+| D-148 | New-regime tax counts declared other income and net let-out income | `4606884a` |
+
+- Built by Claude, one branch per ticket, one independent read each, CI green on every branch. D-145 and D-147 met in `EmployeeTdsServiceImpl`; resolved at merge and retested.
+- **Left:** no screen lists tax recalculation failures (API only); a compute that stalls and resumes can miss an entry written in between; a run cancelled after approval keeps its month closed; an officer's manual TDS figure is replaced by a later declaration, proof verification or salary revision.
+- **For the migrated company:** company TDS stays off; Antoday's TDS is to be settled from the new officer TDS card at the founder's word.
+- **Branches:** `dev-claude-d144` to `dev-claude-d148` reset to `main`; they can be deleted.
+
 ## 2026-11-23 — W-114.4 AI helper answers questions on `main`
 
 | What | Where |
