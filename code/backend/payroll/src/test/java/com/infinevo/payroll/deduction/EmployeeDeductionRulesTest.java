@@ -55,13 +55,14 @@ class EmployeeDeductionRulesTest {
     }
 
     @Test
-    @DisplayName("A bad period string is refused; next month is fine, two months ahead is refused; the past is fine")
+    @DisplayName("A bad period string is refused; any future month is fine; the past is fine")
     void periods() {
         refused(line("2026-13", "OTHER", "10", "r"), "YYYY-MM");
         refused(line("October", "OTHER", "10", "r"), "YYYY-MM");
         refused(line(null, "OTHER", "10", "r"), "period");
         assertThat(parse(line("2026-11", "OTHER", "10", "r")).period()).isEqualTo(YearMonth.of(2026, 11));
-        refused(line("2026-12", "OTHER", "10", "r"), "more than one month");
+        assertThat(parse(line("2026-12", "OTHER", "10", "r")).period()).isEqualTo(YearMonth.of(2026, 12));
+        assertThat(parse(line("2028-03", "OTHER", "10", "r")).period()).isEqualTo(YearMonth.of(2028, 3));
         assertThat(parse(line("2025-04", "OTHER", "10", "r")).period()).isEqualTo(YearMonth.of(2025, 4));
     }
 

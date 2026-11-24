@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import dayjs from 'dayjs';
 import { Alert, Button, DatePicker, Drawer, Input, InputNumber, Select, Space, Table, Typography } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { deductionService } from './deductionService.js';
@@ -33,9 +32,6 @@ export function blankLine() {
 export function addLine(lines) {
   return lines.length >= MAX_LINES ? lines : [...lines, blankLine()];
 }
-
-/** No later than the end of next month. */
-const tooFarAhead = (day) => Boolean(day) && day.isAfter(dayjs().add(1, 'month').endOf('month'));
 
 /**
  * The server's message without its own leading "Line n:" - that n is the zero-based index, so
@@ -146,7 +142,6 @@ export function DeductionGrid({ open, onClose, onPosted }) {
         <DatePicker
           picker="month"
           value={line.period}
-          disabledDate={tooFarAhead}
           onChange={(v) => update(line.key, 'period', v)}
           status={rowStatus((page - 1) * PAGE_SIZE + i)}
           placeholder="Month"
