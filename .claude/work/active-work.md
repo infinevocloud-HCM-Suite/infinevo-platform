@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — D-149 Form 16 fixes on `main`
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-149 | Form 16: tenant name as deductor, designation by name, full PAN, a Part B working that adds up under both regimes, a separate NO_COMPUTATION note, employee names on the Part A list, an error on a failed download, dashes when there is no statement | `dfbd5a75` |
+
+- Built by Claude; one independent read, no blocking defect; CI green on `a1b2bdb7`.
+- **Left:** F-2: under the old regime, a house-property loss that floors gross total income at 0 overstates the printed gross salary (`Form16Assembler.java:194`). By spec, not changed: only PAID runs count; no TDS record gives 404. The founder was asked whether to change either.
+- **Branch:** `dev-claude-d149` reset to `main`.
+
 ## 2026-11-24 — D-144 to D-148 on `main`: ledger pickup month, TDS screens, tax declaration fixes
 
 | Ticket | What | Commit |
