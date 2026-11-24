@@ -192,13 +192,20 @@ class Form16IT extends AbstractIntegrationTest {
 
         // Deductor assertions
         assertThat(statement.deductor()).isNotNull();
+        // D-149: the tenant's own name, never the word "Company".
+        assertThat(statement.deductor().name()).isEqualTo("Acme Manufacturing");
+        // D-149: a designation prints by name or not at all, never as an id.
+        assertThat(statement.employee().designation()).isEmpty();
         assertThat(statement.deductor().tan()).isEqualTo("MUMA12345B");
         assertThat(statement.deductor().pan()).isEqualTo("AAACM1234F");
         assertThat(statement.deductor().signatoryName()).isEqualTo("Rajesh Kumar");
 
         // Tax breakdown assertions
         assertThat(statement.breakdown()).isNotNull();
-        assertThat(statement.breakdown().grossTotalIncome()).isEqualByComparingTo("1500000.00");
+        // D-149: the working adds up. Salary 1,500,000 less standard deduction 75,000.
+        assertThat(statement.breakdown().grossSalary()).isEqualByComparingTo("1500000.00");
+        assertThat(statement.breakdown().incomeFromSalary()).isEqualByComparingTo("1425000.00");
+        assertThat(statement.breakdown().grossTotalIncome()).isEqualByComparingTo("1425000.00");
         assertThat(statement.breakdown().standardDeduction()).isEqualByComparingTo("75000.00");
         assertThat(statement.breakdown().taxableIncome()).isEqualByComparingTo("1425000.00");
         assertThat(statement.breakdown().annualTax()).isEqualByComparingTo("156000.00");

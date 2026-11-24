@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -166,8 +167,14 @@ public class Form16PartAServiceImpl implements Form16PartAService {
     public List<PartARow> list(String financialYear) {
         FinancialYear fy = FinancialYear.parse(financialYear);
         UUID tenantId = TenantContext.require();
-        return repository.findActiveByTenantIdAndFinancialYear(tenantId, fy.label()).stream()
-                .map(PartARow::from)
+        List<Form16PartA> rows = repository.findActiveByTenantIdAndFinancialYear(tenantId, fy.label());
+        // One lookup for every name on the list (D-149, DEBT-019).
+        Map<UUID, String> names = rows.isEmpty()
+                ? Map.of()
+                : employeeService.displayNames(
+                        rows.stream().map(Form16PartA::getEmployeeId).collect(Collectors.toSet()));
+        return rows.stream()
+                .map(row -> PartARow.from(row, names == null ? null : names.get(row.getEmployeeId())))
                 .toList();
     }
 

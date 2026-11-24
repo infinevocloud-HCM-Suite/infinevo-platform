@@ -157,26 +157,13 @@ public final class Form16Assembler {
         if (computation != null) {
             BigDecimal compAnnualTax = computation.getAnnualTax();
             if (compAnnualTax != null && compAnnualTax.compareTo(annualTax) == 0) {
-                breakdown = new TaxBreakdown(
-                        computation.getGrossTotalIncome(),
-                        computation.getHraExemption(),
-                        computation.getStandardDeduction(),
-                        computation.getProfessionalTax(),
-                        computation.getHousePropertyIncome(),
-                        computation.getOtherIncome(),
-                        computation.getChapterVia(),
-                        computation.getTaxableIncome(),
-                        computation.getTaxBeforeRebate(),
-                        computation.getRebate(),
-                        computation.getSurcharge(),
-                        computation.getCess(),
-                        computation.getPrevEmployerTds(),
-                        computation.getAnnualTax());
+                breakdown = breakdownOf(computation);
             } else {
                 breakdownNote = "OFFICER_OVERRIDE";
             }
         } else {
-            breakdownNote = "OFFICER_OVERRIDE";
+            // D-149: nobody overrode anything; there is simply no computation to print.
+            breakdownNote = "NO_COMPUTATION";
         }
 
         return new Form16Statement(
@@ -193,6 +180,71 @@ public final class Form16Assembler {
                 breakdown,
                 breakdownNote,
                 generatedAt);
+    }
+
+    /**
+     * The Part B working, laid out so each line follows from the one above (D-149).
+     *
+     * <p>The stored {@code gross_total_income} is not the same figure under the two regimes: the old-regime
+     * calculator stores it after HRA, standard deduction and professional tax, the new-regime calculator
+     * before the standard deduction. Both already hold house property and other income. Gross salary and
+     * income from salary are worked back from it, so the printed lines add up: gross salary less HRA,
+     * standard deduction and professional tax is income from salary; plus house property and other income
+     * is gross total income; less Chapter VI-A is taxable income (to the rupee). When the old-regime total
+     * was floored at zero the worked-back salary is understated by the loss.
+     *
+     * <p>The stored {@code chapter_via} holds the investment deductions only. Taxable income also takes off
+     * the savings-interest deduction (80TTA/80TTB) and the extra home-loan interest (80EE/80EEA), which the
+     * row does not store. So the deductions line prints what was actually taken off, gross total income
+     * less taxable income, whenever that is more than the stored figure by a rupee or more.
+     */
+    static TaxBreakdown breakdownOf(TaxComputationRecord c) {
+        BigDecimal hra = nz(c.getHraExemption());
+        BigDecimal standard = nz(c.getStandardDeduction());
+        BigDecimal professionalTax = nz(c.getProfessionalTax());
+        BigDecimal houseProperty = nz(c.getHousePropertyIncome());
+        BigDecimal other = nz(c.getOtherIncome());
+        BigDecimal stored = nz(c.getGrossTotalIncome());
+        BigDecimal withoutOtherHeads = stored.subtract(houseProperty).subtract(other);
+
+        BigDecimal grossSalary;
+        BigDecimal incomeFromSalary;
+        if ("OLD".equalsIgnoreCase(c.getRegime())) {
+            incomeFromSalary = withoutOtherHeads;
+            grossSalary = incomeFromSalary.add(hra).add(standard).add(professionalTax);
+        } else {
+            grossSalary = withoutOtherHeads;
+            incomeFromSalary = grossSalary.subtract(hra).subtract(standard).subtract(professionalTax);
+        }
+        BigDecimal grossTotalIncome = incomeFromSalary.add(houseProperty).add(other);
+
+        BigDecimal chapterVia = nz(c.getChapterVia());
+        BigDecimal takenOff = grossTotalIncome.subtract(nz(c.getTaxableIncome()));
+        if (takenOff.subtract(chapterVia).compareTo(BigDecimal.ONE) >= 0) {
+            chapterVia = takenOff;
+        }
+
+        return new TaxBreakdown(
+                grossSalary,
+                incomeFromSalary,
+                grossTotalIncome,
+                hra,
+                standard,
+                professionalTax,
+                houseProperty,
+                other,
+                chapterVia,
+                c.getTaxableIncome(),
+                c.getTaxBeforeRebate(),
+                c.getRebate(),
+                c.getSurcharge(),
+                c.getCess(),
+                c.getPrevEmployerTds(),
+                c.getAnnualTax());
+    }
+
+    private static BigDecimal nz(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private static BigDecimal sumPeriods(Map<String, BigDecimal> periodMap, List<String> periods) {

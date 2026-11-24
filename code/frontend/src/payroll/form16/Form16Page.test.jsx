@@ -145,4 +145,30 @@ describe('Form16Page', () => {
 
     openSpy.mockRestore();
   });
+
+  it('names the employee on the certificate list and reports a failed download (D-149)', async () => {
+    form16Service.listPartA.mockResolvedValueOnce([
+      {
+        employee_id: 'emp-1',
+        employee_name: 'Asha Rao',
+        document_id: 'doc-1',
+        source_file_name: 'ABCDE1234F_PartA.pdf',
+        uploaded_at: '2026-10-15T12:00:00Z',
+      },
+    ]);
+    form16Service.getDocumentDownloadLink.mockRejectedValueOnce({ response: { status: 404 } });
+
+    render(<Form16Page />);
+    fireEvent.click(screen.getByText('TRACES Part A Upload'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Asha Rao')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('Download PDF'));
+
+    await waitFor(() => {
+      expect(screen.getByText('This certificate is no longer on file.')).toBeTruthy();
+    });
+  });
 });

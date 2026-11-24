@@ -74,7 +74,7 @@ The document store refuses a ZIP (`application.yml` `allowed-types: pdf,jpg,png,
            supersede the active form16_part_a row (soft-delete its document), insert the new row
    --> 200 { matched: n, unmatched: [names], skipped: [names] }    temp dir deleted in finally
 
-[officer]  GET /api/v1/payroll/form16/{fy}/part-a                 → [{ employee_id, document_id, uploaded_at }]
+[officer]  GET /api/v1/payroll/form16/{fy}/part-a                 → [{ employee_id, employee_name (D-149), document_id, uploaded_at }]
 [employee] GET /api/v1/me/form16/{fy}/part-a                      → { document_id, link } or 404
 ```
 
