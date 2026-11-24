@@ -79,4 +79,31 @@ public interface EmployeePayRunLineRepository extends JpaRepository<EmployeePayR
             @Param("employeeId") UUID employeeId,
             @Param("periodFrom") String periodFrom,
             @Param("periodTo") String periodTo);
+
+    /**
+     * Tax line totals grouped by period for regular runs APPROVED but not yet PAID (D-150). Form 16 shows
+     * them on their own line; they are not tax deducted until the run is paid.
+     */
+    @Query(
+            """
+            SELECT pr.period AS period, COALESCE(SUM(l.amount), 0) AS amount
+            FROM EmployeePayRunLine l
+            JOIN EmployeePayRun epr ON l.employeePayrunId = epr.id
+            JOIN PayRun pr ON l.payrunId = pr.id
+            WHERE l.tenantId = :tenantId
+              AND epr.tenantId = :tenantId
+              AND pr.tenantId = :tenantId
+              AND epr.employeeId = :employeeId
+              AND l.source = com.infinevo.payroll.payrun.LineSource.TAX
+              AND pr.status = com.infinevo.payroll.payrun.PayRunStatus.APPROVED
+              AND pr.runType = com.infinevo.payroll.payrun.PayRunType.REGULAR
+              AND pr.period >= :periodFrom
+              AND pr.period <= :periodTo
+            GROUP BY pr.period
+            """)
+    List<PeriodTaxTotal> sumApprovedUnpaidTaxLinesByPeriod(
+            @Param("tenantId") UUID tenantId,
+            @Param("employeeId") UUID employeeId,
+            @Param("periodFrom") String periodFrom,
+            @Param("periodTo") String periodTo);
 }

@@ -154,14 +154,103 @@ class Form16AssemblerTest {
         assertThat(Form16Assembler.breakdownOf(comp).chapterVia()).isEqualByComparingTo("150000");
     }
 
-    /** Each printed line follows from the one above. */
+    @Test
+    @DisplayName(
+            "D-150 F-2: old regime, salary 1,50,000, loss 2,00,000: the known figure prints 1,50,000, total floored")
+    void testFlooredOldRegimeUsesTheKnownIncomeFromSalary() {
+        // Salary 150,000 - standard 50,000 = 100,000; - 200,000 house property = -100,000, floored to 0.
+        TaxComputationRecord comp = computation("OLD", "0", "0", "50000", "0", "-200000", "0", "0", "0");
+
+        TaxBreakdown worked = Form16Assembler.breakdownOf(comp);
+        assertThat(worked.grossSalary()).isEqualByComparingTo("250000"); // the defect, without the figure
+
+        TaxBreakdown b = Form16Assembler.breakdownOf(comp, new BigDecimal("100000"));
+
+        assertThat(b.grossSalary()).isEqualByComparingTo("150000");
+        assertThat(b.incomeFromSalary()).isEqualByComparingTo("100000");
+        assertThat(b.housePropertyIncome()).isEqualByComparingTo("-200000");
+        assertThat(b.grossTotalIncome()).isEqualByComparingTo("0");
+        assertThat(b.grossTotalIncomeFloored()).isTrue();
+        assertThat(b.chapterVia()).isEqualByComparingTo("0");
+        assertAddsUp(b);
+    }
+
+    @Test
+    @DisplayName("D-150 F-2: a known figure that does not give back the stored total is ignored")
+    void testKnownIncomeFromSalaryThatDisagreesIsIgnored() {
+        TaxComputationRecord comp =
+                computation("OLD", "1170000", "120000", "50000", "2400", "-7600", "50000", "150000", "1020000");
+
+        TaxBreakdown b = Form16Assembler.breakdownOf(comp, new BigDecimal("900000"));
+
+        assertThat(b.incomeFromSalary()).isEqualByComparingTo("1127600");
+        assertThat(b.grossTotalIncomeFloored()).isFalse();
+        assertAddsUp(b);
+    }
+
+    @Test
+    @DisplayName("D-150: approved-not-paid tax is its own total and never joins tax deducted or the balance")
+    void testApprovedNotPaidIsApart() {
+        Map<String, BigDecimal> paid = Map.of("2026-04", new BigDecimal("10000"));
+        Map<String, BigDecimal> approved = Map.of("2026-05", new BigDecimal("7000"), "2027-04", new BigDecimal("1"));
+
+        Form16Statement statement = Form16Assembler.assemble(
+                FY,
+                DEDUCTOR,
+                EMPLOYEE,
+                "NEW",
+                new BigDecimal("120000"),
+                paid,
+                null,
+                null,
+                Set.of("2026-04"),
+                null,
+                new Form16Assembler.Extras(approved, null, false),
+                Instant.now());
+
+        assertThat(statement.totalDeducted()).isEqualByComparingTo("10000");
+        assertThat(statement.approvedNotPaid()).isEqualByComparingTo("7000"); // 2027-04 is next year
+        assertThat(statement.balance()).isEqualByComparingTo("110000");
+        assertThat(statement.statementNote()).isNull();
+    }
+
+    @Test
+    @DisplayName("D-150: no TDS record: nil tax, NO_TDS_RECORD notes, no working even with a computation")
+    void testNoTdsRecord() {
+        TaxComputationRecord comp = computation("NEW", "1500000", "0", "75000", "0", "0", "0", "0", "1425000");
+
+        Form16Statement statement = Form16Assembler.assemble(
+                FY,
+                DEDUCTOR,
+                EMPLOYEE,
+                null,
+                BigDecimal.ZERO,
+                Map.of("2026-04", new BigDecimal("3000")),
+                null,
+                comp,
+                null,
+                null,
+                new Form16Assembler.Extras(null, null, true),
+                Instant.now());
+
+        assertThat(statement.statementNote()).isEqualTo("NO_TDS_RECORD");
+        assertThat(statement.breakdownNote()).isEqualTo("NO_TDS_RECORD");
+        assertThat(statement.breakdown()).isNull();
+        assertThat(statement.regime()).isNull();
+        assertThat(statement.annualTax()).isEqualByComparingTo("0");
+        assertThat(statement.totalDeducted()).isEqualByComparingTo("3000");
+    }
+
+    /** Each printed line follows from the one above; a floored total prints zero. */
     private static void assertAddsUp(TaxBreakdown b) {
         assertThat(b.grossSalary()
                         .subtract(b.hraExemption())
                         .subtract(b.standardDeduction())
                         .subtract(b.professionalTax()))
                 .isEqualByComparingTo(b.incomeFromSalary());
-        assertThat(b.incomeFromSalary().add(b.housePropertyIncome()).add(b.otherIncome()))
+        BigDecimal sumOfHeads =
+                b.incomeFromSalary().add(b.housePropertyIncome()).add(b.otherIncome());
+        assertThat(b.grossTotalIncomeFloored() ? BigDecimal.ZERO.max(sumOfHeads) : sumOfHeads)
                 .isEqualByComparingTo(b.grossTotalIncome());
         assertThat(b.grossTotalIncome().subtract(b.chapterVia())).isEqualByComparingTo(b.taxableIncome());
     }

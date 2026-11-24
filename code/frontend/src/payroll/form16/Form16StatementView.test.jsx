@@ -142,4 +142,65 @@ describe('Form16StatementView', () => {
     expect(printSpy).toHaveBeenCalled();
     printSpy.mockRestore();
   });
+
+  it('shows the no TDS record note and no working (D-150)', () => {
+    render(
+      <Form16StatementView
+        statement={{
+          ...sampleStatement,
+          regime: null,
+          annualTax: 0,
+          balance: -2000,
+          totalDeducted: 2000,
+          breakdown: null,
+          breakdownNote: 'NO_TDS_RECORD',
+          statementNote: 'NO_TDS_RECORD',
+        }}
+      />
+    );
+    expect(screen.getByTestId('form16-no-tds-record')).toBeTruthy();
+    expect(screen.getByText('No TDS record for this year')).toBeTruthy();
+    expect(screen.getByText(/no TDS record for this year\./i)).toBeTruthy();
+    expect(screen.queryByText(/REGIME$/)).toBeNull();
+    expect(screen.queryByText(/Detailed calculation breakdown is not available/)).toBeNull();
+  });
+
+  it('shows approved, not yet paid on its own line and not in the total (D-150)', () => {
+    render(<Form16StatementView statement={{ ...sampleStatement, approvedNotPaid: 1320 }} />);
+    const row = screen.getByTestId('form16-approved-not-paid');
+    expect(row.textContent).toMatch(/Approved, not yet paid/);
+    expect(row.textContent).toMatch(/1,320/);
+    expect(screen.getByText('Total Tax Deducted')).toBeTruthy();
+  });
+
+  it('hides the approved line when nothing is waiting (D-150)', () => {
+    render(<Form16StatementView statement={{ ...sampleStatement, approvedNotPaid: 0 }} />);
+    expect(screen.queryByTestId('form16-approved-not-paid')).toBeNull();
+  });
+
+  it('says gross total income cannot be below zero when it was floored (D-150)', () => {
+    render(
+      <Form16StatementView
+        statement={{
+          ...sampleStatement,
+          regime: 'OLD',
+          breakdown: {
+            ...sampleStatement.breakdown,
+            grossSalary: 150000,
+            standardDeduction: 50000,
+            professionalTax: 0,
+            incomeFromSalary: 100000,
+            housePropertyIncome: -200000,
+            grossTotalIncome: 0,
+            grossTotalIncomeFloored: true,
+            taxableIncome: 0,
+          },
+        }}
+      />
+    );
+    expect(screen.getByText('8. Gross Total Income (5 + 6 + 7, not below zero)')).toBeTruthy();
+    const note = screen.getByTestId('form16-gti-floored');
+    expect(note.textContent).toMatch(/cannot be below zero/);
+    expect(note.textContent).toMatch(/1,00,000|100,000/);
+  });
 });

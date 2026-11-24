@@ -71,10 +71,35 @@ describe('EmployeeForm16Panel', () => {
     render(<EmployeeForm16Panel />);
 
     await waitFor(() => {
-      expect(screen.getByText(/No active TDS records or Form 16 statements are available/i)).toBeTruthy();
+      expect(screen.getByText(/your employee record could not be found/i)).toBeTruthy();
       // D-149: no statement, so no figures: not a zero and not a regime.
       expect(screen.queryByText('NEW')).toBeNull();
       expect(screen.queryByText(/₹0/)).toBeNull();
     });
+  });
+  it('renders a nil statement with the no TDS record note, not an error (D-150)', async () => {
+    form16Service.getOwnStatement.mockResolvedValueOnce({
+      financialYear: '2026-2027',
+      assessmentYear: '2027-2028',
+      regime: null,
+      totalDeducted: 2000.0,
+      annualTax: 0,
+      balance: -2000.0,
+      deductor: { name: 'Infinevo Test Co' },
+      employee: { name: 'Sahmad Khan' },
+      quarters: [{ quarter: 'Q1', amountDeducted: 2000.0 }],
+      breakdown: null,
+      breakdownNote: 'NO_TDS_RECORD',
+      statementNote: 'NO_TDS_RECORD',
+    });
+    form16Service.getOwnPartA.mockResolvedValueOnce(null);
+
+    render(<EmployeeForm16Panel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('No TDS record for this year')).toBeTruthy();
+      expect(screen.getByTestId('form16-statement')).toBeTruthy();
+    });
+    expect(screen.queryByText('No Form 16 Statement')).toBeNull();
   });
 });

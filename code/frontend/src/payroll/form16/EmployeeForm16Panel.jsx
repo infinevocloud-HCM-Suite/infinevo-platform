@@ -49,14 +49,15 @@ export function EmployeeForm16Panel() {
       const status = err?.status || err?.response?.status;
       const code = err?.code || err?.response?.data?.code;
       if (status === 404 || code === 'NOT_FOUND') {
-        setStatementError('No active TDS records or Form 16 statements are available for this financial year.');
+        // D-150: a missing TDS record now comes back as a nil statement; 404 means no employee record
+        setStatementError('No Form 16 statement is available: your employee record could not be found.');
       } else if (status === 409 || code === 'CONFLICT') {
         setStatementError('Company tax deductor details are not configured yet. Please contact your payroll administrator.');
       } else {
         setStatementError(
           err?.message && err.message !== 'Something went wrong'
             ? err.message
-            : 'No active TDS records or Form 16 statements are available for this financial year.'
+            : 'The Form 16 statement could not be loaded for this financial year.'
         );
       }
       setStatement(null);

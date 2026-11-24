@@ -20,7 +20,6 @@ import com.infinevo.payroll.taxdeductor.TaxDeductorService;
 import com.infinevo.payroll.tds.EmployeeTdsService;
 import com.infinevo.payroll.tds.TdsFigures;
 import com.infinevo.payroll.tds.TdsSource;
-import com.infinevo.payroll.tds.exception.EmployeeTdsNotFoundException;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.EnabledIfDockerAvailable;
@@ -119,13 +118,83 @@ class Form16IT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Throws EmployeeTdsNotFoundException (HTTP 404) when no active TDS record exists")
-    void missingTdsRecordThrowsNotFound() {
+    @DisplayName("D-150: no active TDS record renders a nil-tax statement with a note, not a 404")
+    void missingTdsRecordRendersNilStatement() throws Exception {
+        taxDeductorService.save(new TaxDeductorRequest(
+                "MUMA12345B", "AAACM1234F", "MUM/TD/001/01", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
+        seedTaxLine(TENANT_A, employeeIdA, "2026-04", new BigDecimal("2000.00"), "PAID");
+
+        Form16Statement statement = form16Service.render(employeeIdA, FY);
+
+        assertThat(statement.statementNote()).isEqualTo("NO_TDS_RECORD");
+        assertThat(statement.annualTax()).isEqualByComparingTo("0");
+        assertThat(statement.totalDeducted()).isEqualByComparingTo("2000.00");
+        assertThat(statement.breakdown()).isNull();
+        assertThat(controller.get(employeeIdA, FY).status()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("D-150: an employee of another tenant is still not found (HTTP 404)")
+    void employeeOfAnotherTenantIsNotFound() {
         taxDeductorService.save(new TaxDeductorRequest(
                 "MUMA12345B", "AAACM1234F", "MUM/TD/001/01", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
 
-        assertThatThrownBy(() -> form16Service.render(employeeIdA, FY))
-                .isInstanceOf(EmployeeTdsNotFoundException.class);
+        assertThatThrownBy(() -> form16Service.render(employeeIdB, FY))
+                .isInstanceOf(EmployeeService.NotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("D-150: an old-regime floored employee with no salary version still gets a statement, not a 500")
+    void flooredOldRegimeWithoutSalaryVersionStillRenders() throws Exception {
+        taxDeductorService.save(new TaxDeductorRequest(
+                "MUMA12345B", "AAACM1234F", "MUM/TD/001/01", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
+        employeeTdsService.record(
+                employeeIdA,
+                FY,
+                new TdsFigures(
+                        TaxRegime.OLD,
+                        new BigDecimal("150000.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        "2026-04",
+                        null,
+                        "Floored old regime",
+                        TdsSource.OFFICER));
+        // Gross total income floored at 0 by a house-property loss, and a working with no number in it:
+        // the service reruns the old-regime engine, whose input assembler finds no salary version for
+        // any month. Each of those throws is caught inside a transactional call; before D-150 the mark
+        // they leave reached the statement's own transaction and the commit failed with a 500.
+        taxComputationRepository.save(new TaxComputationRecord(
+                TENANT_A,
+                employeeIdA,
+                null,
+                FY,
+                "OLD",
+                TaxTrigger.OFFICER,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("50000.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("-200000.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "{}",
+                Instant.now(),
+                null,
+                "test"));
+
+        Form16Statement statement = form16Service.render(employeeIdA, FY);
+
+        assertThat(statement).isNotNull();
+        assertThat(statement.regime()).isEqualTo("OLD");
+        assertThat(statement.breakdown()).isNotNull();
     }
 
     @Test
@@ -180,6 +249,9 @@ class Form16IT extends AbstractIntegrationTest {
         // 4. Seed paid pay run and employee tax lines in Q1 (2026-04 and 2026-05)
         seedPaidTaxLine(TENANT_A, employeeIdA, "2026-04", new BigDecimal("13000.00"));
         seedPaidTaxLine(TENANT_A, employeeIdA, "2026-05", new BigDecimal("13000.00"));
+        // D-150: June approved, not yet paid; a computed July run counts nowhere
+        seedTaxLine(TENANT_A, employeeIdA, "2026-06", new BigDecimal("13000.00"), "APPROVED");
+        seedTaxLine(TENANT_A, employeeIdA, "2026-07", new BigDecimal("13000.00"), "COMPUTED");
 
         // 5. Render statement
         Form16Statement statement = form16Service.render(employeeIdA, FY);
@@ -216,6 +288,8 @@ class Form16IT extends AbstractIntegrationTest {
         assertThat(q1.quarter()).isEqualTo("Q1");
         assertThat(q1.amountDeducted()).isEqualByComparingTo("26000.00");
         assertThat(statement.totalDeducted()).isEqualByComparingTo("26000.00");
+        assertThat(statement.approvedNotPaid()).isEqualByComparingTo("13000.00");
+        assertThat(statement.statementNote()).isNull();
 
         // Verify controller returns 200 OK
         Form16Response resp = controller.get(employeeIdA, FY);
@@ -253,6 +327,11 @@ class Form16IT extends AbstractIntegrationTest {
     }
 
     private void seedPaidTaxLine(UUID tenantId, UUID employeeId, String period, BigDecimal taxAmount) throws Exception {
+        seedTaxLine(tenantId, employeeId, period, taxAmount, "PAID");
+    }
+
+    private void seedTaxLine(UUID tenantId, UUID employeeId, String period, BigDecimal taxAmount, String status)
+            throws Exception {
         UUID payRunId = UUID.randomUUID();
         UUID empPayRunId = UUID.randomUUID();
 
@@ -264,13 +343,16 @@ class Form16IT extends AbstractIntegrationTest {
                         id, tenant_id, period, period_start, period_end, cutoff_date, pay_date, paid_on,
                         run_type, status, included_count, skipped_count, created_by, updated_by
                     ) VALUES (
-                        ?, ?, ?, DATE '2026-04-01', DATE '2026-04-30', DATE '2026-04-25', DATE '2026-04-30', DATE '2026-04-30',
-                        'REGULAR', 'PAID', 1, 0, 'seed', 'seed'
+                        ?, ?, ?, DATE '2026-04-01', DATE '2026-04-30', DATE '2026-04-25', DATE '2026-04-30',
+                        CASE WHEN ? = 'PAID' THEN DATE '2026-04-30' END,
+                        'REGULAR', ?, 1, 0, 'seed', 'seed'
                     )
                     """)) {
                 ps.setObject(1, payRunId);
                 ps.setObject(2, tenantId);
                 ps.setString(3, period);
+                ps.setString(4, status);
+                ps.setString(5, status);
                 ps.executeUpdate();
             }
 
