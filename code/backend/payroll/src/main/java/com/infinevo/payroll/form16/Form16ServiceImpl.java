@@ -3,6 +3,7 @@ package com.infinevo.payroll.form16;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.detail.EmployeeIdentificationResponse;
@@ -55,8 +56,9 @@ public class Form16ServiceImpl implements Form16Service {
     private static final Logger log = LoggerFactory.getLogger(Form16ServiceImpl.class);
 
     /** Reads the stored working; amounts stay exact. */
-    private static final ObjectMapper WORKING_READER =
-            new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+    private static final ObjectMapper WORKING_READER = new ObjectMapper()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .configure(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES, false);
 
     private final TaxDeductorService taxDeductorService;
     private final EmployeeTdsService employeeTdsService;
@@ -228,8 +230,9 @@ public class Form16ServiceImpl implements Form16Service {
      * cannot be found. Needed only when the stored gross total income may have been floored at zero, as
      * working back from that zero overstates the salary.
      *
-     * <p>Read first from the computation's {@code working} JSON. The working written today holds each amount
-     * as an object without its value, so when it has no number the engine is run again, read-only, on the
+     * <p>Read first from the computation's {@code working} JSON. A working written since D-153 holds each amount
+     * as a number; one written before holds it as an object without its value, so when it has no number the
+     * engine is run again, read-only, on the
      * same inputs; its figure is used only if it reproduces the stored computation (same house property,
      * other income and annual tax, and a floored total). The rerun runs in its own read-only
      * {@code REQUIRES_NEW} transaction that is always rolled back: the input assembler calls

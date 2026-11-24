@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.detail.EmployeeIdentificationService;
@@ -253,6 +254,40 @@ class Form16ServiceImplTest {
                 .isNull();
         assertThat(Form16ServiceImpl.incomeFromSalaryInWorking("not json")).isNull();
         assertThat(Form16ServiceImpl.incomeFromSalaryInWorking(null)).isNull();
+    }
+
+    @Test
+    @DisplayName("D-153: a working written by the tax engine today carries income from salary as a number")
+    void workingReaderReadsTheNewWorking() throws Exception {
+        TaxComputation computation = new TaxComputation(
+                TaxRegime.OLD,
+                FY,
+                Money.of("100000.5"),
+                Money.ZERO,
+                Money.of(50000),
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                List.of(),
+                List.of());
+        String working = new ObjectMapper().writeValueAsString(computation);
+
+        assertThat(Form16ServiceImpl.incomeFromSalaryInWorking(working)).isEqualTo(new BigDecimal("100000.5000"));
+    }
+
+    @Test
+    @DisplayName("D-153: a working stored before the fix, each amount an object without its value, has no amount")
+    void workingReaderToleratesTheOldShape() {
+        String old = "{\"regime\":\"OLD\",\"incomeFromSalary\":{\"zero\":false,\"positive\":true,"
+                + "\"negative\":false},\"grossTotalIncome\":{\"zero\":true,\"positive\":false,\"negative\":false}}";
+
+        assertThat(Form16ServiceImpl.incomeFromSalaryInWorking(old)).isNull();
     }
 
     private void nilTaxRecord() {
