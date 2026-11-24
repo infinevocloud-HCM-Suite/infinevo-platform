@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.payroll.salary.EmployeeStatutoryProfileService;
+import com.infinevo.payroll.salary.TdsApplicableCount;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,6 +27,7 @@ class StatutorySettingsValidationTest {
     private EpfSettingRepository epfRepository;
     private EsiSettingRepository esiRepository;
     private TdsSettingRepository tdsRepository;
+    private EmployeeStatutoryProfileService profileService;
     private StatutorySettingsService service;
 
     private static final UUID TENANT_ID = UUID.randomUUID();
@@ -34,7 +37,8 @@ class StatutorySettingsValidationTest {
         epfRepository = mock(EpfSettingRepository.class);
         esiRepository = mock(EsiSettingRepository.class);
         tdsRepository = mock(TdsSettingRepository.class);
-        service = new StatutorySettingsServiceImpl(epfRepository, esiRepository, tdsRepository);
+        profileService = mock(EmployeeStatutoryProfileService.class);
+        service = new StatutorySettingsServiceImpl(epfRepository, esiRepository, tdsRepository, profileService);
         TenantContext.set(TENANT_ID);
     }
 
@@ -246,6 +250,23 @@ class StatutorySettingsValidationTest {
         assertThat(response.id()).isNull();
         assertThat(response.tenantId()).isEqualTo(TENANT_ID);
         assertThat(response.source()).isEqualTo(SettingSource.DEFAULT);
+        assertThat(response.applicableCount()).isNull();
+        assertThat(response.employeeCount()).isNull();
+        verifyNoInteractions(profileService);
+    }
+
+    @Test
+    @DisplayName("D-145: the settings read carries how many employees TDS applies to, out of how many")
+    void tdsWithCountsCarriesCounts() {
+        when(tdsRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.empty());
+        when(profileService.tdsApplicableCount()).thenReturn(new TdsApplicableCount(7, 9));
+
+        TdsSettingResponse response = service.tdsWithCounts(TENANT_ID);
+
+        assertThat(response.enabled()).isTrue();
+        assertThat(response.source()).isEqualTo(SettingSource.DEFAULT);
+        assertThat(response.applicableCount()).isEqualTo(7);
+        assertThat(response.employeeCount()).isEqualTo(9);
     }
 
     @Test

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
+import com.infinevo.payroll.payrun.PayRunRepository;
 import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxcalc.TaxRegime;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
@@ -84,7 +85,8 @@ class EmployeeTdsRulesTest {
                 Instant.now());
         when(employeeService.get(EMPLOYEE_ID)).thenReturn(emp);
 
-        service = new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, priorTax, FIXED_CLOCK);
+        service = new EmployeeTdsServiceImpl(
+                repository, lineRepository, employeeService, priorTax, mock(PayRunRepository.class), FIXED_CLOCK);
     }
 
     @AfterEach
@@ -232,8 +234,8 @@ class EmployeeTdsRulesTest {
     @DisplayName("No effective period at 00:30 IST on 1 May (still 30 April in UTC) defaults to 2026-05")
     void defaultPeriodIsTheIndianMonth() {
         Clock utcClock = Clock.fixed(Instant.parse("2026-04-30T19:00:00Z"), ZoneOffset.UTC);
-        EmployeeTdsServiceImpl atMidnight =
-                new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, priorTax, utcClock);
+        EmployeeTdsServiceImpl atMidnight = new EmployeeTdsServiceImpl(
+                repository, lineRepository, employeeService, priorTax, mock(PayRunRepository.class), utcClock);
         when(repository.saveAndFlush(any(EmployeeTds.class))).thenAnswer(inv -> inv.getArgument(0));
 
         EmployeeTds saved = atMidnight.record(EMPLOYEE_ID, "2026-2027", figures(null));

@@ -40,7 +40,14 @@ import {
   ESI_NUMBER_MAX_LENGTH,
 } from './statutoryRules.js';
 import { statutoryName } from './statutoryLabels.js';
-import { EMPTY_PROFILE, STATUTORY_TICKS, profileFormValues, profilePayload } from './statutoryProfileForm.js';
+import {
+  EMPTY_PROFILE,
+  STATUTORY_TICKS,
+  TDS_COMPANY_OFF_NOTE,
+  profileFormValues,
+  profilePayload,
+} from './statutoryProfileForm.js';
+import { useCompanyTdsOff } from './companyTds.js';
 import { isDecimal, isPositiveDecimal } from './decimal.js';
 import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
 import { successMsg } from '@shared/ui/msgHelper.js';
@@ -200,6 +207,8 @@ export function SalarySetupDrawer({
   const epfTicked = Form.useWatch(['statutory', 'eligibleForPf'], form);
   const epsTicked = Form.useWatch(['statutory', 'eligibleForEps'], form);
   const esiTicked = Form.useWatch(['statutory', 'eligibleForEsi'], form);
+  // D-145: the company TDS switch is off, so the employee's TDS tick changes nothing until it is on.
+  const companyTdsOff = useCompanyTdsOff(open);
 
   const setBalancingId = useCallback((id) => {
     balancingRef.current = id;
@@ -821,9 +830,17 @@ export function SalarySetupDrawer({
             name={['statutory', 'tdsApplicable']}
             valuePropName="checked"
             style={{ marginBottom: 4 }}
-            extra={TICKS.tdsApplicable.extra}
+            extra={
+              companyTdsOff ? (
+                <span data-testid="tds-company-off-note">{TDS_COMPANY_OFF_NOTE}</span>
+              ) : (
+                TICKS.tdsApplicable.extra
+              )
+            }
           >
-            <Checkbox id="chk-statutory-tds">{TICKS.tdsApplicable.label}</Checkbox>
+            <Checkbox id="chk-statutory-tds" disabled={companyTdsOff}>
+              {TICKS.tdsApplicable.label}
+            </Checkbox>
           </Form.Item>
         </Col>
       </Row>

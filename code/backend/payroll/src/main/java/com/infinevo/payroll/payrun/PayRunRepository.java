@@ -72,4 +72,28 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
             @Param("tenantId") UUID tenantId,
             @Param("startPeriod") String startPeriod,
             @Param("endPeriod") String endPeriod);
+
+    /**
+     * D-145: distinct regular periods in the range whose run is computed, approved or paid - months whose
+     * TDS line is already counted in the year to date. A draft, locked, computing, failed or cancelled run
+     * leaves its month still to be paid.
+     */
+    @Query(
+            """
+            SELECT DISTINCT pr.period
+            FROM PayRun pr
+            WHERE pr.tenantId = :tenantId
+              AND pr.runType = com.infinevo.payroll.payrun.PayRunType.REGULAR
+              AND pr.status IN (
+                  com.infinevo.payroll.payrun.PayRunStatus.COMPUTED,
+                  com.infinevo.payroll.payrun.PayRunStatus.APPROVED,
+                  com.infinevo.payroll.payrun.PayRunStatus.PAID
+              )
+              AND pr.period >= :startPeriod
+              AND pr.period <= :endPeriod
+            """)
+    List<String> findCountedRegularPeriods(
+            @Param("tenantId") UUID tenantId,
+            @Param("startPeriod") String startPeriod,
+            @Param("endPeriod") String endPeriod);
 }

@@ -127,6 +127,33 @@ class EmployeeStatutoryProfileServiceTest {
         assertThat(service.isTdsApplicable(EMPLOYEE)).isFalse();
     }
 
+    @Test
+    @DisplayName("D-145: everyone employed today counts; only a saved 'not applicable' profile is left out")
+    void tdsApplicableCountLeavesOutOnlyNotApplicable() {
+        EmployeeService employees = mock(EmployeeService.class);
+        // 31 March 2027 20:00 UTC is 1 April 2027 in India.
+        java.time.Clock clock =
+                java.time.Clock.fixed(java.time.Instant.parse("2027-03-31T20:00:00Z"), java.time.ZoneOffset.UTC);
+        EmployeeStatutoryProfileServiceImpl counting =
+                new EmployeeStatutoryProfileServiceImpl(repository, employees, clock);
+        UUID other = UUID.randomUUID();
+        UUID third = UUID.randomUUID();
+        UUID formerlyEmployed = UUID.randomUUID();
+        java.time.LocalDate april = java.time.LocalDate.of(2027, 4, 1);
+        when(employees.listEmployedBetween(april, april))
+                .thenReturn(java.util.List.of(employee(EMPLOYEE), employee(other), employee(third)));
+        when(repository.findNotTdsApplicableEmployeeIds(TENANT)).thenReturn(java.util.List.of(other, formerlyEmployed));
+
+        TdsApplicableCount count = counting.tdsApplicableCount();
+
+        assertThat(count.employees()).isEqualTo(3);
+        assertThat(count.applicable()).isEqualTo(2);
+    }
+
+    private static com.infinevo.core.employee.EmployeeResponse employee(UUID id) {
+        return com.infinevo.payroll.PayrollTestSchema.createTestEmployee(id, TENANT, "E-" + id, "A", "B", null);
+    }
+
     private static StatutoryProfileRequest tdsRequest(boolean tdsApplicable) {
         return new StatutoryProfileRequest(
                 true, false, false, true, true, false, false, null, null, null, tdsApplicable);

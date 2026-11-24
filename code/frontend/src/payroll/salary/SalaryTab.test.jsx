@@ -44,6 +44,14 @@ vi.mock('./scheduledEarningService.js', () => ({
   },
 }));
 
+vi.mock('./employeeTdsService.js', () => ({
+  employeeTdsService: {
+    get: vi.fn().mockRejectedValue({ code: 'NOT_FOUND', message: 'No TDS record' }),
+    history: vi.fn().mockResolvedValue([]),
+    save: vi.fn(),
+  },
+}));
+
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn().mockResolvedValue(true),
   errorMsg: vi.fn().mockResolvedValue(true),
@@ -429,5 +437,25 @@ describe('SalaryTab component (W-47.1a §7)', () => {
     await waitFor(() => expect(document.getElementById('card-statutory-details')).toBeTruthy());
     await waitFor(() => expect(statutoryProfileService.get).toHaveBeenCalled());
     expect(screen.queryByTestId('statutory-edit')).toBeNull();
+  });
+
+  it('D-145: the TDS card sits on the Salary tab for a reader of tax declarations', async () => {
+    salaryService.asOf.mockResolvedValueOnce(null);
+    salaryService.versions.mockResolvedValueOnce([]);
+
+    renderTab('emp-1');
+
+    await waitFor(() => expect(screen.getByTestId('employee-tds-card')).toBeDefined());
+    await waitFor(() => expect(screen.getByTestId('employee-tds-empty')).toBeDefined());
+  });
+
+  it('D-145: without payroll.tax_declaration.read there is no TDS card', async () => {
+    salaryService.asOf.mockResolvedValueOnce(null);
+    salaryService.versions.mockResolvedValueOnce([]);
+
+    renderTab('emp-1', { canManage: false });
+
+    await waitFor(() => expect(document.getElementById('card-statutory-details')).toBeTruthy());
+    expect(screen.queryByTestId('employee-tds-card')).toBeNull();
   });
 });

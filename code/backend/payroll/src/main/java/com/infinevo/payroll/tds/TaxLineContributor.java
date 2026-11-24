@@ -14,7 +14,6 @@ import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.time.YearMonth;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -94,19 +93,13 @@ public class TaxLineContributor implements PayLineContributor {
                 .sumTaxLines(ctx.tenantId(), ctx.employee().id(), periodFrom, periodTo, ctx.payrunId())
                 .add(priorTax.total(ctx.tenantId(), ctx.employee().id(), fy));
 
-        BigDecimal remaining = record.getAnnualTax().subtract(ytd);
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+        // D-145: the same spread the officer's TDS card shows (TdsSpread).
+        TdsSpread spread = TdsSpread.of(record.getAnnualTax(), ytd, effectiveFrom, ctx.period(), fy);
+        if (!spread.deducts()) {
             return List.of();
         }
 
-        YearMonth startMonth = ctx.period().isAfter(effectiveFrom) ? ctx.period() : effectiveFrom;
-        YearMonth march = YearMonth.of(fy.endYear(), 3);
-        long months = ChronoUnit.MONTHS.between(startMonth, march) + 1;
-        if (months <= 0) {
-            return List.of();
-        }
-
-        Money amount = Money.of(remaining).divide(BigDecimal.valueOf(months));
+        Money amount = spread.monthlyShare();
         PayLine line =
                 new PayLine(LineKind.DEDUCTION, LineSource.TAX, null, COMPONENT_CODE, COMPONENT_NAME, amount, false);
 

@@ -1,5 +1,7 @@
 package com.infinevo.payroll.statutory.settings;
 
+import com.infinevo.payroll.salary.EmployeeStatutoryProfileService;
+import com.infinevo.payroll.salary.TdsApplicableCount;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -23,17 +25,21 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
     private final EpfSettingRepository epfSettingRepository;
     private final EsiSettingRepository esiSettingRepository;
     private final TdsSettingRepository tdsSettingRepository;
+    private final EmployeeStatutoryProfileService employeeStatutoryProfileService;
 
     public StatutorySettingsServiceImpl(
             EpfSettingRepository epfSettingRepository,
             EsiSettingRepository esiSettingRepository,
-            TdsSettingRepository tdsSettingRepository) {
+            TdsSettingRepository tdsSettingRepository,
+            EmployeeStatutoryProfileService employeeStatutoryProfileService) {
         this.epfSettingRepository =
                 Objects.requireNonNull(epfSettingRepository, "epfSettingRepository must not be null");
         this.esiSettingRepository =
                 Objects.requireNonNull(esiSettingRepository, "esiSettingRepository must not be null");
         this.tdsSettingRepository =
                 Objects.requireNonNull(tdsSettingRepository, "tdsSettingRepository must not be null");
+        this.employeeStatutoryProfileService = Objects.requireNonNull(
+                employeeStatutoryProfileService, "employeeStatutoryProfileService must not be null");
     }
 
     @Override
@@ -132,6 +138,14 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
                 .findByTenantId(tenantId)
                 .map(TdsSettingResponse::from)
                 .orElseGet(() -> TdsSettingResponse.defaultSettings(tenantId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TdsSettingResponse tdsWithCounts(UUID tenantId) {
+        TdsSettingResponse setting = tds(tenantId);
+        TdsApplicableCount count = employeeStatutoryProfileService.tdsApplicableCount();
+        return setting.withCounts(count.applicable(), count.employees());
     }
 
     @Override
