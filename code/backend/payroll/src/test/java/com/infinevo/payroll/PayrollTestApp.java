@@ -277,9 +277,14 @@ public class PayrollTestApp {
     public EmployeePersonalService employeePersonalService(DataSource dataSource) {
         return new EmployeePersonalService() {
             @Override
+            public Optional<LocalDate> dateOfBirth(UUID employeeId) {
+                return find(employeeId).map(EmployeePersonalResponse::dateOfBirth);
+            }
+
+            @Override
             public Optional<EmployeePersonalResponse> find(UUID employeeId) {
                 try {
-                    return Optional.of(get(employeeId));
+                    return Optional.of(read(employeeId));
                 } catch (EmployeeDetailService.NotFoundException e) {
                     return Optional.empty();
                 }
@@ -287,6 +292,12 @@ public class PayrollTestApp {
 
             @Override
             public EmployeePersonalResponse get(UUID employeeId) {
+                return read(employeeId);
+            }
+
+            // D-154: find and dateOfBirth read here, not through get, as core's do: a test that makes get
+            // refuse (core's caller check) must not refuse the system read with it.
+            private EmployeePersonalResponse read(UUID employeeId) {
                 UUID tenantId = TenantContext.require();
                 try (Connection conn = dataSource.getConnection()) {
                     conn.setAutoCommit(false);
@@ -364,7 +375,7 @@ public class PayrollTestApp {
                         ps.setBoolean(9, Boolean.TRUE.equals(request.eligibleForFullTaxExemption()));
                         ps.executeUpdate();
                         conn.commit();
-                        return get(employeeId);
+                        return read(employeeId);
                     } catch (SQLException | RuntimeException e) {
                         try {
                             conn.rollback();

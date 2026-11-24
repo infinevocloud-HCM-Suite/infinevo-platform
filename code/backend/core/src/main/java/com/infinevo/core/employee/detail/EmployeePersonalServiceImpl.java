@@ -6,6 +6,7 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.authz.PermissionService;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -59,6 +60,18 @@ public class EmployeePersonalServiceImpl
             }
         }
         return super.get(employeeId);
+    }
+
+    /**
+     * D-154: no permission check, see {@link EmployeePersonalService#dateOfBirth(UUID)}. Reads through
+     * the inherited tenant-scoped {@code find}, called on {@code super} so a guard added to this class's
+     * reads can never reach the system path by accident.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LocalDate> dateOfBirth(UUID employeeId) {
+        Objects.requireNonNull(employeeId, "employeeId must not be null");
+        return super.find(employeeId).map(EmployeePersonalResponse::dateOfBirth);
     }
 
     @Override

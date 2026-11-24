@@ -1,6 +1,7 @@
 package com.infinevo.core.employee;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -255,6 +256,16 @@ class EmployeeSelfServiceIT extends AbstractIntegrationTest {
                         .with(jwt().jwt(builder -> builder.subject(keycloakUser1.toString())
                                         .claim("tenant_id", TENANT_ID.toString()))
                                 .authorities(List.of(new SimpleGrantedAuthority("core.employee.update_own")))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("D-154: reading another employee's personal section without core.employee.read still returns 403")
+    void employeeReadingOthersPersonalRefused() throws Exception {
+        mvc.perform(get("/api/v1/employees/{id}/personal", emp2.id())
+                        .with(jwt().jwt(builder -> builder.subject(keycloakUser1.toString())
+                                        .claim("tenant_id", TENANT_ID.toString()))
+                                .authorities(List.of(new SimpleGrantedAuthority("core.employee.read_own")))))
                 .andExpect(status().isForbidden());
     }
 }

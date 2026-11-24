@@ -2,8 +2,6 @@ package com.infinevo.payroll.taxcalc;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
-import com.infinevo.core.employee.detail.EmployeeDetailService;
-import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
@@ -268,15 +266,9 @@ public class TaxInputAssembler {
                 : null;
 
         LocalDate dateOfJoining = employee.dateOfJoining();
-        LocalDate dateOfBirth = null;
-        try {
-            EmployeePersonalResponse personal = employeePersonalService.get(employeeId);
-            if (personal != null) {
-                dateOfBirth = personal.dateOfBirth();
-            }
-        } catch (EmployeeDetailService.NotFoundException e) {
-            // General category when personal section not written
-        }
+        // D-154: the system read, not get(): get() checks the caller's core.employee.read, and the automatic
+        // recalculation runs on the taxRecalc pool with no user. No personal section or no date: general category.
+        LocalDate dateOfBirth = employeePersonalService.dateOfBirth(employeeId).orElse(null);
 
         AgeCategory ageCategory = AgeCategory.at(dateOfBirth, fy.end());
 
