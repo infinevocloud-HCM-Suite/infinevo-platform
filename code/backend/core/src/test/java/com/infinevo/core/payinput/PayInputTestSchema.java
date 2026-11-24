@@ -63,7 +63,8 @@ final class PayInputTestSchema {
                         "core/V031__pay_input.sql",
                         "core/V032__pay_input_period_lock.sql",
                         "core/V060__pay_input_run_ref.sql",
-                        "core/V191__pay_input_note.sql" // D-140: the note column PayInput maps
+                        "core/V191__pay_input_note.sql", // D-140: the note column PayInput maps
+                        "core/V220__pay_input_lock_stage.sql" // D-144: the lock's stage and the trigger that reads it
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }

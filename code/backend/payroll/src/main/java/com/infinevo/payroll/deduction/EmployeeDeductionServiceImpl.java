@@ -112,16 +112,23 @@ public class EmployeeDeductionServiceImpl implements EmployeeDeductionService {
         String actor = currentActor();
         Map<UUID, String> names = employeeService.displayNames(employees.keySet());
         List<EmployeeDeductionResponse> rows = new ArrayList<>(parsed.size());
-        for (ParsedLine line : parsed) {
+        for (int i = 0; i < parsed.size(); i++) {
+            ParsedLine line = parsed.get(i);
             UUID id = UUID.randomUUID();
-            PayInputResponse posted = payInputService.record(new PayInputCommand(
-                    line.employeeId(),
-                    line.period(),
-                    PayInputKind.AD_HOC_DEDUCTION,
-                    null,
-                    Money.of(line.amount()),
-                    SOURCE_MODULE,
-                    SOURCE_REF_PREFIX + id));
+            PayInputResponse posted;
+            try {
+                // A hand entry (D-144): a CLOSED month is refused, naming the month to use, not moved.
+                posted = payInputService.recordEntry(new PayInputCommand(
+                        line.employeeId(),
+                        line.period(),
+                        PayInputKind.AD_HOC_DEDUCTION,
+                        null,
+                        Money.of(line.amount()),
+                        SOURCE_MODULE,
+                        SOURCE_REF_PREFIX + id));
+            } catch (PayInputService.PeriodClosedException e) {
+                throw new DeductionPeriodClosedException(i, e.getMessage());
+            }
             EmployeeDeduction saved = deductions.save(new EmployeeDeduction(
                     id,
                     tenantId,

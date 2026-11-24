@@ -12,6 +12,7 @@ import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +41,7 @@ class PayInputServiceImplTest {
         locks = mock(PayInputPeriodLockRepository.class);
         service = new PayInputServiceImpl(payInputs, locks);
         TenantContext.set(TENANT);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(any(), any())).thenReturn(false);
+        when(locks.findPeriodStage(any(), any())).thenReturn(Optional.empty());
         when(payInputs.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -211,7 +212,7 @@ class PayInputServiceImplTest {
     @Test
     @DisplayName("lock is idempotent: locking the same period twice leaves one row")
     void lockTwiceIsANoOp() {
-        when(locks.insertIfAbsent(eq(TENANT), eq(PERIOD.toString()), any()))
+        when(locks.insertIfAbsent(eq(TENANT), eq(PERIOD.toString()), eq("LOCKED"), any()))
                 .thenReturn(1) // first call creates the row
                 .thenReturn(0); // second call: ON CONFLICT DO NOTHING, no row changed
 

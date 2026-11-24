@@ -1,8 +1,12 @@
 package com.infinevo.core.payinput;
 
 import java.io.Serial;
+import java.time.Instant;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -20,11 +24,13 @@ public interface PayInputService {
      * Inserts one row. {@code amount} and {@code quantity} must each be positive when given — the
      * kind carries the sign (spec §4).
      *
-     * <p>Untagged ({@code command.runRef()} is {@code null}): if {@code command.period()} is
-     * locked, the row is posted to the next open period instead, and the response's
-     * {@code postedPeriod} says so. Tagged (W-30.1): the period lock is not consulted at all; the
-     * row is refused outright, not redirected, if its run is locked — there is no "next" off-cycle
-     * run to try.
+     * <p>Untagged ({@code command.runRef()} is {@code null}): posted where {@link #posting} says
+     * (D-144). An OPEN or LOCKED month takes the row itself; a CLOSED month's row is posted to the
+     * first month after it that is not CLOSED, and the response's {@code postedPeriod} says so. This
+     * is the path for writes no person is looking at (a leave approval, a scheduled instalment, a
+     * claim's outcome); a hand entry goes through {@link #recordEntry}, which refuses a CLOSED month
+     * instead. Tagged (W-30.1): the period lock is not consulted at all; the row is refused
+     * outright, not redirected, if its run is locked — there is no "next" off-cycle run to try.
      *
      * @throws ValidationException a non-positive {@code amount} or {@code quantity}
      * @throws DuplicatePayInputException {@code (tenant, sourceModule, sourceRef)} already names a
@@ -32,6 +38,21 @@ public interface PayInputService {
      * @throws RunLockedException {@code command.runRef()} names a locked run (W-30.1)
      */
     PayInputResponse record(PayInputCommand command);
+
+    /**
+     * {@link #record}, for an entry a person typed (D-144, founder 2026-11-23): an untagged entry for
+     * a CLOSED month is refused, not moved, so the person can enter it for the month the message
+     * names. OPEN and LOCKED months, and tagged rows, behave exactly as in {@link #record}.
+     *
+     * @throws PeriodClosedException {@code command.period()} is CLOSED and the row is untagged
+     */
+    PayInputResponse recordEntry(PayInputCommand command);
+
+    /**
+     * Where an untagged entry for {@code period} would post, and why (D-144) — the same rule
+     * {@link #record} and {@link #recordEntry} apply, read without writing.
+     */
+    PayInputPosting posting(YearMonth period);
 
     /** One employee's untagged rows for a period, plus a total per kind (W-30.1: tagged rows excluded). */
     PayInputListResponse forEmployee(UUID employeeId, YearMonth period);
@@ -49,8 +70,41 @@ public interface PayInputService {
      */
     PayInputRunResponse forRun(UUID runRef);
 
-    /** Locks a period so no further untagged write to it succeeds. Locking twice is a no-op. */
-    void lock(YearMonth period);
+    /** {@link #lock(YearMonth, PayInputLockStage)} at {@link PayInputLockStage#LOCKED} — the call every caller made before D-144. */
+    default void lock(YearMonth period) {
+        lock(period, PayInputLockStage.LOCKED);
+    }
+
+    /**
+     * Locks a period at {@code stage} (D-144). LOCKED: entries still post there and the run must be
+     * recomputed. CLOSED: untagged entries are refused (or, through {@link #record}, moved on).
+     * A LOCKED lock is raised to CLOSED by a CLOSED call; a CLOSED lock is never lowered, and
+     * locking at the stage a month already has is a no-op.
+     */
+    void lock(YearMonth period, PayInputLockStage stage);
+
+    /**
+     * How many untagged entries for {@code period} were written after {@code since} and change what
+     * a run computed at {@code since} would pay (D-144) - a row and its own reversal both written
+     * after it count as nothing. The pay run refuses approval while this is above zero: a LOCKED
+     * month takes entries, and the founder's rule is that the run must then be recomputed.
+     */
+    long countChangesSince(YearMonth period, Instant since);
+
+    /**
+     * The stage of the period's lock, or empty when it has none (D-144). A caller that must not fail
+     * on a CLOSED month reads this before {@link #unlock}: an exception thrown out of a
+     * transactional call marks the caller's transaction rollback-only even when it is caught.
+     */
+    Optional<PayInputLockStage> periodStage(YearMonth period);
+
+    /**
+     * Removes the period's LOCKED lock — its run was cancelled (D-144, D-138). No lock is a no-op.
+     *
+     * @return {@code true} if a lock was removed
+     * @throws PeriodClosedException the month is CLOSED; that lock is never removed
+     */
+    boolean unlock(YearMonth period);
 
     /**
      * Locks a run so no further write tagged to it succeeds (W-30.1). {@code period} is stored
@@ -126,6 +180,54 @@ public interface PayInputService {
 
         public RunLockedException(UUID runRef) {
             super("Run " + runRef + " is locked; this pay input was not recorded");
+        }
+    }
+
+    /**
+     * The month is CLOSED — its run was approved or paid (D-144). Maps to {@code 409}. The message is
+     * shown to the person as it is, so it names the month to use instead.
+     */
+    class PeriodClosedException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
+
+        private final YearMonth period;
+        private final YearMonth firstOpenPeriod;
+
+        private PeriodClosedException(String message, YearMonth period, YearMonth firstOpenPeriod) {
+            super(message);
+            this.period = period;
+            this.firstOpenPeriod = firstOpenPeriod;
+        }
+
+        /** "October 2026 is closed (run approved). Enter this for November 2026." */
+        public static PeriodClosedException forEntry(YearMonth period, YearMonth firstOpenPeriod) {
+            return new PeriodClosedException(
+                    monthName(period) + " is closed (run approved). Enter this for " + monthName(firstOpenPeriod) + ".",
+                    period,
+                    firstOpenPeriod);
+        }
+
+        /** A CLOSED month's lock asked to be removed. */
+        public static PeriodClosedException forUnlock(YearMonth period) {
+            return new PeriodClosedException(
+                    monthName(period) + " is closed (run approved); its lock cannot be removed.", period, null);
+        }
+
+        /** "October 2026". */
+        public static String monthName(YearMonth period) {
+            return MONTH.format(period);
+        }
+
+        public YearMonth period() {
+            return period;
+        }
+
+        /** The first month that is not CLOSED, or {@code null} when this came from {@link #forUnlock}. */
+        public YearMonth firstOpenPeriod() {
+            return firstOpenPeriod;
         }
     }
 

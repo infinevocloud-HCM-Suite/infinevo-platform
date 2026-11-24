@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { LossOfPayDrawer } from './LossOfPayDrawer.jsx';
 import { lossOfPayService } from './lossOfPayService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { apiClient } from '@shared/api/client';
 
 configure({ asyncUtilTimeout: 20000 });
 
@@ -12,10 +13,17 @@ vi.mock('./lossOfPayService.js', () => ({
   lossOfPayService: { searchActive: vi.fn(), record: vi.fn() },
 }));
 vi.mock('@shared/ui/msgHelper.js', () => ({ successMsg: vi.fn(), errorMsg: vi.fn() }));
+// D-144: the posting lookup goes through the shared client; answer it per test.
+vi.mock('@shared/api/client', () => ({ apiClient: { get: vi.fn() } }));
 
 const T = 60000;
 const thisMonth = dayjs().format('YYYY-MM');
 const nextMonth = dayjs().add(1, 'month').format('YYYY-MM');
+const thisName = dayjs().format('MMMM YYYY');
+const nextName = dayjs().add(1, 'month').format('MMMM YYYY');
+
+const answer = (state, posted = thisMonth) =>
+  apiClient.get.mockResolvedValue({ data: { requested_period: thisMonth, posted_period: posted, state } });
 
 async function fill({ days = 2.5, reason = 'Absent 3-5 Oct' } = {}) {
   fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Employee' }));
@@ -36,7 +44,66 @@ describe('LossOfPayDrawer (D-140)', () => {
     vi.clearAllMocks();
     lossOfPayService.searchActive.mockResolvedValue([{ id: 'e1', employeeNumber: 'E001', firstName: 'Asha' }]);
     lossOfPayService.record.mockResolvedValue({ id: 'p1', posted_period: thisMonth });
+    answer('OPEN');
   });
+
+  it(
+    'says before saving which run picks the entry up: an open month',
+    async () => {
+      renderIt();
+      const note = await screen.findByTestId('lop-posting');
+      expect(note.textContent).toBe(`Picked up by the ${thisName} run`);
+      expect(note.getAttribute('data-state')).toBe('OPEN');
+      expect(apiClient.get).toHaveBeenCalledWith(`/v1/pay-inputs/posting/${thisMonth}`);
+      expect(screen.getByTestId('lop-save').disabled).toBe(false);
+    },
+    T
+  );
+
+  it(
+    'a locked month still saves, and says the run must be recomputed',
+    async () => {
+      answer('LOCKED');
+      renderIt();
+      const note = await screen.findByTestId('lop-posting');
+      expect(note.textContent).toBe(`Picked up by the ${thisName} run, which must be recomputed`);
+      expect(note.getAttribute('data-state')).toBe('LOCKED');
+      await fill();
+      fireEvent.click(screen.getByTestId('lop-save'));
+      await waitFor(() => expect(lossOfPayService.record).toHaveBeenCalled());
+    },
+    T
+  );
+
+  it(
+    'a closed month names the month to use and disables Save',
+    async () => {
+      answer('CLOSED', nextMonth);
+      renderIt();
+      const note = await screen.findByTestId('lop-posting');
+      expect(note.textContent).toBe(`${thisName} is closed. Enter this for ${nextName}`);
+      expect(note.getAttribute('data-state')).toBe('CLOSED');
+      await waitFor(() => expect(screen.getByTestId('lop-save').disabled).toBe(true));
+      await fill();
+      fireEvent.click(screen.getByTestId('lop-save'));
+      expect(lossOfPayService.record).not.toHaveBeenCalled();
+    },
+    T
+  );
+
+  it(
+    'says nothing under the month when the lookup fails, and still lets the server decide',
+    async () => {
+      apiClient.get.mockRejectedValue({ status: 403 });
+      const onSaved = renderIt();
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+      expect(screen.queryByTestId('lop-posting')).toBeNull();
+      await fill();
+      fireEvent.click(screen.getByTestId('lop-save'));
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    },
+    T
+  );
 
   it(
     'requires days and a reason before posting',
@@ -74,16 +141,15 @@ describe('LossOfPayDrawer (D-140)', () => {
   );
 
   it(
-    'warns when the month was locked and the ledger posted to the next one, and still saves',
+    'reports a 409 for a month closed between the lookup and the save, and does not save',
     async () => {
-      lossOfPayService.record.mockResolvedValue({ id: 'p1', posted_period: nextMonth });
+      const err = { status: 409, code: 'CONFLICT', message: `${thisName} is closed (run approved). Enter this for ${nextName}.` };
+      lossOfPayService.record.mockRejectedValue(err);
       const onSaved = renderIt();
       await fill();
       fireEvent.click(screen.getByTestId('lop-save'));
-      // D-142: a dialog, not a toast - the user must dismiss it.
-      expect((await screen.findAllByText(`${dayjs().format('MMM YYYY')} is locked`)).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(new RegExp(`posted to ${dayjs().add(1, 'month').format('MMM YYYY')}`)).length).toBeGreaterThan(0);
-      expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ posted_period: nextMonth }));
+      await waitFor(() => expect(errorMsg).toHaveBeenCalledWith(err));
+      expect(onSaved).not.toHaveBeenCalled();
       expect(successMsg).not.toHaveBeenCalled();
     },
     T

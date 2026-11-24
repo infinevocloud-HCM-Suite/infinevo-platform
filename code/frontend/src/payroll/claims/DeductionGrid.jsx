@@ -6,6 +6,8 @@ import { deductionService } from './deductionService.js';
 import { EmployeeSelect } from './EmployeeSelect.jsx';
 import { DEDUCTION_TYPE_OPTIONS, toAmountString } from './claimLabels.js';
 import { readError } from '../tax/apiError.js';
+import { isClosed, usePostingPeriods } from '@shared/payInputs/postingPeriod.js';
+import { PostingNote } from '@shared/payInputs/PostingNote.jsx';
 
 const { Text } = Typography;
 
@@ -56,10 +58,18 @@ export function toRequestLine(line) {
   };
 }
 
+/** A line's month as the API reads it, or null. */
+const periodOf = (line) => (line.period ? line.period.format('YYYY-MM') : null);
+
 /**
  * "Enter deductions" drawer (W-47.4 §5): one editable row per line, posted as one all-or-nothing
- * batch. A `400` names the failing line's zero-based index in `fieldErrors.line`; that row is
- * marked and nothing is posted. Post is disabled in flight and a double click posts once.
+ * batch. A `400` (or a `409` for a closed month) names the failing line's zero-based index in
+ * `fieldErrors.line`; that row is marked and nothing is posted. Post is disabled in flight and a
+ * double click posts once.
+ *
+ * D-144: under each row's month, which run picks the line up - an open month, a locked one (the
+ * run must be recomputed) or a closed one, named with the month to use. Post is disabled while any
+ * row names a closed month, and those rows are marked. One lookup per distinct month.
  */
 export function DeductionGrid({ open, onClose, onPosted }) {
   const [lines, setLines] = useState(() => [blankLine()]);
@@ -68,6 +78,13 @@ export function DeductionGrid({ open, onClose, onPosted }) {
   const [errorLine, setErrorLine] = useState(null);
   const [page, setPage] = useState(1);
   const inFlight = useRef(false);
+  const postings = usePostingPeriods(open ? lines.map(periodOf) : []);
+  const postingOf = (line) => {
+    const period = periodOf(line);
+    return period ? postings[period] ?? null : null;
+  };
+  const closedRows = lines.reduce((acc, line, i) => (isClosed(postingOf(line)) ? [...acc, i] : acc), []);
+  const anyClosed = closedRows.length > 0;
 
   useEffect(() => {
     if (open) {
@@ -88,7 +105,7 @@ export function DeductionGrid({ open, onClose, onPosted }) {
   };
 
   const post = async () => {
-    if (inFlight.current || lines.length === 0) return;
+    if (inFlight.current || lines.length === 0 || anyClosed) return;
     inFlight.current = true;
     setPosting(true);
     setError(null);
@@ -111,7 +128,8 @@ export function DeductionGrid({ open, onClose, onPosted }) {
     }
   };
 
-  const rowStatus = (index) => (index === errorLine ? 'error' : undefined);
+  const isMarked = (index) => index === errorLine || closedRows.includes(index);
+  const rowStatus = (index) => (isMarked(index) ? 'error' : undefined);
 
   const columns = [
     {
@@ -137,15 +155,22 @@ export function DeductionGrid({ open, onClose, onPosted }) {
     {
       title: 'Period',
       key: 'period',
-      width: 140,
+      width: 200,
       render: (_, line, i) => (
-        <DatePicker
-          picker="month"
-          value={line.period}
-          onChange={(v) => update(line.key, 'period', v)}
-          status={rowStatus((page - 1) * PAGE_SIZE + i)}
-          placeholder="Month"
-        />
+        <>
+          <DatePicker
+            picker="month"
+            value={line.period}
+            onChange={(v) => update(line.key, 'period', v)}
+            status={rowStatus((page - 1) * PAGE_SIZE + i)}
+            placeholder="Month"
+          />
+          <PostingNote
+            posting={postingOf(line)}
+            testId={`posting-line-${(page - 1) * PAGE_SIZE + i + 1}`}
+            style={{ marginTop: 4 }}
+          />
+        </>
       ),
     },
     {
@@ -238,7 +263,19 @@ export function DeductionGrid({ open, onClose, onPosted }) {
           <Button onClick={onClose} disabled={posting}>
             Cancel
           </Button>
-          <Button type="primary" onClick={post} loading={posting} disabled={posting || lines.length === 0}>
+          {anyClosed && (
+            <Text type="danger" data-testid="closed-rows">
+              {closedRows.length === 1
+                ? `Row ${closedRows[0] + 1} names a closed month`
+                : `Rows ${closedRows.map((i) => i + 1).join(', ')} name a closed month`}
+            </Text>
+          )}
+          <Button
+            type="primary"
+            onClick={post}
+            loading={posting}
+            disabled={posting || lines.length === 0 || anyClosed}
+          >
             Post
           </Button>
         </Space>
@@ -258,10 +295,8 @@ export function DeductionGrid({ open, onClose, onPosted }) {
         size="small"
         dataSource={lines}
         columns={columns}
-        rowClassName={(_, i) =>
-          (page - 1) * PAGE_SIZE + i === errorLine ? 'deduction-line-error' : ''
-        }
-        onRow={(_, i) => ({ 'aria-invalid': (page - 1) * PAGE_SIZE + i === errorLine ? 'true' : undefined })}
+        rowClassName={(_, i) => (isMarked((page - 1) * PAGE_SIZE + i) ? 'deduction-line-error' : '')}
+        onRow={(_, i) => ({ 'aria-invalid': isMarked((page - 1) * PAGE_SIZE + i) ? 'true' : undefined })}
         pagination={
           lines.length > PAGE_SIZE
             ? { current: page, pageSize: PAGE_SIZE, onChange: setPage, showSizeChanger: false }

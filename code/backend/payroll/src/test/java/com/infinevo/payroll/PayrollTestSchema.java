@@ -224,6 +224,9 @@ public final class PayrollTestSchema {
             if (!columnExists(conn, "core", "pay_input", "note")) {
                 executeResource(conn, "db/migration/core/V191__pay_input_note.sql");
             }
+            if (!columnExists(conn, "core", "pay_input_period_lock", "stage")) {
+                executeResource(conn, "db/migration/core/V220__pay_input_lock_stage.sql"); // D-144
+            }
             if (!tableExists(conn, "core", "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
                 executeResource(conn, "db/migration/core/V166__document_label.sql");

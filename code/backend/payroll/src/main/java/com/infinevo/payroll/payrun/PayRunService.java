@@ -69,7 +69,11 @@ public interface PayRunService {
      */
     PayRunResponse lock(UUID id);
 
-    /** {@code DRAFT} or {@code LOCKED} {@code → CANCELLED}. The period lock stays. */
+    /**
+     * {@code DRAFT}, {@code LOCKED} or {@code APPROVED → CANCELLED}. A regular run's LOCKED period lock
+     * is removed (D-144, D-138), so the month takes entries in place again; a CLOSED one (the run was
+     * approved) stays.
+     */
     PayRunResponse cancel(UUID id);
 
     /**
@@ -88,7 +92,9 @@ public interface PayRunService {
     EmployeePayRunLinesResponse lines(UUID id, UUID employeeId);
 
     /**
-     * {@code COMPUTED → APPROVED}: officer signs off on the computed figures (W-36.2 §4).
+     * {@code COMPUTED → APPROVED}: officer signs off on the computed figures (W-36.2 §4). A regular
+     * run's month is closed with it ({@code PayInputService.lock} at CLOSED, D-144): an entry for it
+     * is refused from now on.
      *
      * @throws IllegalPayRunTransitionException unless in {@code COMPUTED} status
      */
