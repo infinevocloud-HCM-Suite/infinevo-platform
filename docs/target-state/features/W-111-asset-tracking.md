@@ -6,7 +6,7 @@
 | **Owner** | sayeed (`dev-sayeed`) |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration`, `code/frontend` (`src/hrms/assets`, `src/core/employee`, `src/shell/portal`) |
 | **Related gaps** | `DEV-TRACKER.md` row `W-111`; no hardware or equipment inventory or employee assignment tracking exists today |
-| **Status** | Ready |
+| **Status** | Draft - In Review |
 | **Blocked by** | nothing (`core.employee` and employee portal exist) |
 
 ---
@@ -26,56 +26,19 @@ This feature delivers **Asset Tracking** in `hrms`:
 
 ---
 
-## 2. Size Cap
+## 2. Size Cap & Database Changes
 
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `hrms` (references `core.employee` for assignment custody) | 1 |
-| Flyway migration | `hrms/V195__asset_tracking.sql` (tables for company asset registry and assignment history) | 1 |
+| Flyway migrations | 2 migrations (next free versions at build time):<br>1. `hrms/V<N>__asset_tracking.sql`<br>2. `core/V<M>__asset_permissions.sql` | 2 |
 | Externally testable behaviour | Admin adds an asset, assigns it to an employee, employee views it in portal, and admin records asset return | 1 |
 | Frontend area | `code/frontend/src/hrms/assets` (admin registry) and `src/shell/portal/panels/MyAssets.jsx` (self-service) | 1 |
 
----
+### Database Schema Updates
 
-## 3. Scope
-
-### In Scope
-1. **Company Asset Registry (`hrms.company_asset`):**
-   - Unique Asset Tag (e.g., `AST-001`, `LAP-2026-042`).
-   - Name and description (e.g., "Apple MacBook Pro 14\"", "Dell UltraSharp 27\"").
-   - Category: `LAPTOP`, `MONITOR`, `MOBILE_DEVICE`, `ACCESS_CARD`, `PERIPHERAL`, `VEHICLE`, `FURNITURE`, `OTHER`.
-   - Brand, model, and manufacturer serial number.
-   - Purchase date, vendor name, purchase cost (`NUMERIC(19,4)`), and warranty expiry date.
-   - Status: `AVAILABLE`, `ASSIGNED`, `UNDER_REPAIR`, `RETIRED`, `LOST`.
-   - Condition: `NEW`, `GOOD`, `FAIR`, `DAMAGED`.
-2. **Asset Assignment & Custody History (`hrms.asset_assignment`):**
-   - Links asset to an active employee (`core.employee`).
-   - Assignment details: `assigned_date`, `assigned_by`, condition at handover, assignment notes.
-   - Return details: `returned_date`, `returned_by`, condition upon return, return notes.
-   - Active status flag (`is_active`): ensures an asset can only have at most one active assignment at any point in time.
-3. **Exit Clearance Check (`GET /api/v1/hrms/employees/{id}/assets/active`):**
-   - Lists all unreturned assets held by an employee; returns `clearance_status` (`CLEAR` if 0 active assets, `PENDING_RETURN` otherwise).
-4. **Frontend UI:**
-   - **Asset Inventory Page (`/hrms/assets`):** Filter by category and status (`AVAILABLE`, `ASSIGNED`), view custodian, and register new assets.
-   - **Asset Details Drawer:** View asset specs, current custodian, and complete historical custody timeline.
-   - **Assign / Return Modals:** Handover workflow with condition checklist and return intake form.
-   - **Employee Portal (`/me/assets`):** Employee self-service card showing assigned assets, serial numbers, and handover dates.
-   - **Employee Profile Tab (`/employees/:id`):** Dedicated "Assets" tab on the employee details screen.
-
-### Out of Scope
-1. **Automated MDM / Device Agent Integration:** Direct Jamf, Microsoft Intune, or Google Workspace device-level sync (belongs to external integration stream `W-108`).
-2. **Depreciation & Capital Asset Accounting:** Fixed asset accounting ledgers and tax depreciation belong to ERP / accounting integration (`W-107`).
-
----
-
-## 4. Domain Model & Database Schema
-
-### Migration: `hrms/V195__asset_tracking.sql`
-
+#### Migration 1: `hrms/V<N>__asset_tracking.sql` (Next free version at build time)
 ```sql
--- Migration: V195__asset_tracking.sql
--- Description: W-111 Asset tracking inventory and employee assignment history with PostgreSQL RLS isolation
-
 -- 1. Company Asset Inventory
 CREATE TABLE hrms.company_asset (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -147,9 +110,54 @@ CREATE UNIQUE INDEX uk_asset_single_active_assignment
     WHERE is_active = true;
 ```
 
+#### Migration 2: `core/V<M>__asset_permissions.sql` (Next free version at build time)
+Follows standard role grant pattern established in `code/backend/migration/src/main/resources/db/migration/core/V184__wfh_seed_roles.sql`:
+1. Seeds `reference.action`:
+   - `hrms.asset.read` — "View company asset registry and assignment custody"
+   - `hrms.asset.manage` — "Register, update, assign, and accept return of company assets"
+   - `hrms.asset.read_own` — "View company assets assigned to signed-in employee via portal"
+2. Creates grant function `core.grant_asset_actions(p_tenant_id UUID)`:
+   - `platform-admin`, `tenant-admin`: all asset actions
+   - `hr`: `hrms.asset.read`, `hrms.asset.manage`, `hrms.asset.read_own`
+   - `manager`: `hrms.asset.read`, `hrms.asset.read_own`
+   - `employee`: `hrms.asset.read_own`
+3. Creates trigger `tenant_seed_system_roles_asset` on `core.tenant`.
+4. Idempotent backfill across all existing tenants.
+
 ---
 
-## 5. Backend Architecture & API Contracts
+## 3. Scope
+
+### In Scope
+1. **Company Asset Registry (`hrms.company_asset`):**
+   - Unique Asset Tag (e.g., `AST-001`, `LAP-2026-042`).
+   - Name and description (e.g., "Apple MacBook Pro 14\"", "Dell UltraSharp 27\"").
+   - Category: `LAPTOP`, `MONITOR`, `MOBILE_DEVICE`, `ACCESS_CARD`, `PERIPHERAL`, `VEHICLE`, `FURNITURE`, `OTHER`.
+   - Brand, model, and manufacturer serial number.
+   - Purchase date, vendor name, purchase cost (`NUMERIC(19,4)`), and warranty expiry date.
+   - Status: `AVAILABLE`, `ASSIGNED`, `UNDER_REPAIR`, `RETIRED`, `LOST`.
+   - Condition: `NEW`, `GOOD`, `FAIR`, `DAMAGED`.
+2. **Asset Assignment & Custody History (`hrms.asset_assignment`):**
+   - Links asset to an active employee (`core.employee`).
+   - Assignment details: `assigned_date`, `assigned_by`, condition at handover, assignment notes.
+   - Return details: `returned_date`, `returned_by`, condition upon return, return notes.
+   - Active status flag (`is_active`): ensures an asset can only have at most one active assignment at any point in time.
+3. **Exit Clearance Check (`GET /api/v1/hrms/employees/{id}/assets/active`):**
+   - Lists all unreturned assets held by an employee; returns `clearance_status` (`CLEAR` if 0 active assets, `PENDING_RETURN` otherwise).
+4. **Frontend UI:**
+   - **Asset Inventory Page (`/hrms/assets`):** Filter by category and status (`AVAILABLE`, `ASSIGNED`), view custodian, and register new assets.
+   - **Asset Details Drawer:** View asset specs, current custodian, and complete historical custody timeline.
+   - **Assign / Return Modals:** Handover workflow with condition checklist and return intake form.
+   - **Employee Portal (`/me/assets`):** Employee self-service card showing assigned assets, serial numbers, and handover dates.
+   - **Employee Profile Tab (`/employees/:id`):** Dedicated "Assets" tab on the employee details screen.
+
+### Out of Scope
+1. **Automated MDM / Device Agent Integration:** Direct Jamf, Microsoft Intune, or Google Workspace device-level sync (belongs to external integration stream `W-108`).
+2. **Depreciation & Capital Asset Accounting:** Fixed asset accounting ledgers and tax depreciation belong to ERP / accounting integration (`W-107`).
+
+---
+
+## 4. Backend Architecture & API Contracts
 
 ### Package: `com.infinevo.hrms.asset`
 
@@ -174,11 +182,11 @@ CREATE UNIQUE INDEX uk_asset_single_active_assignment
 | `POST` | `/api/v1/hrms/assets/{id}/return` | `hrms.asset.manage` | Record asset return from employee with condition assessment |
 | `PATCH` | `/api/v1/hrms/assets/{id}/status` | `hrms.asset.manage` | Update status (e.g. mark `UNDER_REPAIR`, `RETIRED`, `LOST`) |
 | `GET` | `/api/v1/hrms/employees/{id}/assets` | `hrms.asset.read` | View all assets currently assigned to employee (exit clearance) |
-| `GET` | `/api/v1/me/assets` | (authenticated user) | View assets assigned to the signed-in employee |
+| `GET` | `/api/v1/me/assets` | `hrms.asset.read_own` | View assets assigned to the signed-in employee |
 
 ---
 
-## 6. Frontend Architecture
+## 5. Frontend Architecture
 
 ### 1. HR Asset Management (`code/frontend/src/hrms/assets/`)
 - `AssetList.jsx`: Searchable table with category filters, status pills (`Available`, `Assigned`, `In Repair`), and quick assignment action.
@@ -189,19 +197,33 @@ CREATE UNIQUE INDEX uk_asset_single_active_assignment
 - Registered route: `/hrms/assets` and `/hrms/assets/:id`.
 
 ### 2. Employee Profile & Portal
-- `src/core/employee/tabs/AssetsTab.jsx`: Tab on employee page (`/employees/:id/assets`) displaying all assigned equipment.
-- `src/shell/portal/panels/MyAssets.jsx`: Self-service view under `/me/assets` allowing employees to verify their assigned company equipment.
+- `code/frontend/src/core/employee/tabs/AssetsTab.jsx`: Tab on employee page (`/employees/:id/assets`) displaying all assigned equipment.
+- `code/frontend/src/shell/portal/panels/MyAssets.jsx`: Self-service view under `/me/assets` allowing employees to verify their assigned company equipment.
 
 ---
 
-## 7. Impact on Standing Rules
+## 6. Acceptance Criteria
 
-- **`tenant_id` & RLS:** Both `hrms.company_asset` and `hrms.asset_assignment` carry `tenant_id` and strict PostgreSQL RLS policies.
-- **Flyway Migrations:** Exactly 1 migration (`hrms/V195__asset_tracking.sql`). All schema references explicitly qualified.
-- **Precision:** `purchase_cost` uses `NUMERIC(19,4)` and `BigDecimal` / `Money`. Floating point arithmetic is prohibited.
-- **Indexes:** Indexed on `(tenant_id, current_status, category)` and `(tenant_id, employee_id, is_active)`. Partial unique index enforces single active assignment per asset.
-- **Expand / Contract:** Creates clean new tables; zero destructive changes.
-- **Module Boundaries:** `hrms` references `core.employee` via foreign keys and service contracts.
+| # | Given | When | Then |
+|---|---|---|---|
+| **AC-1** | HR administrator with `hrms.asset.manage` | Registers an asset with unique tag `LAP-001` | Asset is saved with status `AVAILABLE` |
+| **AC-2** | An asset has status `AVAILABLE` | Admin assigns it to an employee | Status changes to `ASSIGNED`; active assignment record is created with assignment date and condition |
+| **AC-3** | An asset has status `ASSIGNED` | Another assignment request is sent for the same asset | Server returns `HTTP 409 Conflict` (already assigned) |
+| **AC-4** | An assigned asset is returned by an employee | Admin calls return endpoint with return condition | Status transitions back to `AVAILABLE`; assignment is marked `is_active = false` with return date |
+| **AC-5** | An employee has 2 active hardware assets assigned | HR checks exit clearance via `GET /employees/{id}/assets` | Returns active assets list and clearance status `PENDING_RETURN` |
+| **AC-6** | All assets assigned to an employee have been returned | HR checks exit clearance | Returns 0 active assets and clearance status `CLEAR` |
+| **AC-7** | Signed-in employee navigates to `/me/assets` | Portal requests `GET /api/v1/me/assets` | Returns only assets currently assigned to that employee |
+| **AC-8** | User without `hrms.asset.manage` calls assign/return endpoint | Request is executed | Server returns `HTTP 403 Forbidden` |
+
+---
+
+## 7. Risks & Mitigations
+
+| Risk | Likelihood | Mitigation |
+|---|---|---|
+| **Race condition assigns single asset to two employees simultaneously** | Low | Partial unique index `uk_asset_single_active_assignment` on `(tenant_id, asset_id) WHERE is_active = true` strictly blocks concurrent active assignments at database level. |
+| **Separating employee completes exit without returning critical assets** | Medium | Exit clearance endpoint integrates directly into Full & Final settlement checks (`W-90`), flagging unreturned assets before clearance. |
+| **Duplicate asset tag entered for different physical devices** | Low | Unique constraint `uk_company_asset_tag` on `(tenant_id, asset_tag)` enforces unique tagging within each tenant. |
 
 ---
 
@@ -231,4 +253,3 @@ cd ../frontend
 npm run lint
 npm test -- src/hrms/assets/AssetList.test.jsx
 ```
-

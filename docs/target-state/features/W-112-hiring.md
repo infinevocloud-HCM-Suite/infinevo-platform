@@ -6,7 +6,7 @@
 | **Owner** | sayeed (`dev-sayeed`) |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration`, `code/frontend` (`src/hrms/hiring`) |
 | **Related gaps** | `DEV-TRACKER.md` row `W-112`; legacy HRMS had no recruitment module; employee onboarding required manual re-entry |
-| **Status** | Ready |
+| **Status** | Draft - In Review |
 | **Blocked by** | nothing (`core.employee`, `core.org`, and `core.user` exist) |
 
 ---
@@ -32,7 +32,7 @@ This feature delivers the **Hiring & Recruitment Management** module inside `hrm
 | Axis | Whole Module | Sub-Phase 1 (`W-112.1`) | Limit |
 |---|:---:|:---:|:---:|
 | Backend module | `hrms` | `hrms` | 1 |
-| Flyway migration | 1 aggregate script (`V<N>__hiring_schema.sql`, next free version at build time) | 1 script (`V<N>__job_openings.sql`, next free version at build time) | 1 |
+| Flyway migrations | 2 migrations (next free versions at build time):<br>1. `hrms/V<N>__hiring_schema.sql`<br>2. `core/V<M>__hiring_permissions.sql` | 1 script (`hrms/V<N>__job_openings.sql`) | 2 |
 | Externally testable behaviour | HR manages job openings, candidate pipeline, interviews, and converts hired candidates to employees | HR creates, publishes, and tracks job openings with required headcount | 1 |
 | Frontend area | `src/hrms/hiring` | `src/hrms/hiring/openings` | 1 |
 
@@ -46,82 +46,11 @@ To ensure incremental delivery and strict adherence to the size cap during devel
 
 ---
 
-## 3. Scope
+## 3. Database Schema Updates
 
-### In Scope
-1. **Job Openings (`hrms.job_opening`):**
-   - Title, job code (e.g. `JOB-2026-001`), department (`core.department`), designation (`core.designation`), work location (`core.work_location`).
-   - Openings count (headcount target) and filled count.
-   - Employment type: `FULL_TIME`, `PART_TIME`, `CONTRACT`, `INTERN`.
-   - Salary range: `min_salary`, `max_salary` (`NUMERIC(19,4)`).
-   - Experience required (min/max years) and job description markdown.
-   - Hiring manager (`core.employee`) and recruiters.
-   - Status: `DRAFT`, `OPEN`, `ON_HOLD`, `FILLED`, `CLOSED`.
-2. **Candidate Profiles (`hrms.candidate`):**
-   - First name, last name, email, phone, current company, current title, total experience years, notice period days, resume file URL/path.
-3. **Job Applications (`hrms.job_application`):**
-   - Unique application of a candidate to a specific job opening.
-   - Stages: `APPLIED`, `SCREENING`, `INTERVIEWING`, `OFFERED`, `HIRED`, `REJECTED`, `WITHDRAWN`.
-   - Rejection reason tracking for compliance and analytics.
-4. **Interviews & Scorecards (`hrms.interview`, `hrms.interview_feedback`):**
-   - Interview round name (e.g., "Technical Round 1", "System Design", "HR Culture Fit").
-   - Scheduled date and time, duration (minutes), meeting URL.
-   - Assigned interviewers (`core.employee`).
-   - Scorecard: Overall rating (1 to 5 stars), recommendation (`STRONG_YES`, `YES`, `NEUTRAL`, `NO`), strengths, weaknesses, and private notes.
-5. **Job Offers (`hrms.job_offer`):**
-   - Designation, department, location, proposed joining date, offered annual CTC (`NUMERIC(19,4)`), validity date.
-   - Status: `DRAFT`, `SENT`, `ACCEPTED`, `DECLINED`, `EXPIRED`.
-6. **One-Click Convert to Employee (`POST /api/v1/hrms/offers/{id}/convert-to-employee`):**
-   - Converts an `ACCEPTED` offer into a new `core.employee` record.
-   - Pre-fills first/last name, email, work phone, department, designation, work location, and joining date.
-   - Sets employee status to `ACTIVE` (or pending onboarding) without duplicate manual entry.
-
-### Out of Scope
-1. **Public Career Website & External Job Board Syndication:** Direct XML feed generation or API push to LinkedIn/Naukri/Indeed (handled in future integration stream `W-108`).
-2. **Automated AI Resume Parsing:** PDF/DOCX resume text extraction and skill keyword matching (can be augmented by AI helper `W-114`).
-3. **E-Signature Provider Integration:** DocuSign / Adobe Sign webhook integration for formal legal signature execution.
-
----
-
-## 4. Domain Model & Database Schema
-
-### Schema: `hrms`
-
-```
-┌────────────────────┐          ┌──────────────────────┐
-│  hrms.job_opening  │ 1      * │ hrms.job_application │
-│────────────────────│──────────│──────────────────────│
-│ id                 │          │ id                   │
-│ title, code, dept  │          │ opening_id, cand_id  │
-│ target_openings    │          │ current_stage        │
-│ status             │          │ rejection_reason     │
-└────────────────────┘          └──────────┬───────────┘
-                                           │ 1
-                                           │
-                                           │ *
-┌────────────────────┐ 1        * ┌────────┴───────────┐
-│   hrms.candidate   │────────────│    hrms.interview    │
-│────────────────────│            │──────────────────────│
-│ id                 │            │ id, application_id   │
-│ name, email, phone │            │ round_name, time     │
-│ resume_url         │            │ status               │
-└────────────────────┘            └──────────┬───────────┘
-                                             │ 1
-                                             │ *
-                                  ┌──────────┴───────────┐
-                                  │hrms.interview_feedback│
-                                  │──────────────────────│
-                                  │ interviewer_id       │
-                                  │ rating, recommend    │
-                                  └──────────────────────┘
-```
-
-### Migration: `hrms/V<N>__hiring_schema.sql` (next free version at build time)
+### Migration 1: `hrms/V<N>__hiring_schema.sql` (Next free version at build time)
 
 ```sql
--- Migration: V<N>__hiring_schema.sql (next free version at build time)
--- Description: W-112 Recruitment and hiring management tables with strict RLS isolation
-
 -- 1. Job Openings
 CREATE TABLE hrms.job_opening (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -290,6 +219,57 @@ CREATE POLICY tenant_isolation ON hrms.job_offer
 CREATE INDEX idx_job_offer_app ON hrms.job_offer(tenant_id, application_id);
 ```
 
+### Migration 2: `core/V<M>__hiring_permissions.sql` (Next free version at build time)
+Follows standard role grant pattern established in `code/backend/migration/src/main/resources/db/migration/core/V184__wfh_seed_roles.sql`:
+1. Seeds `reference.action`:
+   - `hrms.hiring.read` — "View job openings, candidates, and applications"
+   - `hrms.hiring.manage` — "Manage requisitions, candidate pipeline, and issue offers"
+   - `hrms.hiring.interview` — "Conduct scheduled interviews and submit scorecards"
+2. Creates grant function `core.grant_hiring_actions(p_tenant_id UUID)`:
+   - `platform-admin`, `tenant-admin`: all hiring actions
+   - `hr`: `hrms.hiring.read`, `hrms.hiring.manage`, `hrms.hiring.interview`
+   - `manager`: `hrms.hiring.read`, `hrms.hiring.interview`
+   - `employee`: `hrms.hiring.interview` (when assigned as interviewer)
+3. Creates trigger `tenant_seed_system_roles_hiring` on `core.tenant`.
+4. Idempotent backfill across all existing tenants.
+
+---
+
+## 4. Scope
+
+### In Scope
+1. **Job Openings (`hrms.job_opening`):**
+   - Title, job code (e.g. `JOB-2026-001`), department (`core.department`), designation (`core.designation`), work location (`core.work_location`).
+   - Openings count (headcount target) and filled count.
+   - Employment type: `FULL_TIME`, `PART_TIME`, `CONTRACT`, `INTERN`.
+   - Salary range: `min_salary`, `max_salary` (`NUMERIC(19,4)`).
+   - Experience required (min/max years) and job description markdown.
+   - Hiring manager (`core.employee`) and recruiters.
+   - Status: `DRAFT`, `OPEN`, `ON_HOLD`, `FILLED`, `CLOSED`.
+2. **Candidate Profiles (`hrms.candidate`):**
+   - First name, last name, email, phone, current company, current title, total experience years, notice period days, resume file URL/path.
+3. **Job Applications (`hrms.job_application`):**
+   - Unique application of a candidate to a specific job opening.
+   - Stages: `APPLIED`, `SCREENING`, `INTERVIEWING`, `OFFERED`, `HIRED`, `REJECTED`, `WITHDRAWN`.
+   - Rejection reason tracking for compliance and analytics.
+4. **Interviews & Scorecards (`hrms.interview`, `hrms.interview_feedback`):**
+   - Interview round name (e.g., "Technical Round 1", "System Design", "HR Culture Fit").
+   - Scheduled date and time, duration (minutes), meeting URL.
+   - Assigned interviewers (`core.employee`).
+   - Scorecard: Overall rating (1 to 5 stars), recommendation (`STRONG_YES`, `YES`, `NEUTRAL`, `NO`), strengths, weaknesses, and private notes.
+5. **Job Offers (`hrms.job_offer`):**
+   - Designation, department, location, proposed joining date, offered annual CTC (`NUMERIC(19,4)`), validity date.
+   - Status: `DRAFT`, `SENT`, `ACCEPTED`, `DECLINED`, `EXPIRED`.
+6. **One-Click Convert to Employee (`POST /api/v1/hrms/offers/{id}/convert-to-employee`):**
+   - Converts an `ACCEPTED` offer into a new `core.employee` record.
+   - Pre-fills first/last name, email, work phone, department, designation, work location, and joining date.
+   - Sets employee status to `ACTIVE` (or pending onboarding) without duplicate manual entry.
+
+### Out of Scope
+1. **Public Career Website & External Job Board Syndication:** Direct XML feed generation or API push to LinkedIn/Naukri/Indeed (handled in future integration stream `W-108`).
+2. **Automated AI Resume Parsing:** PDF/DOCX resume text extraction and skill keyword matching (can be augmented by AI helper `W-114`).
+3. **E-Signature Provider Integration:** DocuSign / Adobe Sign webhook integration for formal legal signature execution.
+
 ---
 
 ## 5. Backend Architecture & API Contracts
@@ -353,23 +333,34 @@ code/frontend/src/hrms/hiring/
 - `/hrms/hiring/interviews`
 - `/hrms/hiring/offers`
 
-### Main Navigation Integration
-Registered in HRMS navigation menu under **"Hiring"** with icon `<UserAddOutlined />` or `<SolutionOutlined />`.
+---
+
+## 7. Acceptance Criteria
+
+| # | Given | When | Then |
+|---|---|---|---|
+| **AC-1** | HR administrator with `hrms.hiring.manage` | Creates a job opening with code `JOB-001` and headcount 2 | Opening is saved in `DRAFT` status |
+| **AC-2** | A job opening is in `DRAFT` status | Admin publishes opening via `PATCH /status` | Opening moves to `OPEN` status and candidates can be linked |
+| **AC-3** | A candidate profile exists | Candidate applied to opening via `POST /applications` | Application is created in `APPLIED` stage; duplicate candidate application to same opening returns `HTTP 409 Conflict` |
+| **AC-4** | Application is in `INTERVIEWING` stage | Interviewer submits scorecard via `POST /interviews/{id}/feedback` | Rating (1–5) and recommendation are persisted; duplicate feedback from same interviewer rejected |
+| **AC-5** | Candidate receives an offer in `SENT` status | Candidate accepts offer | Offer moves to `ACCEPTED` status |
+| **AC-6** | An offer has status `ACCEPTED` | Admin calls `POST /offers/{id}/convert-to-employee` | Creates new `core.employee` record populated with candidate profile, work location, and joining date; links `converted_employee_id` |
+| **AC-7** | An offer is not in `ACCEPTED` status | Admin calls `convert-to-employee` | Server returns `HTTP 400 Bad Request` |
+| **AC-8** | User without `hrms.hiring.manage` attempts to create an opening or offer | Request is executed | Server returns `HTTP 403 Forbidden` |
 
 ---
 
-## 7. Impact on Standing Rules
+## 8. Risks & Mitigations
 
-- **`tenant_id` & RLS:** Every table (`hrms.job_opening`, `hrms.candidate`, `hrms.job_application`, `hrms.interview`, `hrms.interview_feedback`, `hrms.job_offer`) carries `tenant_id` with active row-level security (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) and tenant isolation policies.
-- **Flyway Migrations:** All statements are schema-qualified (`hrms.`, `core.`, `reference.`). No un-scoped table creation. Never uses `ddl-auto`.
-- **Precision:** Salary and CTC figures (`min_salary`, `max_salary`, `offered_ctc`) are `NUMERIC(19,4)` in PostgreSQL and `BigDecimal` / `Money` in Java.
-- **Indexes:** Indexed on `tenant_id` plus primary query columns (`(tenant_id, status)`, `(tenant_id, email)`, `(tenant_id, job_opening_id, stage)`).
-- **Expand / Contract:** Clean additions with safe defaults; zero alterations to existing tables.
-- **Module Boundaries:** `hrms` accesses `core.department`, `core.designation`, `core.work_location`, and `core.employee` via defined Spring service interfaces (`EmployeeService.createDraft()`), keeping module boundaries decoupled.
+| Risk | Likelihood | Mitigation |
+|---|---|---|
+| **Candidate email conflict during one-click employee conversion** | Medium | `convert-to-employee` validates email against `core.employee` first; surfaces clear error modal if an employee with that email already exists. |
+| **Interviewer submits conflicting or multiple scorecards for one interview** | Low | Unique database constraint on `(tenant_id, interview_id, interviewer_id)` ensures exactly one scorecard per interviewer. |
+| **Candidate applies multiple times to the same job opening** | Low | Database constraint `uk_job_application` on `(tenant_id, job_opening_id, candidate_id)` blocks duplicate applications. |
 
 ---
 
-## 8. Automated Tests
+## 9. Automated Tests
 
 | Test Class | Scope | What It Proves |
 |---|---|---|
@@ -384,7 +375,7 @@ Registered in HRMS navigation menu under **"Hiring"** with icon `<UserAddOutline
 
 ---
 
-## 9. Verification Commands
+## 10. Verification Commands
 
 ```bash
 # 1. Backend format and unit/integration tests
@@ -397,4 +388,3 @@ cd ../frontend
 npm run lint
 npm test -- src/hrms/hiring/openings/JobOpeningList.test.jsx
 ```
-

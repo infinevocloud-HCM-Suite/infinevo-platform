@@ -14,15 +14,15 @@
 ## 1. What and why
 
 Today, establishing statutory compliance in `infinevo-platform` requires a payroll administrator to manually configure three disparate settings screens:
-1. **EPF Settings** ([`StatutorySettingsController.java:38-51`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/StatutorySettingsController.java#L38-L51), `/payroll/settings/epf`): Contains 18+ technical fields including contribution splits (12% employee, 3.67% PF, 8.33% EPS, 0.50% EDLI, 0.50% admin charges), wage ceiling restriction flags, and CTC inclusion toggles ([`EpfSettingRequest.java:10-32`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/EpfSettingRequest.java#L10-L32)).
-2. **ESI Settings** ([`StatutorySettingsController.java:53-66`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/StatutorySettingsController.java#L53-L66), `/payroll/settings/esi`): Requires setting deduction percentages (0.75% employee, 3.25% employer), the statutory wage ceiling (₹21,000), and structure inclusions ([`EsiSettingRequest.java:10-19`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/EsiSettingRequest.java#L10-L19)).
-3. **Professional Tax (PT) Settings** ([`ProfessionalTaxController.java:38-58`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/ProfessionalTaxController.java#L38-L58), `/payroll/settings/professional-tax`): Requires navigating each operating state individually to input registration certificates and configure slabs ([`ProfessionalTaxServiceImpl.java:65-75`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/ProfessionalTaxServiceImpl.java#L65-L75)).
+1. **EPF Settings** (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/StatutorySettingsController.java:38-51`, `/payroll/settings/epf`): Contains 18+ technical fields including contribution splits (12% employee, 3.67% PF, 8.33% EPS, 0.50% EDLI, 0.50% admin charges), wage ceiling restriction flags, and CTC inclusion toggles (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/EpfSettingRequest.java:10-32`).
+2. **ESI Settings** (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/StatutorySettingsController.java:53-66`, `/payroll/settings/esi`): Requires setting deduction percentages (0.75% employee, 3.25% employer), the statutory wage ceiling (₹21,000), and structure inclusions (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/settings/EsiSettingRequest.java:10-19`).
+3. **Professional Tax (PT) Settings** (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/ProfessionalTaxController.java:38-58`, `/payroll/settings/professional-tax`): Requires navigating each operating state individually to input registration certificates and configure slabs (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/ProfessionalTaxServiceImpl.java:65-75`).
 
-The tenant setup checklist ([`SetupStepCatalogue.java:37-39`](file:///d:/Workspace/infinevo-platform/code/backend/core/src/main/java/com/infinevo/core/setup/SetupStepCatalogue.java#L37-L39)) tracks these as three separate steps: `EPF` (display order 7), `ESI` (order 8), and `PROFESSIONAL_TAX` (order 9). For a new business owner or HR administrator without deep payroll compliance expertise, navigating three disparate screens with 30+ legal dials creates significant onboarding friction and risk of compliance misconfiguration.
+The tenant setup checklist (`code/backend/core/src/main/java/com/infinevo/core/setup/SetupStepCatalogue.java:37-39`) tracks these as three separate steps: `EPF` (display order 7), `ESI` (order 8), and `PROFESSIONAL_TAX` (order 9). For a new business owner or HR administrator without deep payroll compliance expertise, navigating three disparate screens with 30+ legal dials creates significant onboarding friction and risk of compliance misconfiguration.
 
 This feature delivers **Guided Statutory Setup**: a conversational, question-driven wizard that asks straightforward operational questions in plain English, automatically derives and populates statutory contribution rules and legal wage caps, links state PT registration numbers to the tenant's operating work locations, and atomically saves EPF, ESI, and PT compliance in a single transaction.
 
-Completing the guided wizard automatically marks all three statutory steps (`EPF`, `ESI`, `PROFESSIONAL_TAX`) completed in the setup checklist ([`PayrollSetupStepConfiguration.java:119-177`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/setup/PayrollSetupStepConfiguration.java#L119-L177)).
+Completing the guided wizard automatically marks all three statutory steps (`EPF`, `ESI`, `PROFESSIONAL_TAX`) completed in the setup checklist (`code/backend/payroll/src/main/java/com/infinevo/payroll/setup/PayrollSetupStepConfiguration.java:119-177`).
 
 ---
 
@@ -128,8 +128,8 @@ Under the *Employees' State Insurance Act, 1948*:
 Governed under state statutory enactments (Article 276 of the Constitution of India):
 
 1. **Operating State Detection:**
-   - The backend queries active work locations via `WorkLocationService.list(true)` ([`ProfessionalTaxServiceImpl.java:268-279`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/ProfessionalTaxServiceImpl.java#L268-L279)).
-   - Unique state codes are matched against national reference table `reference.pt_state` (`levies_pt` column, [`PtState.java:23-24`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/PtState.java#L23-L24)).
+   - The backend queries active work locations via `WorkLocationService.list(true)` (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/ProfessionalTaxServiceImpl.java:268-279`).
+   - Unique state codes are matched against national reference table `reference.pt_state` (`levies_pt` column, `code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/PtState.java:23-24`).
 2. **State Categorization in UI:**
    - **States levying PT** (e.g. Maharashtra `MH`, Karnataka `KA`, Tamil Nadu `TN`, Telangana `TG`, West Bengal `WB`, Gujarat `GJ`, Andhra Pradesh `AP`):
      - Displays state name with badge: `PT Applicable`.
@@ -140,8 +140,8 @@ Governed under state statutory enactments (Article 276 of the Constitution of In
      - Informs user: *"This state does not levy Professional Tax. No registration certificate or salary deduction is required."*
 3. **PT Persistence Rule:**
    - For states levying PT where a registration number is provided:
-     - An `OrgPtOverride` record is created or updated in `payroll.org_pt_override` ([`OrgPtOverride.java:18-38`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/OrgPtOverride.java#L18-L38)).
-     - If the override does not yet have slabs, standard slabs from `reference.pt_slab.inForce(stateCode, effectiveFrom)` are copied into `payroll.org_pt_override_slab`, ensuring the state has an active configuration with its PTRC number.
+     - An `OrgPtOverride` record is created or updated in `payroll.org_pt_override` (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/pt/OrgPtOverride.java`).
+     - **Founder Decision (2026-11-24):** The wizard persists the registration certificate number and effective date on `OrgPtOverride` only. It does **not** copy reference slabs into `payroll.org_pt_override_slab`. Instead, `ProfessionalTaxServiceImpl.calculatePt` dynamically matches against in-force reference slabs (`reference.pt_slab`), ensuring that future statutory government slab updates apply to the tenant automatically without requiring manual slab maintenance. Custom slab overrides remain strictly optional for tenants with special exemption certificates.
 
 ---
 

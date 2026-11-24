@@ -6,7 +6,7 @@
 | **Owner** | sayeed (`dev-sayeed`) |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration`, `code/frontend` (`src/hrms/surveys`, `src/shell/portal`) |
 | **Related gaps** | `DEV-TRACKER.md` row `W-110`; no employee feedback, pulse poll, or satisfaction survey mechanism exists today |
-| **Status** | Ready |
+| **Status** | Draft - In Review |
 | **Blocked by** | nothing (`core.employee` and self-service portal exist) |
 
 ---
@@ -27,58 +27,19 @@ This feature delivers **Surveys and Polls** in `hrms`:
 
 ---
 
-## 2. Size Cap
+## 2. Size Cap & Database Changes
 
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `hrms` (reads `core.employee`, `core.department`, `core.work_location`) | 1 |
-| Flyway migration | 1 migration (next free version at build time; e.g. `hrms/V<N>__surveys.sql`) | 1 |
+| Flyway migrations | 2 migrations (next free versions at build time):<br>1. `hrms/V<N>__surveys.sql`<br>2. `core/V<M>__surveys_permissions.sql` | 2 |
 | Externally testable behaviour | HR publishes a survey, eligible employees submit answers via `/me/surveys`, and HR views aggregated results | 1 |
 | Frontend area | `src/hrms/surveys` (admin builder & analytics) and `src/shell/portal` (`MySurveys.jsx`) | 1 |
 
----
+### Database Schema Updates
 
-## 3. Scope
-
-### In Scope
-1. **Survey Definition (`hrms.survey`):**
-   - Title, description/instructions, survey category (`PULSE_POLL`, `SATISFACTION`, `ONBOARDING_FEEDBACK`, `GENERAL`).
-   - `is_anonymous`: When true, individual answers are permanently decoupled from employee records.
-   - Target audience: `ALL_EMPLOYEES`, `DEPARTMENT`, or `WORK_LOCATION`.
-   - Schedule: `start_date` and `end_date`.
-   - Status lifecycle: `DRAFT`, `PUBLISHED`, `CLOSED`.
-2. **Question Types (`hrms.survey_question`):**
-   - `RATING_1_5`: 1 to 5 star/number rating.
-   - `SINGLE_CHOICE`: Radio options (stored as JSON array in question definition).
-   - `MULTIPLE_CHOICE`: Checkbox options (multiple selections allowed).
-   - `TEXT`: Free-form text feedback.
-   - Question ordering (`sort_order`) and `is_required` flag.
-3. **Employee Submission (`hrms.survey_response`, `hrms.survey_answer`):**
-   - Response records submission time and completion status.
-   - Anti-duplicate vote check: prevents an employee from answering the same survey twice.
-4. **Analytics & Aggregation API (`GET /api/v1/hrms/surveys/{id}/results`):**
-   - Overall response count and participation percentage.
-   - Average score for rating questions.
-   - Percentage breakdown for single/multi-choice questions.
-   - Text answer list (sanitized of author ID if anonymous).
-5. **Frontend UI:**
-   - HR Management: `/hrms/surveys` (Survey list, Question builder drawer, Results analytics view).
-   - Employee Portal: `/me/surveys` (Available pending surveys, Clean survey response modal, Completed survey history).
-
-### Out of Scope
-1. **Recurring Automated Surveys (e.g., automated Day 30 / Day 90 surveys):** Scheduled triggers belong to workflow automation.
-2. **AI Sentiment Analysis:** NLP sentiment analysis on free-text comments (can be added by AI helper `W-114`).
-
----
-
-## 4. Domain Model & Database Schema
-
-### Migration: `hrms/V<N>__surveys.sql` (next free version at build time)
-
+#### Migration 1: `hrms/V<N>__surveys.sql` (Next free version at build time)
 ```sql
--- Migration: V<N>__surveys.sql (next free version at build time)
--- Description: W-110 Surveys and polls management with PostgreSQL RLS isolation
-
 -- 1. Survey Definition
 CREATE TABLE hrms.survey (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -88,7 +49,7 @@ CREATE TABLE hrms.survey (
     category VARCHAR(32) NOT NULL DEFAULT 'GENERAL',
     is_anonymous BOOLEAN NOT NULL DEFAULT false,
     target_type VARCHAR(32) NOT NULL DEFAULT 'ALL_EMPLOYEES',
-    target_id UUID,
+    target_id UUID DEFAULT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
@@ -114,7 +75,7 @@ CREATE TABLE hrms.survey_question (
     survey_id UUID NOT NULL REFERENCES hrms.survey(id) ON DELETE CASCADE,
     question_text VARCHAR(500) NOT NULL,
     question_type VARCHAR(32) NOT NULL,
-    options_json JSONB,
+    options_json JSONB DEFAULT NULL,
     is_required BOOLEAN NOT NULL DEFAULT true,
     sort_order SMALLINT NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -157,8 +118,8 @@ CREATE TABLE hrms.survey_answer (
     response_id UUID NOT NULL REFERENCES hrms.survey_response(id) ON DELETE CASCADE,
     question_id UUID NOT NULL REFERENCES hrms.survey_question(id) ON DELETE CASCADE,
     rating_value INTEGER CHECK (rating_value >= 1 AND rating_value <= 5),
-    selected_options JSONB,
-    text_value TEXT,
+    selected_options JSONB DEFAULT NULL,
+    text_value TEXT DEFAULT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -172,9 +133,56 @@ CREATE POLICY tenant_isolation ON hrms.survey_answer
 CREATE INDEX idx_survey_answer_question ON hrms.survey_answer(tenant_id, question_id);
 ```
 
+#### Migration 2: `core/V<M>__surveys_permissions.sql` (Next free version at build time)
+Follows standard role grant pattern established in `code/backend/migration/src/main/resources/db/migration/core/V184__wfh_seed_roles.sql`:
+1. Seeds `reference.action`:
+   - `hrms.survey.read` — "View surveys and survey analytics results"
+   - `hrms.survey.manage` — "Create, edit, publish, and close surveys"
+   - `hrms.survey.respond` — "Submit responses to assigned surveys via employee portal"
+2. Creates grant function `core.grant_survey_actions(p_tenant_id UUID)`:
+   - `platform-admin`, `tenant-admin`: all survey actions
+   - `hr`: `hrms.survey.read`, `hrms.survey.manage`, `hrms.survey.respond`
+   - `manager`: `hrms.survey.read`, `hrms.survey.respond`
+   - `employee`: `hrms.survey.respond`
+3. Creates trigger `tenant_seed_system_roles_surveys` on `core.tenant`.
+4. Idempotent backfill across all existing tenants.
+
 ---
 
-## 5. Backend Architecture & API Contracts
+## 3. Scope
+
+### In Scope
+1. **Survey Definition (`hrms.survey`):**
+   - Title, description/instructions, survey category (`PULSE_POLL`, `SATISFACTION`, `ONBOARDING_FEEDBACK`, `GENERAL`).
+   - `is_anonymous`: When true, individual answers are permanently decoupled from employee records.
+   - Target audience: `ALL_EMPLOYEES`, `DEPARTMENT`, or `WORK_LOCATION`.
+   - Schedule: `start_date` and `end_date`.
+   - Status lifecycle: `DRAFT`, `PUBLISHED`, `CLOSED`.
+2. **Question Types (`hrms.survey_question`):**
+   - `RATING_1_5`: 1 to 5 star/number rating.
+   - `SINGLE_CHOICE`: Radio options (stored as JSON array in question definition).
+   - `MULTIPLE_CHOICE`: Checkbox options (multiple selections allowed).
+   - `TEXT`: Free-form text feedback.
+   - Question ordering (`sort_order`) and `is_required` flag.
+3. **Employee Submission (`hrms.survey_response`, `hrms.survey_answer`):**
+   - Response records submission time and completion status.
+   - Anti-duplicate vote check: prevents an employee from answering the same survey twice.
+4. **Analytics & Aggregation API (`GET /api/v1/hrms/surveys/{id}/results`):**
+   - Overall response count and participation percentage.
+   - Average score for rating questions.
+   - Percentage breakdown for single/multi-choice questions.
+   - Text answer list (sanitized of author ID if anonymous).
+5. **Frontend UI:**
+   - HR Management: `/hrms/surveys` (Survey list, Question builder drawer, Results analytics view).
+   - Employee Portal: `/me/surveys` (Available pending surveys, Clean survey response modal, Completed survey history).
+
+### Out of Scope
+1. **Recurring Automated Surveys (e.g., automated Day 30 / Day 90 surveys):** Scheduled triggers belong to workflow automation.
+2. **AI Sentiment Analysis:** NLP sentiment analysis on free-text comments (can be added by AI helper `W-114`).
+
+---
+
+## 4. Backend Architecture & API Contracts
 
 ### Package: `com.infinevo.hrms.survey`
 
@@ -190,19 +198,19 @@ CREATE INDEX idx_survey_answer_question ON hrms.survey_answer(tenant_id, questio
 ### Core API Contracts
 
 #### Admin Endpoints (`/api/v1/hrms/surveys`)
-- `GET /api/v1/hrms/surveys`: List surveys (status filter, participation counts).
-- `POST /api/v1/hrms/surveys`: Create survey header and question items.
-- `GET /api/v1/hrms/surveys/{id}`: Get survey definition with full questions list.
-- `PATCH /api/v1/hrms/surveys/{id}/status`: Publish (`PUBLISHED`) or Close (`CLOSED`) survey.
-- `GET /api/v1/hrms/surveys/{id}/results`: Aggregated results (eNPS, average ratings, choice counts).
+- `GET /api/v1/hrms/surveys`: List surveys (status filter, participation counts). Requires `hrms.survey.read`.
+- `POST /api/v1/hrms/surveys`: Create survey header and question items. Requires `hrms.survey.manage`.
+- `GET /api/v1/hrms/surveys/{id}`: Get survey definition with full questions list. Requires `hrms.survey.read`.
+- `PATCH /api/v1/hrms/surveys/{id}/status`: Publish (`PUBLISHED`) or Close (`CLOSED`) survey. Requires `hrms.survey.manage`.
+- `GET /api/v1/hrms/surveys/{id}/results`: Aggregated results (eNPS, average ratings, choice counts). Requires `hrms.survey.read`.
 
 #### Employee Portal Endpoints (`/api/v1/me/surveys`)
-- `GET /api/v1/me/surveys/active`: List pending surveys available for the current employee to answer.
-- `POST /api/v1/me/surveys/{id}/submit`: Submit answers for a survey.
+- `GET /api/v1/me/surveys/active`: List pending surveys available for the current employee to answer. Requires `hrms.survey.respond`.
+- `POST /api/v1/me/surveys/{id}/submit`: Submit answers for a survey. Requires `hrms.survey.respond`.
 
 ---
 
-## 6. Frontend Architecture
+## 5. Frontend Architecture
 
 ### 1. HR Administration (`code/frontend/src/hrms/surveys/`)
 - `SurveyList.jsx`: Table of active/closed surveys with participant counts and status tags.
@@ -216,14 +224,28 @@ CREATE INDEX idx_survey_answer_question ON hrms.survey_answer(tenant_id, questio
 
 ---
 
-## 7. Impact on Standing Rules
+## 6. Acceptance Criteria
 
-- **`tenant_id` & RLS:** All 4 tables carry `tenant_id` and strict PostgreSQL Row Level Security policies.
-- **Flyway Migrations:** Exactly 1 migration (next free version at build time, e.g. `hrms/V<N>__surveys.sql`). Schema names explicitly qualified.
-- **Precision & Data Safety:** Options and multi-select choices stored as valid JSONB arrays. Anti-tampering submission tokens guarantee single-vote integrity.
-- **Indexes:** Indexed on `(tenant_id, status)` and `(tenant_id, survey_id)`.
-- **Expand / Contract:** Creates new tables; zero alterations to existing tables.
-- **Module Boundaries:** `hrms` references `core.employee` and `core.department` via clean foreign keys and service contracts.
+| # | Given | When | Then |
+|---|---|---|---|
+| **AC-1** | HR administrator with `hrms.survey.manage` | Creates a survey with rating, choice, and text questions | Survey is persisted in `DRAFT` state with ordered questions |
+| **AC-2** | A draft survey has valid dates and questions | HR sets status to `PUBLISHED` | Survey transitions to `PUBLISHED` and becomes visible to targeted employees in `/me/surveys` |
+| **AC-3** | An active employee targeted by a published survey | Submits survey answers via `POST /api/v1/me/surveys/{id}/submit` | Submission is recorded; survey moves to completed list for that employee |
+| **AC-4** | An employee has already answered a survey | Attempts to submit a second response to the same survey | Server rejects with `HTTP 409 Conflict` (anti-duplicate voting) |
+| **AC-5** | A survey is marked `is_anonymous = true` | Employee submits answers | `survey_response.employee_id` is stored as null or hashed token; responses cannot be tied back to employee |
+| **AC-6** | Survey end date has passed or HR closed it | Employee attempts to submit answers | Server rejects with `HTTP 400 Bad Request` (survey is closed) |
+| **AC-7** | HR requests survey results via `GET /results` | Multiple responses exist | Returns total participant count, percentage participation, question average scores, and option breakdown |
+| **AC-8** | User without `hrms.survey.manage` calls create or status endpoint | Request is executed | Server returns `HTTP 403 Forbidden` |
+
+---
+
+## 7. Risks & Mitigations
+
+| Risk | Likelihood | Mitigation |
+|---|---|---|
+| **Employee anonymity breached via response timestamps** | Low | In anonymous surveys, `employee_id` is null; answers are decoupled; timestamps are jittered or rounded if necessary. |
+| **Employees submit duplicate votes via multiple browser tabs** | Medium | Database unique constraint on `(tenant_id, survey_id, submission_token)` where token is HMAC of `(tenant_id, survey_id, employee_id)` prevents duplicates. |
+| **Non-targeted employees access and answer department surveys** | Low | Server validates target audience criteria (`ALL_EMPLOYEES`, `DEPARTMENT`, `WORK_LOCATION`) against employee's active record before accepting responses. |
 
 ---
 
@@ -253,4 +275,3 @@ cd ../frontend
 npm run lint
 npm test -- src/hrms/surveys/SurveyList.test.jsx
 ```
-

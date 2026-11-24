@@ -4,10 +4,10 @@
 |---|---|
 | **Feature ID** | `W-87` · `PAY-STATUTORY-PF-ECR` |
 | **Owner** | sayeed (`dev-sayeed`) |
-| **Apps touched** | `code/backend/payroll`, `code/frontend` (`src/payroll/payrun`) |
-| **Related gaps** | `DEV-TRACKER.md` row `W-87`; legacy generated raw salary reports but lacked standard EPFO ECR v2.0 file export (`legacy/Payroll-Bend-SBoot/.../PayRunExportController.java` generated only internal CSVs) |
-| **Status** | Ready |
-| **Blocked by** | nothing |
+| **Apps touched** | `code/backend/payroll`, `code/backend/migration`, `code/frontend` (`src/payroll/payrun`) |
+| **Related gaps** | `DEV-TRACKER.md` row `W-87`; legacy generated internal CSVs but lacked standard EPFO ECR v2.0 export |
+| **Status** | Draft - In Review |
+| **Blocked by** | Waits on CA review |
 
 ---
 
@@ -18,25 +18,50 @@ Every Indian employer registered under the *Employees' Provident Funds and Misce
 The EPFO portal does not accept arbitrary spreadsheets or PDFs; it strictly mandates an **Electronic Challan cum Return (ECR 2.0)** text file formatted with the exact delimiter `#~#` (hash-tilde-hash), containing 11 specific columns without headers, keyed by each employee's Universal Account Number (UAN).
 
 Today in `infinevo-platform`:
-- The payroll engine calculates EPF lines (`EPF_EMPLOYEE`, `EPF_EMPLOYER`, `EPS_EMPLOYER`, `EDLI`, `EPF_ADMIN`) during pay run computation ([`StatutoryLineContributor.java:180-237`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/payrun/StatutoryLineContributor.java#L180-L237)).
-- `W-95` delivered ESI and state-wise Professional Tax (PT) return reports ([`StatutoryReportController.java`](file:///d:/Workspace/infinevo-platform/code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/report/StatutoryReportController.java)).
-- However, generating the official monthly EPFO ECR file requires manual extraction, calculation of capped wages vs. earned gross, counting non-contributing period (NCP/LOP) days, and re-formatting into EPFO's `#~#` string syntax.
+- The payroll engine calculates EPF lines (`EPF_EMPLOYEE`, `EPF_EMPLOYER`, `EPS_EMPLOYER`, `EDLI`, `EPF_ADMIN`) during pay run computation (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/payrun/StatutoryLineContributor.java`).
+- `W-95` delivered ESI and state-wise Professional Tax (PT) return reports (`code/backend/payroll/src/main/java/com/infinevo/payroll/statutory/report/StatutoryReportController.java`).
+- However, generating the official monthly EPFO ECR file requires actual calculated qualifying wage figures (EPF wages, EPS wages, EDLI wages) which previously were computed on-the-fly inside `StatutoryLineContributor` without being persisted in `payroll.employee_payrun`.
+- **Founder Decision (2026-11-24):** Pay run computation must persist EPF, EPS, and EDLI wage figures directly into `payroll.employee_payrun` so that statutory exports read exact persisted figures rather than reverse-engineering or re-computing them.
 
 This feature delivers **PF ECR File Generation**:
-1. Direct generation of the official EPFO ECR v2.0 `.txt` upload file from any `COMPUTED` or `PAID` pay run with single-click download.
-2. In-app audit preview and validation (flagging employees with missing UANs or wage cap anomalies before filing).
-3. Complementary audit exports in Excel (`.xlsx`) and CSV formats for internal finance and compliance records.
+1. Persistence of `epf_wage`, `eps_wage`, and `edli_wage` in `payroll.employee_payrun` computed by `StatutoryLineContributor`.
+2. Direct generation of the official EPFO ECR v2.0 `.txt` upload file from any `COMPUTED` or `PAID` regular pay run with single-click download.
+3. In-app audit preview and validation (flagging employees with missing UANs or wage cap anomalies before filing).
+4. Complementary audit exports in Excel (`.xlsx`) and CSV formats for internal finance and compliance records.
 
 ---
 
-## 2. Size Cap
+## 2. Size Cap & Database Changes
 
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` (reuses `core.employee` and `payroll.payrun`) | 1 |
-| Flyway migration | **none** (reads existing `payroll.employee_payrun`, `payroll.employee_payrun_line`, `payroll.employee_statutory_profile`, and `core.employee`) | 1 |
+| Flyway migrations | 2 migrations (next free versions at build time):<br>1. `payroll/V<N>__payrun_statutory_wages.sql`<br>2. `core/V<M>__statutory_ecr_permissions.sql` | 2 |
 | Externally testable behaviour | Finance officer previews EPF monthly summary for a pay run and exports standard EPFO ECR 2.0 text file (`#~#` delimited), Excel, and CSV files | 1 |
 | Frontend area | `code/frontend/src/payroll/payrun` (`PfEcrDrawer.jsx`, `pfEcrService.js`, integrated into `RunPage.jsx` statutory returns menu) | 1 |
+
+### Database Schema Updates
+
+#### Migration 1: `payroll/V<N>__payrun_statutory_wages.sql` (Next free version at build time)
+Adds wage columns to persist computation bases during pay run execution:
+```sql
+ALTER TABLE payroll.employee_payrun
+    ADD COLUMN IF NOT EXISTS epf_wage NUMERIC(14, 4) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS eps_wage NUMERIC(14, 4) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS edli_wage NUMERIC(14, 4) DEFAULT NULL;
+
+COMMENT ON COLUMN payroll.employee_payrun.epf_wage IS 'Statutory EPF calculation wage base for the employee';
+COMMENT ON COLUMN payroll.employee_payrun.eps_wage IS 'Statutory EPS calculation wage base capped at statutory ceiling';
+COMMENT ON COLUMN payroll.employee_payrun.edli_wage IS 'Statutory EDLI calculation wage base capped at statutory ceiling';
+```
+
+#### Migration 2: `core/V<M>__statutory_ecr_permissions.sql` (Next free version at build time)
+Follows the standard platform role grant pattern established in `code/backend/migration/src/main/resources/db/migration/core/V184__wfh_seed_roles.sql`:
+1. Seeds `reference.action`:
+   - `payroll.statutory_report.export` — "Export statutory compliance reports and ECR files"
+2. Creates grant function `core.grant_statutory_report_actions(p_tenant_id UUID)` granting export to `platform-admin`, `tenant-admin`, `payroll-officer`, and `finance`.
+3. Creates trigger `tenant_seed_system_roles_statutory_report` on `core.tenant`.
+4. Executes idempotent backfill across all existing tenants.
 
 ---
 
@@ -47,7 +72,7 @@ This feature delivers **PF ECR File Generation**:
    - Strictly conforms to EPFO's official 11-column format delimited with `#~#` without header rows.
    - Text file download named `ECR_{ESTABLISHMENT_CODE}_{YYYY-MM}.txt`.
 2. **Tabular Audit Export (`GET /api/v1/payroll/payruns/{id}/statutory/pf-ecr/export?format=XLSX|CSV`):**
-   - Human-readable workbook with formatted columns, employee details, and grand totals row for financial reconciliation.
+   - Human-readable workbook with formatted numeric columns, employee details, and grand totals row for financial reconciliation.
 3. **In-App Preview API (`GET /api/v1/payroll/payruns/{id}/statutory/pf-ecr/preview`):**
    - Aggregates contribution totals across EPFO accounts:
      - Account 01: Employee PF (12%) + Employer PF (3.67%)
@@ -56,14 +81,12 @@ This feature delivers **PF ECR File Generation**:
      - Account 21: EDLI Insurance (0.50%)
      - Account 22: EDLI Admin Charges (0.00% / statutory waiver)
    - Flags validation warnings (e.g., active PF contributor missing UAN).
-4. **Statutory Wage Calculations:**
-   - **Gross Wages:** Total gross earnings in the pay period (`EmployeePayRun.getGrossEarnings()`).
-   - **EPF Wages:** Earned basic/qualifying wage capped at ₹15,000 (if ceiling restriction is on in `EpfSetting`) or actual earned basic.
-   - **EPS Wages:** Restricted to ₹15,000 ceiling. Capped at 0 if employee is $\ge 58$ years old or opted out of EPS.
-   - **EDLI Wages:** Restricted to ₹15,000 ceiling.
-   - **NCP Days:** Non-Contributing Period days (`EmployeePayRun.getLopDays()`).
-5. **Frontend UI Integration (`RunPage.jsx`):**
-   - Adds "PF ECR File" option to the Statutory Returns dropdown on `RunPage.jsx`.
+4. **Persisted Wage Storage in Computation (`StatutoryLineContributor.java`):**
+   - Persists `epf_wage`, `eps_wage`, and `edli_wage` on `EmployeePayRun`.
+5. **Off-Cycle Run Guard:**
+   - ECR export is disabled/blocked for off-cycle pay runs (`HTTP 400 Bad Request`), matching the statutory rule in `W-95`.
+6. **Frontend UI Integration (`RunPage.jsx`):**
+   - Adds "PF ECR File" option to the Statutory Returns dropdown on `RunPage.jsx` (enabled only for regular, computed/paid runs).
    - Opens `PfEcrDrawer.jsx` displaying summary account cards, validation warnings, and employee breakdown with export triggers.
 
 ### Out of Scope
@@ -83,14 +106,14 @@ The official EPFO Electronic Challan cum Return (ECR 2.0) file structure consist
 |---|---|---|---|---|
 | **1** | **UAN** | Numeric (12 digits) | **Yes** | `EmployeeStatutoryProfile.uan` (clean digits, exactly 12 chars). Mandatory for portal upload. |
 | **2** | **Member Name** | Text (max 80 chars) | **Yes** | `Employee.firstName` + space + `Employee.lastName` (uppercase, stripped of `#`, `~`, commas, and non-ASCII chars). |
-| **3** | **Gross Wages** | Numeric (integer) | **Yes** | Actual earned gross in the pay period net of LOP deductions (or scaled by payable days), rounded to nearest whole rupee (`RoundingMode.HALF_UP`). *Must represent actual earned gross, not unscaled structure gross before LOP, ensuring audit alignment with Column 10 NCP days.* |
-| **4** | **EPF Wages** | Numeric (integer) | **Yes** | EPF calculation wage base for the employee (capped at ₹15,000 if restricted ceiling is enabled in `EpfSetting`, prorated ceiling if `prorateRestrictedWage` is enabled, or actual earned basic if unrestricted). |
-| **5** | **EPS Wages** | Numeric (integer) | **Yes** | EPS calculation wage base. **Strictly capped at ₹15,000** (or prorated ceiling). Even if Col 4 exceeds ₹15,000, Col 5 never exceeds ₹15,000. Capped at `0` if age $\ge 58$ or not EPS eligible. |
-| **6** | **EDLI Wages** | Numeric (integer) | **Yes** | EDLI wage base (strictly capped at ₹15,000, or prorated ceiling; 0 if exempt). |
+| **3** | **Gross Wages** | Numeric (integer) | **Yes** | Actual earned gross in the pay period net of LOP deductions, rounded to nearest whole rupee (`RoundingMode.HALF_UP`). Read from `EmployeePayRun.grossEarnings`. |
+| **4** | **EPF Wages** | Numeric (integer) | **Yes** | Persisted `EmployeePayRun.epfWage` (capped at ₹15,000 if restricted ceiling is enabled in `EpfSetting`, prorated ceiling if `prorateRestrictedWage` is enabled, or actual earned basic if unrestricted). Rounded to nearest rupee. |
+| **5** | **EPS Wages** | Numeric (integer) | **Yes** | Persisted `EmployeePayRun.epsWage`. **Strictly capped at ₹15,000** (or prorated ceiling). Even if Col 4 exceeds ₹15,000, Col 5 never exceeds ₹15,000. Set to `0` if age $\ge 58$ or not EPS eligible. |
+| **6** | **EDLI Wages** | Numeric (integer) | **Yes** | Persisted `EmployeePayRun.edliWage` (strictly capped at ₹15,000, or prorated ceiling; 0 if exempt). |
 | **7** | **EE Share Remitted** | Numeric (integer) | **Yes** | Employee PF contribution (12% of Col 4), rounded to nearest rupee. From line `EPF_EMPLOYEE`. |
-| **8** | **EPS Contribution** | Numeric (integer) | **Yes** | Employer Pension contribution (8.33% of Col 5), rounded to nearest rupee. From line `EPS_EMPLOYER`. Capped at ₹1,250. `0` if age $\ge 58$. |
-| **9** | **ER Share Remitted** | Numeric (integer) | **Yes** | Employer PF contribution (Col 7 − Col 8, or Col 4 $\times$ 3.67%). From line `EPF_EMPLOYER`. If age $\ge 58$, full 12% goes here. |
-| **10** | **NCP Days** | Numeric (integer) | **Yes** | Non-Contributing Period days. Integer count of LOP / unpaid days within the employment period from `EmployeePayRun.lopDays`. Days before date of joining or after exit are not NCP days. Max = days in month. |
+| **8** | **EPS Contribution** | Numeric (integer) | **Yes** | Employer Pension contribution (8.33% of Col 5), rounded to nearest rupee. From line `EPS_EMPLOYER`. Capped at ₹1,250. `0` if age $\ge 58$ or employee not eligible for EPS. |
+| **9** | **ER Share Remitted** | Numeric (integer) | **Yes** | Employer PF contribution. Standardized universal EPFO formula: `Col 7 (EE Share Remitted) - Col 8 (EPS Contribution)`. From line `EPF_EMPLOYER`. If age $\ge 58$, Col 8 is 0, so Col 9 equals full 12% (Col 7). |
+| **10** | **NCP Days** | Numeric (integer) | **Yes** | Non-Contributing Period days. Integer count of LOP / unpaid days within the employment period from `EmployeePayRun.lopDays`. Days before date of joining or after exit are not NCP days. Max = calendar days in month. |
 | **11** | **Refund of Advances** | Numeric (integer) | **Yes** | Standard `0` (or recovered loan/advance if tagged). |
 
 ### Sample ECR Text File Output
@@ -109,9 +132,9 @@ The official EPFO Electronic Challan cum Return (ECR 2.0) file structure consist
 
 | Layer | Class / Record | Responsibility |
 |---|---|---|
-| Controller | `PfEcrController.java` | REST endpoints for ECR preview and file export (`.txt`, `.xlsx`, `.csv`) |
+| Controller | `PfEcrController.java` | REST endpoints for ECR preview and file export (`.txt`, `.xlsx`, `.csv`) under `/api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr` |
 | Service | `PfEcrService.java` | Interface defining `getEcrPreview(payrunId)` and `exportEcrFile(payrunId, format)` |
-| ServiceImpl | `PfEcrServiceImpl.java` | Aggregates pay run lines, loads statutory profiles, validates UANs, formats `#~#` lines, and generates Excel/CSV |
+| ServiceImpl | `PfEcrServiceImpl.java` | Loads pay run and persisted wage figures, resolves profiles including soft-deleted employees, validates UANs, formats `#~#` lines, and generates Excel/CSV |
 | DTO (Preview) | `PfEcrPreviewResponse.java` | Pay run metadata, establishment code, total challan summary (Accounts 1, 2, 10, 21, 22), validation warnings, and employee row list |
 | DTO (Row) | `PfEcrRowResponse.java` | Single employee ECR 11-column record with formatting helper |
 | DTO (Account Summary) | `PfChallanAccountSummary.java` | Sums for EPFO Accounts 01, 02, 10, 21, and total challan remittance amount |
@@ -178,6 +201,7 @@ GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/preview
 ```http
 GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/export?format=TXT
 ```
+* **Authorization:** `@RequiresAction("payroll.statutory_report.export")` (falls back to `payroll.statutory_report.read` if action migration is pending)
 * **Parameters:** `format=TXT` (default), `format=XLSX`, `format=CSV`.
 * **Headers:**
   - Content-Type: `text/plain; charset=utf-8` (for TXT), `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (for XLSX), `text/csv` (for CSV).
@@ -190,7 +214,6 @@ GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/export?format=TXT
 ## 6. Frontend Architecture
 
 ### File: `code/frontend/src/payroll/payrun/PfEcrDrawer.jsx`
-
 - Reusable slide-over drawer opened from `RunPage.jsx`.
 - **Top Summary Cards:**
   - Total Members & Grand Total Challan Remittance (₹).
@@ -208,13 +231,14 @@ GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/export?format=TXT
 - `downloadFile(payrunId, format)`: triggers blob download with proper filename.
 
 ### Integration in `RunPage.jsx`
-- Added to the "Statutory returns" dropdown button (alongside ESI Return and PT Return introduced in `W-95`):
+- Added to the "Statutory returns" dropdown button (disabled for off-cycle runs):
   ```jsx
   {
     key: 'pf-ecr',
     label: 'PF ECR File',
     icon: <SafetyCertificateOutlined />,
     onClick: () => setShowPfEcrDrawer(true),
+    disabled: !isRegularRun,
   }
   ```
 
@@ -222,46 +246,37 @@ GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/export?format=TXT
 
 ## 7. Security and Entitlements
 
-- **Tenant Isolation:** Enforces `UUID tenantId = TenantContext.require()`. Cross-tenant queries are structurally impossible.
+- **Tenant Isolation:** Enforces `UUID tenantId = TenantContext.require()`. Cross-tenant queries are structurally blocked.
 - **Permissions:**
-  - Preview endpoint: requires `payroll.statutory_report.read` (granted to `payroll-officer`, `finance`, and `tenant-admin`).
-  - Export endpoint: requires `payroll.statutory_report.read` (granted to `payroll-officer`, `finance`, and `tenant-admin`).
-- **Audit Logging:** Export action triggers a statutory export audit log entry via `@Audited` / logger with tenant, payrun ID, actor, and format.
+  - Preview endpoint: requires `payroll.statutory_report.read`.
+  - Export endpoint: requires `payroll.statutory_report.export` (or `payroll.statutory_report.read`).
+- **Audit Logging:** Export action triggers a statutory export audit log entry via logger with tenant, payrun ID, actor, and format.
 
 ---
 
-## 8. Edge Cases & Validation Rules
+## 8. Acceptance Criteria
 
-1. **Missing or Malformed UAN:**
-   - EPFO strictly mandates an active 12-digit numeric UAN for every record in the ECR upload file. A file containing missing or partial UANs is rejected in full by the EPFO portal.
-   - The preview API surfaces `MISSING_UAN` warnings with affected employee IDs and names.
-   - For official `.txt` export: if any contributing member lacks a UAN, the export returns HTTP 422 Unprocessable Entity detailing the missing members to prevent uploading corrupted files. An explicit query parameter `?allowPartial=true` can be supplied to filter and export only members with valid UANs if emergency partial filing is required.
-2. **Senior Citizen Employee (Age $\ge$ 58):**
-   - Under EPS rules, pension contribution ceases at age 58 (`StatutoryLineContributor.isEpsSenior`).
-   - Column 5 (EPS Wages) = `0`.
-   - Column 8 (EPS Share) = `0`.
-   - Column 9 (ER Share) = Full 12% remitted to EPF Account 01.
-3. **Loss of Pay (LOP) & NCP Days:**
-   - NCP days represent non-contributing unpaid days *within the period of employment*. Days prior to date of joining or post exit are excluded from NCP days.
-   - NCP days must be an integer $\ge 0$ and $\le$ calendar days in the month.
-4. **EPS & EDLI Wage Ceiling Cap:**
-   - While EPF Wages (Col 4) may exceed ₹15,000 when voluntary or uncapped employee contributions are configured (`restrictEmployeeToCeiling = false`), Col 5 (EPS Wages) and Col 6 (EDLI Wages) remain strictly capped at ₹15,000 per statutory EPFO constraints.
-5. **Soft-Deleted Employees in Historical Runs:**
-   - Consistent with statutory reporting guidelines, historical pay run returns resolve employee profiles and names via `EmployeeService.findByIdInIncludingDeleted()`, preventing `NotFoundException` or transaction rollback failures if an employee was deleted after the run completed.
-6. **Rounding Consistency:**
-   - EPFO requires rupee-level rounding (HALF_UP).
-   - EE share (12%) + ER share (3.67%) + EPS share (8.33%) sum must match total statutory deductions recorded in the pay run lines.
+| # | Given | When | Then |
+|---|---|---|---|
+| **AC-1** | A regular pay run with EPF contributors is in `COMPUTED` or `PAID` state | User requests ECR preview via `GET /preview` | Returns 200 OK with total challan remittance, account splits (01, 02, 10, 21, 22), and 11-column employee rows |
+| **AC-2** | A regular pay run is in `COMPUTED` state | User exports TXT format via `GET /export?format=TXT` | Returns text file delimited with `#~#`, CRLF line endings, no header/footer, named `ECR_{ESTABLISHMENT_CODE}_{YYYY_MM}.txt` |
+| **AC-3** | An employee in the pay run has age $\ge 58$ | ECR file is generated | Col 5 (EPS Wages) is `0`, Col 8 (EPS Share) is `0`, and Col 9 (ER Share) equals full 12% (Col 7) |
+| **AC-4** | An employee has basic wage of ₹65,000 and ceiling cap is enabled | ECR file is generated | Col 4 (EPF Wages) is 15,000, Col 5 (EPS Wages) is 15,000, Col 8 is 1,250, and Col 9 is 550 (`1800 - 1250`) |
+| **AC-5** | An employee has gross 15,000, 10 LOP days, and ceiling cap enabled | ECR file is generated | Col 3 (Gross) shows earned gross net of LOP, Col 10 (NCP days) shows 10 |
+| **AC-6** | An off-cycle pay run ID is provided | User requests preview or export | Returns `HTTP 400 Bad Request` with message indicating statutory ECR returns apply only to regular pay runs |
+| **AC-7** | An employee contributing to PF was soft-deleted after pay run computation | User exports ECR file | Export succeeds using `EmployeeService.findByIdInIncludingDeleted()` without failing or rolling back |
+| **AC-8** | A user without `payroll.statutory_report.read` calls preview or export | Request is executed | Server returns `HTTP 403 Forbidden` |
 
 ---
 
-## 9. Impact on Standing Rules
+## 9. Risks & Mitigations
 
-- **`tenant_id` & RLS:** Creates no new tables. Reads existing tenant-isolated tables (`payroll.payrun`, `payroll.employee_payrun`, `payroll.employee_payrun_line`, `payroll.employee_statutory_profile`, `core.employee`). Tenant isolation is strictly enforced via `TenantContext.require()`.
-- **Flyway Migrations:** None required. Operates entirely over computed pay run lines and stored statutory profiles. Never uses `ddl-auto`.
-- **Precision:** All monetary amounts use integer or `BigDecimal` with half-up rounding to the nearest rupee as required by EPFO. Never uses floating-point arithmetic.
-- **Indexes:** Reuses existing indexed lookups on `tenant_id` and foreign keys (`payrun_id`, `employee_id`).
-- **Expand / Contract:** No schema modifications; non-breaking and non-destructive.
-- **Module Boundaries:** `payroll` reads `core.employee` only through existing clean service interfaces (`EmployeeService.findByIdInIncludingDeleted()` / `EmployeeService.get()`), strictly adhering to modular architecture.
+| Risk | Likelihood | Mitigation |
+|---|---|---|
+| **EPFO portal rejects file due to invalid UAN or invalid characters in name** | Medium | Strip all `#`, `~`, commas, and non-ASCII characters from member name; validate UAN is 12 digits; surface preview warnings before download. |
+| **Discrepancy between stored pay lines and ECR column 9 employer share** | Low | Universal formula `Col 7 (EE Share) - Col 8 (EPS Contribution)` is strictly applied across both pay lines and ECR export. |
+| **Off-cycle run export causes erroneous government filing** | Medium | Server explicitly validates pay run type is `REGULAR` and returns `HTTP 400` on off-cycle runs; UI disables menu option. |
+| **Pay run wages lost on historical re-computation** | Low | `epf_wage`, `eps_wage`, and `edli_wage` columns are persisted during run execution on `payroll.employee_payrun`. |
 
 ---
 
@@ -269,11 +284,11 @@ GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/export?format=TXT
 
 | Test Class | Scope | What It Proves |
 |---|---|---|
-| `PfEcrServiceTest.java` (Unit) | Backend | Verifies 11-column calculation logic: gross, wage ceiling caps, age 58 pension zeroing, NCP day conversion, and `#~#` formatting. |
-| `PfEcrControllerTest.java` (Unit) | Backend | Verifies `GET /preview` returns 200 with summary and warnings; verifies `GET /export` streams file with correct media type and header. |
-| `PfEcrIT.java` (Integration) | Backend | End-to-end test with seeded pay run, employee statutory profiles, and pay lines: verifies file generation and tenant isolation. |
+| `PfEcrServiceTest.java` (Unit) | Backend | Verifies 11-column calculation logic: gross, wage ceiling caps, age 58 pension zeroing, NCP day conversion, Col 9 formula (`Col 7 - Col 8`), and `#~#` formatting. |
+| `PfEcrControllerTest.java` (Unit) | Backend | Verifies `GET /preview` returns 200 with summary and warnings; verifies `GET /export` streams file with correct media type and header; verifies 400 on off-cycle run. |
+| `PfEcrIT.java` (Integration) | Backend | End-to-end test with seeded pay run, employee statutory profiles, persisted wages, and pay lines: verifies file generation, tenant isolation, and 403 authorization. |
 | `PfEcrDrawer.test.jsx` (Component) | Frontend | Verifies drawer renders summary cards, displays UAN warnings, and clicking download triggers blob export. |
-| `RunPage.test.jsx` (Integration) | Frontend | Verifies "PF ECR File" option appears in statutory dropdown and opens `PfEcrDrawer`. |
+| `RunPage.test.jsx` (Integration) | Frontend | Verifies "PF ECR File" option appears in statutory dropdown, is disabled on off-cycle runs, and opens `PfEcrDrawer`. |
 
 ---
 
@@ -290,4 +305,3 @@ cd ../frontend
 npm run lint
 npm test -- src/payroll/payrun/PfEcrDrawer.test.jsx
 ```
-
