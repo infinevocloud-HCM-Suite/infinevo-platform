@@ -224,6 +224,9 @@ public final class PayrollTestSchema {
             if (!columnExists(conn, "core", "pay_input", "note")) {
                 executeResource(conn, "db/migration/core/V191__pay_input_note.sql");
             }
+            if (!columnExists(conn, "core", "pay_input_period_lock", "stage")) {
+                executeResource(conn, "db/migration/core/V220__pay_input_lock_stage.sql"); // D-144
+            }
             if (!tableExists(conn, "core", "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
                 executeResource(conn, "db/migration/core/V166__document_label.sql");
@@ -399,6 +402,10 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "payroll", "employee_tds")) {
                 st.execute("DELETE FROM payroll.employee_tds");
+            }
+            // D-147: failed recalculations reference core.employee too.
+            if (tableExists(conn, "payroll", "tax_recalc_failure")) {
+                st.execute("DELETE FROM payroll.tax_recalc_failure");
             }
             if (tableExists(conn, "core", "employee_bank")) {
                 st.execute("DELETE FROM core.employee_bank");

@@ -4,6 +4,10 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.detail.EmployeeIdentificationResponse;
 import com.infinevo.core.employee.detail.EmployeeIdentificationService;
+import com.infinevo.core.org.DesignationResponse;
+import com.infinevo.core.org.DesignationService;
+import com.infinevo.core.tenant.TenantBranding;
+import com.infinevo.core.tenant.TenantProfileService;
 import com.infinevo.payroll.form16.exception.DeductorNotSetException;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
 import com.infinevo.payroll.payrun.PayRunRepository;
@@ -45,6 +49,8 @@ public class Form16ServiceImpl implements Form16Service {
     private final EmployeeService employeeService;
     private final EmployeeIdentificationService employeeIdentificationService;
     private final PriorPayrollTaxQuery priorTax;
+    private final TenantProfileService tenantProfileService;
+    private final DesignationService designationService;
 
     public Form16ServiceImpl(
             TaxDeductorService taxDeductorService,
@@ -54,7 +60,9 @@ public class Form16ServiceImpl implements Form16Service {
             PayRunRepository payRunRepository,
             EmployeeService employeeService,
             EmployeeIdentificationService employeeIdentificationService,
-            PriorPayrollTaxQuery priorTax) {
+            PriorPayrollTaxQuery priorTax,
+            TenantProfileService tenantProfileService,
+            DesignationService designationService) {
         this.taxDeductorService = Objects.requireNonNull(taxDeductorService, "taxDeductorService must not be null");
         this.employeeTdsService = Objects.requireNonNull(employeeTdsService, "employeeTdsService must not be null");
         this.taxComputationRepository =
@@ -66,6 +74,9 @@ public class Form16ServiceImpl implements Form16Service {
         this.employeeIdentificationService =
                 Objects.requireNonNull(employeeIdentificationService, "employeeIdentificationService must not be null");
         this.priorTax = Objects.requireNonNull(priorTax, "priorTax must not be null");
+        this.tenantProfileService =
+                Objects.requireNonNull(tenantProfileService, "tenantProfileService must not be null");
+        this.designationService = Objects.requireNonNull(designationService, "designationService must not be null");
     }
 
     @Override
@@ -78,8 +89,15 @@ public class Form16ServiceImpl implements Form16Service {
         // 1. Verify deductor exists for tenant
         TaxDeductorResponse deductorResp = taxDeductorService.current().orElseThrow(DeductorNotSetException::new);
 
+        // D-149: the deductor is the tenant, by name (W-36.4 section 4). Blank when the name cannot be read.
+        String deductorName = tenantProfileService
+                .branding()
+                .map(TenantBranding::name)
+                .filter(Objects::nonNull)
+                .orElse("");
+
         DeductorDetails deductor = new DeductorDetails(
-                "Company",
+                deductorName,
                 deductorResp.tan(),
                 deductorResp.pan(),
                 deductorResp.tdsCircle(),
@@ -97,9 +115,7 @@ public class Form16ServiceImpl implements Form16Service {
                 + (employeeResp.lastName() != null && !employeeResp.lastName().isBlank()
                         ? " " + employeeResp.lastName()
                         : "");
-        String designation = employeeResp.designationId() != null
-                ? employeeResp.designationId().toString()
-                : "";
+        String designation = designationName(employeeResp.designationId());
 
         String pan = employeeIdentificationService
                 .find(employeeId)
@@ -160,6 +176,27 @@ public class Form16ServiceImpl implements Form16Service {
                 paidPeriods,
                 importedPeriods,
                 Instant.now());
+    }
+
+    /**
+     * The name of the designation, never its id (D-149). Blank when the employee has none or it is gone.
+     * Read from the list, not {@code get}: a not-found thrown inside this read-only transaction would mark
+     * it rollback-only and turn the whole statement into a 500.
+     */
+    private String designationName(UUID designationId) {
+        if (designationId == null) {
+            return "";
+        }
+        List<DesignationResponse> designations = designationService.list(false);
+        if (designations == null) {
+            return "";
+        }
+        return designations.stream()
+                .filter(d -> designationId.equals(d.id()))
+                .map(DesignationResponse::name)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse("");
     }
 
     @Override

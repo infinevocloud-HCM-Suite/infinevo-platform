@@ -80,7 +80,8 @@ class TaxDeclarationRlsIT extends AbstractIntegrationTest {
                         LocalDate.of(2025, 4, 1), LocalDate.of(2025, 4, 30), false, "NEW", true, true, false, false));
 
         // Seed declaration for Tenant A
-        taxDeclarationService.read(employeeA, FY);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(employeeA, FY, new TaxDeclarationRequest(null, null, null, null));
 
         TenantContext.set(TaxDeclarationTestSchema.TENANT_B);
         windowService.upsert(
@@ -89,7 +90,8 @@ class TaxDeclarationRlsIT extends AbstractIntegrationTest {
                         LocalDate.of(2025, 4, 1), LocalDate.of(2025, 5, 15), false, "OLD", true, true, false, false));
 
         // Seed declaration for Tenant B
-        taxDeclarationService.read(employeeB, FY);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(employeeB, FY, new TaxDeclarationRequest(null, null, null, null));
 
         TenantContext.clear();
     }

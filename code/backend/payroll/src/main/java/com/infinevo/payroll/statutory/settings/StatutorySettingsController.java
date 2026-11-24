@@ -70,8 +70,8 @@ public class StatutorySettingsController {
     @RequiresAction("payroll.salary.read")
     public ResponseEntity<StatutoryApiResponse<TdsSettingResponse>> getTds() {
         UUID tenantId = TenantContext.require();
-        return ResponseEntity.ok(
-                StatutoryApiResponse.ok("TDS settings retrieved successfully", statutorySettingsService.tds(tenantId)));
+        return ResponseEntity.ok(StatutoryApiResponse.ok(
+                "TDS settings retrieved successfully", statutorySettingsService.tdsWithCounts(tenantId)));
     }
 
     @PutMapping("/tds")

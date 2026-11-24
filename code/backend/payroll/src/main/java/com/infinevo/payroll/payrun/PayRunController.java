@@ -221,6 +221,7 @@ public class PayRunController {
         DuplicatePayRunException.class,
         IllegalPayRunTransitionException.class,
         PayRunComputeInProgressException.class,
+        PayRunInputsChangedException.class,
         ScheduledEarningsRefreshRefusedException.class,
         com.infinevo.payroll.priorpayroll.PriorPayrollExistsException.class
     })

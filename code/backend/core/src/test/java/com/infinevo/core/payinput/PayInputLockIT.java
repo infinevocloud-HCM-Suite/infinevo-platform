@@ -54,9 +54,10 @@ class PayInputLockIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("An insert after lock is refused by the trigger, with the service bypassed")
+    @DisplayName("An insert after close is refused by the trigger, with the service bypassed")
     void insertAfterLockIsRefusedByTheTrigger() throws SQLException {
-        payInputService.lock(YearMonth.of(2026, 4));
+        // D-144: only a CLOSED month refuses; a LOCKED one takes the row (PayInputLockStageIT).
+        payInputService.lock(YearMonth.of(2026, 4), PayInputLockStage.CLOSED);
 
         try (Connection conn = PayInputTestSchema.appConnection()) {
             conn.setAutoCommit(false);
@@ -68,7 +69,7 @@ class PayInputLockIT extends AbstractIntegrationTest {
                 ps.setObject(2, employee);
                 assertThatThrownBy(ps::executeUpdate)
                         .isInstanceOf(SQLException.class)
-                        .hasMessageContaining("locked");
+                        .hasMessageContaining("closed");
             }
         }
     }

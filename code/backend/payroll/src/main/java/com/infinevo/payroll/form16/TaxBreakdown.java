@@ -7,6 +7,8 @@ import java.math.RoundingMode;
  * Breakdown of the tax calculation matching the 14 headline computation fields (W-36.4).
  */
 public record TaxBreakdown(
+        BigDecimal grossSalary,
+        BigDecimal incomeFromSalary,
         BigDecimal grossTotalIncome,
         BigDecimal hraExemption,
         BigDecimal standardDeduction,
@@ -23,6 +25,8 @@ public record TaxBreakdown(
         BigDecimal annualTax) {
 
     public TaxBreakdown {
+        grossSalary = scale(grossSalary);
+        incomeFromSalary = scale(incomeFromSalary);
         grossTotalIncome = scale(grossTotalIncome);
         hraExemption = scale(hraExemption);
         standardDeduction = scale(standardDeduction);

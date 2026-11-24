@@ -92,6 +92,10 @@ public final class PayRunTestSchema {
                 }
             }
             PayrollTestSchema.executeResource(conn, "db/migration/payroll/V104__tax_computation.sql");
+            // D-147: a successful recalculation closes open failures, so the table must exist with tax_computation.
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "tax_recalc_failure")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V222__tax_recalc_failure.sql");
+            }
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DROP TABLE payroll.tax_deductor CASCADE");
@@ -139,6 +143,11 @@ public final class PayRunTestSchema {
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_computation")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DELETE FROM payroll.tax_computation");
+                }
+            }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "tax_recalc_failure")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.tax_recalc_failure");
                 }
             }
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {

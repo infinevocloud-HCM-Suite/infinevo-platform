@@ -72,6 +72,9 @@ describe('EmployeeForm16Panel', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/No active TDS records or Form 16 statements are available/i)).toBeTruthy();
+      // D-149: no statement, so no figures: not a zero and not a regime.
+      expect(screen.queryByText('NEW')).toBeNull();
+      expect(screen.queryByText(/₹0/)).toBeNull();
     });
   });
 });

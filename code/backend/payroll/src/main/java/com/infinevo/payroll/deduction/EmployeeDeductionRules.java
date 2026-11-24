@@ -47,7 +47,7 @@ public final class EmployeeDeductionRules {
     /**
      * Every line of the batch parsed, in order.
      *
-     * @param currentMonth this month; a period more than one month after it is refused
+     * @param currentMonth this month; not a limit, any past or future period is accepted (D-146)
      * @throws EmployeeDeductionValidationException on the first failing line, naming it, or for an empty
      *     or oversized batch
      */
@@ -75,10 +75,6 @@ public final class EmployeeDeductionRules {
             throw new EmployeeDeductionValidationException(line, "employee_id is required");
         }
         YearMonth period = parsePeriod(line, request.period());
-        if (period.isAfter(currentMonth.plusMonths(1))) {
-            throw new EmployeeDeductionValidationException(
-                    line, "period " + period + " is more than one month after " + currentMonth);
-        }
         DeductionType type = parseType(line, request.deductionType());
         BigDecimal amount = request.amount();
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {

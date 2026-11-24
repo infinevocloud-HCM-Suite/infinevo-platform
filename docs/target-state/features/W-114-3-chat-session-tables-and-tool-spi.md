@@ -125,6 +125,9 @@ Rules the registry enforces, so no tool has to:
 - `toolsFor(caller)` leaves out a tool the caller may not use by that rule, using the `PermissionService` check `PortalPanelService` uses (`:78`). The model is never told about a tool the user may not use.
 - `execute` is called only through the registry, which runs the same check again at that moment.
 - Startup fails on a tool name that is not `module.verb_noun` (lower case, one dot, the module first), so a bare name cannot ship.
+- The module in the name must be `core`, `hrms` or `payroll`, and it is also the licence the tool needs: an `hrms.` or `payroll.` tool is offered and run only while the customer holds that module (`EntitlementService`, as `PortalPanelService:67` gates a panel). Tools call services directly, so a controller's `@RequiresModule` does not cover them. *(Added at build, 2026-11-23.)*
+- `find(name)` and `toolsFor(caller)` return an `AiToolDescriptor` (`name`, `description`, `inputSchema`), never the tool, so `AiToolRegistry.execute(name, ctx, input)` is the only way to run one. *(Added at build, 2026-11-23.)*
+- Repository methods carry `tenant_id` in their names: `findByTenantIdAndSessionIdOrderByCreatedAtAsc`, `findByTenantIdAndMessageIdIn`. *(Built 2026-11-23.)*
 
 **API contract**
 

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.infinevo.core.notification.NotificationEvent;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.taxdeclaration.DeclarationStatus;
+import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotEditableException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
@@ -43,7 +44,8 @@ class ProofSubmissionIT extends ProofIntegrationTestBase {
 
         // The proof is proof of a submitted declaration. With none, and with a draft one, it is refused.
         assertConflict("NOT_SUBMITTED", () -> proofService.readOwn(fy));
-        taxDeclarationService.read(employeeId, fy);
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        taxDeclarationService.save(employeeId, fy, new TaxDeclarationRequest(null, null, null, null));
         assertConflict("NOT_SUBMITTED", () -> proofService.readOwn(fy));
 
         declare();

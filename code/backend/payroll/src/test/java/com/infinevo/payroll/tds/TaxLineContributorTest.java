@@ -219,6 +219,21 @@ class TaxLineContributorTest {
     }
 
     @Test
+    @DisplayName("D-145: remaining 0.0001 over 12 months still writes a line, of 0.0000, as before the shared spread")
+    void tinyRemainderStillWritesLine() {
+        YearMonth period = YearMonth.of(2026, 4);
+        EmployeeTds record = record("2026-2027", new BigDecimal("120000.0000"), "2026-04");
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027")).thenReturn(Optional.of(record));
+        when(lineRepository.sumTaxLines(TENANT, EMPLOYEE_ID, "2026-04", "2026-04", PAYRUN_ID))
+                .thenReturn(new BigDecimal("119999.9999"));
+
+        List<PayLine> lines = contributor.contribute(context(period));
+
+        assertThat(lines).hasSize(1);
+        assertThat(lines.get(0).amount().raw()).isEqualByComparingTo("0.0000");
+    }
+
+    @Test
     @DisplayName("W-38.2: October 2026, no runs, imported 10,000 for each of April-September ⇒ 10,000.0000")
     void importedTaxCountsAsAlreadyDeducted() {
         YearMonth period = YearMonth.of(2026, 10);

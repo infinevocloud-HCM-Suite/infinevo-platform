@@ -31,8 +31,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 /**
  * W-29.1 §7 — lock is W-19's period lock plus {@code LOCKED}: one {@code core.pay_input_period_lock}
- * row, later inputs for the period post to the next one, a second lock is refused, and cancel after
- * lock leaves the lock row in place (W-19 §6).
+ * row and a second lock is refused. D-144: later inputs for a LOCKED month still post there (the run
+ * must be recomputed), and cancel after lock removes the lock row (D-138).
  */
 @SpringBootTest(classes = PayrollTestApp.class)
 class PayRunLockIT extends AbstractIntegrationTest {
@@ -89,15 +89,15 @@ class PayRunLockIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("After lock, a pay input recorded for the period posts to the next period")
-    void inputAfterLockPostsToNextPeriod() {
+    @DisplayName("After lock, a pay input recorded for the period still posts to it (D-144)")
+    void inputAfterLockPostsToThePeriod() {
         PayRunResponse run = payRunService.create(APRIL);
         payRunService.lock(run.id());
 
         PayInputResponse posted = payInputService.record(new PayInputCommand(
                 employeeId, APRIL, PayInputKind.LOP_DAYS, BigDecimal.ONE, null, "hrms", "after-lock"));
 
-        assertThat(posted.postedPeriod()).isEqualTo(APRIL.plusMonths(1));
+        assertThat(posted.postedPeriod()).isEqualTo(APRIL);
     }
 
     @Test
@@ -111,8 +111,8 @@ class PayRunLockIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cancel after lock leaves the period lock row in place")
-    void cancelKeepsThePeriodLock() throws SQLException {
+    @DisplayName("Cancel after lock removes the period lock row (D-144, D-138)")
+    void cancelRemovesThePeriodLock() throws SQLException {
         PayRunResponse run = payRunService.create(APRIL);
         payRunService.lock(run.id());
 
@@ -120,7 +120,7 @@ class PayRunLockIT extends AbstractIntegrationTest {
 
         assertThat(cancelled.status()).isEqualTo(PayRunStatus.CANCELLED);
         assertThat(cancelled.cancelledAt()).isNotNull();
-        assertThat(PayRunTestSchema.countPeriodLocks(TENANT_A, "2026-04")).isEqualTo(1);
+        assertThat(PayRunTestSchema.countPeriodLocks(TENANT_A, "2026-04")).isZero();
     }
 
     @Test

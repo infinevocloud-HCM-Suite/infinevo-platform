@@ -126,14 +126,14 @@ export function EmployeeForm16Panel() {
               <div>
                 <Statistic
                   title="Total Tax Deducted by Employer"
-                  value={`₹${formatAmount(statement?.totalDeducted || 0)}`}
+                  value={statement ? `₹${formatAmount(statement.totalDeducted || 0)}` : '-'}
                   styles={{ content: { color: token.colorPrimary } }}
                 />
                 <div style={{ marginTop: token.marginSM }}>
                   <Text type="secondary">Assessment Year: </Text>
                   <Tag color="purple">{statement?.assessmentYear || '-'}</Tag>
                   <Text type="secondary" style={{ marginLeft: token.marginSM }}>Regime: </Text>
-                  <Tag color="blue">{statement?.regime || 'NEW'}</Tag>
+                  <Tag color="blue">{statement?.regime || '-'}</Tag>
                 </div>
               </div>
             )}

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.infinevo.core.payinput.PayInputCommand;
 import com.infinevo.core.payinput.PayInputKind;
+import com.infinevo.core.payinput.PayInputLockStage;
 import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.PayrollTestApp;
@@ -146,8 +147,11 @@ class PayRunLopIT extends AbstractIntegrationTest {
                 "leave-" + UUID.randomUUID()));
         PayRunResponse juneRun = payRunService.create(june);
         payRunService.lock(juneRun.id());
+        // D-144: a merely LOCKED June would take the reversal itself; it moves on once June is closed
+        // (what approving the June run does - closed here directly to keep the test about LOP).
+        payInputService.lock(june, PayInputLockStage.CLOSED);
 
-        // The leave is cancelled after June is locked: W-19 posts the reversal to the next open period.
+        // The leave is cancelled after June is closed: W-19 posts the reversal to the next open period.
         PayInputResponse reversal = payInputService.reverse(lop.id(), "leave cancelled");
         assertThat(reversal.postedPeriod()).isEqualTo(JULY);
 

@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.taxcalc.TaxRegime;
+import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.tds.exception.EmployeeTdsConflictException;
 import com.infinevo.shared.authz.AuthzExceptionHandler;
 import com.infinevo.shared.authz.PermissionDeniedException;
@@ -24,6 +25,7 @@ import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresActionAspect;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,6 +63,16 @@ class EmployeeTdsGuardIT {
         service = mock(EmployeeTdsService.class);
         employeeService = mock(EmployeeService.class);
         permissionService = mock(PermissionService.class);
+        // D-145: the controller asks the service for the spread; answer it as the service does for April 2026.
+        given(service.spread(any(), any())).willAnswer(invocation -> {
+            EmployeeTds record = invocation.getArgument(0);
+            return TdsSpread.of(
+                    record.getAnnualTax(),
+                    invocation.getArgument(1),
+                    YearMonth.parse(record.getEffectiveFromPeriod()),
+                    YearMonth.of(2026, 4),
+                    FinancialYear.parse(record.getFinancialYear()));
+        });
         doAnswer(invocation -> {
                     String action = invocation.getArgument(0);
                     if (!permissionService.holds(action)) {
@@ -99,6 +111,9 @@ class EmployeeTdsGuardIT {
                 .andExpect(jsonPath("$.data.annual_tax").value(120000.0))
                 .andExpect(jsonPath("$.data.year_to_date").value(20000.0))
                 .andExpect(jsonPath("$.data.remaining").value(100000.0))
+                .andExpect(jsonPath("$.data.deducted_so_far").value(20000.0))
+                .andExpect(jsonPath("$.data.months_left").value(12))
+                .andExpect(jsonPath("$.data.monthly_share").value(8333.33))
                 .andExpect(jsonPath("$.data.effective_from_period").value("2026-04"));
 
         verify(service, never()).record(any(), any(), any());

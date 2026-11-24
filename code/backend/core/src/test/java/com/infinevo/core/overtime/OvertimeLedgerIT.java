@@ -95,14 +95,15 @@ class OvertimeLedgerIT extends AbstractIntegrationTest {
     @DisplayName("A POST whose ledger write is refused leaves no overtime row at all")
     void aRefusedLedgerWriteLeavesNoOvertimeRow() throws SQLException {
         // Exhausts the ledger's late-input redirect search (W-19, MAX_REDIRECT_MONTHS = 120): every
-        // candidate period from the requested one onward is locked, so record() throws instead of
+        // candidate period from the requested one onward is closed (D-144: only CLOSED is skipped), so record() throws
+        // instead of
         // finding an open period, and the whole transaction — the overtime row included — rolls back.
         // A past period: OvertimeServiceImpl's own future-date check would otherwise refuse the
         // entry before the ledger is ever reached — the failure this test wants comes from the
         // ledger, not from validation.
         YearMonth period = YearMonth.of(2020, 1);
         for (int i = 0; i <= 120; i++) {
-            payInputService.lock(period.plusMonths(i));
+            payInputService.lock(period.plusMonths(i), com.infinevo.core.payinput.PayInputLockStage.CLOSED);
         }
 
         assertThatThrownBy(() -> overtimeService.record(

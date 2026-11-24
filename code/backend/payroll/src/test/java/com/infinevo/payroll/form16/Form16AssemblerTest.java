@@ -92,6 +92,104 @@ class Form16AssemblerTest {
     }
 
     @Test
+    @DisplayName("No computation at all: breakdown null and NO_COMPUTATION, not an officer override (D-149)")
+    void testNoComputationHasItsOwnNote() {
+        Form16Statement statement = Form16Assembler.assemble(
+                FY, DEDUCTOR, EMPLOYEE, "NEW", new BigDecimal("120000.00"), Map.of(), null, 0L, Instant.now());
+
+        assertThat(statement.breakdown()).isNull();
+        assertThat(statement.breakdownNote()).isEqualTo("NO_COMPUTATION");
+    }
+
+    @Test
+    @DisplayName(
+            "New regime working adds up: salary 1,400,000 + let-out 60,000 + other 40,000, standard 75,000 (D-149)")
+    void testNewRegimeBreakdownAddsUp() {
+        // The new-regime calculator stores gross total income before the standard deduction.
+        TaxComputationRecord comp = computation("NEW", "1500000", "0", "75000", "0", "60000", "40000", "0", "1425000");
+
+        TaxBreakdown b = Form16Assembler.breakdownOf(comp);
+
+        assertThat(b.grossSalary()).isEqualByComparingTo("1400000");
+        assertThat(b.incomeFromSalary()).isEqualByComparingTo("1325000");
+        assertThat(b.grossTotalIncome()).isEqualByComparingTo("1425000");
+        assertAddsUp(b);
+    }
+
+    @Test
+    @DisplayName(
+            "Old regime working adds up: stored total 1,170,000 is after HRA 120,000, standard 50,000 and PT 2,400 (D-149)")
+    void testOldRegimeBreakdownAddsUp() {
+        // The old-regime calculator stores gross total income after the section 16 deductions.
+        // Salary 1,300,000 - 120,000 - 50,000 - 2,400 = 1,127,600; - 7,600 house property + 50,000 other.
+        TaxComputationRecord comp =
+                computation("OLD", "1170000", "120000", "50000", "2400", "-7600", "50000", "150000", "1020000");
+
+        TaxBreakdown b = Form16Assembler.breakdownOf(comp);
+
+        assertThat(b.grossSalary()).isEqualByComparingTo("1300000");
+        assertThat(b.incomeFromSalary()).isEqualByComparingTo("1127600");
+        assertThat(b.grossTotalIncome()).isEqualByComparingTo("1170000");
+        assertAddsUp(b);
+    }
+
+    @Test
+    @DisplayName(
+            "Old regime with 80TTA: stored Chapter VI-A is 150,000 but 160,000 was taken off; the line prints 160,000 (D-149)")
+    void testInterestDeductionIsInsideTheDeductionsLine() {
+        // Gross total income 1,000,000; 80C 150,000 stored; 80TTA 10,000 not stored; taxable 840,000.
+        TaxComputationRecord comp = computation("OLD", "1000000", "0", "50000", "0", "0", "10000", "150000", "840000");
+
+        TaxBreakdown b = Form16Assembler.breakdownOf(comp);
+
+        assertThat(b.chapterVia()).isEqualByComparingTo("160000");
+        assertAddsUp(b);
+    }
+
+    @Test
+    @DisplayName("Rounding to the rupee alone leaves the stored Chapter VI-A figure as it is (D-149)")
+    void testRupeeRoundingDoesNotChangeTheDeductionsLine() {
+        TaxComputationRecord comp = computation("OLD", "1000000.40", "0", "50000", "0", "0", "0", "150000", "850000");
+
+        assertThat(Form16Assembler.breakdownOf(comp).chapterVia()).isEqualByComparingTo("150000");
+    }
+
+    /** Each printed line follows from the one above. */
+    private static void assertAddsUp(TaxBreakdown b) {
+        assertThat(b.grossSalary()
+                        .subtract(b.hraExemption())
+                        .subtract(b.standardDeduction())
+                        .subtract(b.professionalTax()))
+                .isEqualByComparingTo(b.incomeFromSalary());
+        assertThat(b.incomeFromSalary().add(b.housePropertyIncome()).add(b.otherIncome()))
+                .isEqualByComparingTo(b.grossTotalIncome());
+        assertThat(b.grossTotalIncome().subtract(b.chapterVia())).isEqualByComparingTo(b.taxableIncome());
+    }
+
+    private static TaxComputationRecord computation(
+            String regime,
+            String storedGrossTotal,
+            String hra,
+            String standard,
+            String professionalTax,
+            String houseProperty,
+            String other,
+            String chapterVia,
+            String taxable) {
+        TaxComputationRecord comp = org.mockito.Mockito.mock(TaxComputationRecord.class);
+        org.mockito.Mockito.when(comp.getRegime()).thenReturn(regime);
+        org.mockito.Mockito.when(comp.getGrossTotalIncome()).thenReturn(new BigDecimal(storedGrossTotal));
+        org.mockito.Mockito.when(comp.getHraExemption()).thenReturn(new BigDecimal(hra));
+        org.mockito.Mockito.when(comp.getStandardDeduction()).thenReturn(new BigDecimal(standard));
+        org.mockito.Mockito.when(comp.getProfessionalTax()).thenReturn(new BigDecimal(professionalTax));
+        org.mockito.Mockito.when(comp.getHousePropertyIncome()).thenReturn(new BigDecimal(houseProperty));
+        org.mockito.Mockito.when(comp.getOtherIncome()).thenReturn(new BigDecimal(other));
+        org.mockito.Mockito.when(comp.getChapterVia()).thenReturn(new BigDecimal(chapterVia));
+        org.mockito.Mockito.when(comp.getTaxableIncome()).thenReturn(new BigDecimal(taxable));
+        return comp;
+    }
+
+    @Test
     @DisplayName("Half up scale 2 rounding: 1,234.565 prints 1,234.57")
     void testHalfUpRounding() {
         QuarterTax qt = new QuarterTax("Q1", new BigDecimal("1234.565"));

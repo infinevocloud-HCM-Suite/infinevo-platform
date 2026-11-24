@@ -8,7 +8,14 @@ import {
   PF_ACCOUNT_MAX_LENGTH,
   ESI_NUMBER_MAX_LENGTH,
 } from './statutoryRules.js';
-import { EMPTY_PROFILE, STATUTORY_TICKS, profileFormValues, profilePayload } from './statutoryProfileForm.js';
+import {
+  EMPTY_PROFILE,
+  STATUTORY_TICKS,
+  TDS_COMPANY_OFF_NOTE,
+  profileFormValues,
+  profilePayload,
+} from './statutoryProfileForm.js';
+import { useCompanyTdsOff } from './companyTds.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 /** The checkbox id for a tick: `sp-` keeps it apart from the salary drawer's ids. */
@@ -32,6 +39,7 @@ export function StatutoryProfileDrawer({ open, onClose, employeeId, profile = nu
   const [submitting, setSubmitting] = useState(false);
   const epfTicked = Form.useWatch('eligibleForPf', form);
   const epsTicked = Form.useWatch('eligibleForEps', form);
+  const companyTdsOff = useCompanyTdsOff(open);
 
   useEffect(() => {
     if (open) form.setFieldsValue(profileFormValues(profile));
@@ -62,6 +70,8 @@ export function StatutoryProfileDrawer({ open, onClose, employeeId, profile = nu
   const disabledFor = (name) => {
     if (name === 'eligibleForEps') return !epfTicked;
     if (name === 'contributesEpsOnHigherWages') return !epfTicked || !epsTicked;
+    // D-145: the company switch is off, so the tick changes nothing until it is turned on.
+    if (name === 'tdsApplicable') return companyTdsOff;
     return false;
   };
 
@@ -100,7 +110,13 @@ export function StatutoryProfileDrawer({ open, onClose, employeeId, profile = nu
             name={tick.name}
             valuePropName="checked"
             style={{ marginBottom: 4 }}
-            extra={tick.extra}
+            extra={
+              tick.name === 'tdsApplicable' && companyTdsOff ? (
+                <span data-testid="tds-company-off-note">{TDS_COMPANY_OFF_NOTE}</span>
+              ) : (
+                tick.extra
+              )
+            }
           >
             <Checkbox id={TICK_IDS[tick.name]} disabled={disabledFor(tick.name)}>
               {tick.label}

@@ -216,8 +216,8 @@ class TaxRecalculationRulesTest {
     }
 
     @Test
-    @DisplayName("taxSummaryService failure does not fail recalculation")
-    void taxSummaryFailureDoesNotFailRecalculation() {
+    @DisplayName("D-147: a taxSummaryService failure fails the recalculation, so its transaction rolls back whole")
+    void taxSummaryFailurePropagates() {
         EmployeeInvestmentDeclaration decl = new EmployeeInvestmentDeclaration();
         decl.setId(declarationId);
         decl.setTaxRegime("NEW");
@@ -232,15 +232,15 @@ class TaxRecalculationRulesTest {
                 .when(taxSummaryService)
                 .record(any(), any(), any());
 
-        TaxComputationRecord record = service.recalculate(employeeId, fy.label(), TaxTrigger.OFFICER, officerId);
-
-        assertThat(record).isNotNull();
-        assertThat(record.getAnnualTax()).isEqualByComparingTo("62400");
+        assertThatThrownBy(() -> service.recalculate(employeeId, fy.label(), TaxTrigger.OFFICER, officerId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Tax summary DB error");
+        verify(employeeTdsService, never()).record(any(), any(), any());
     }
 
     @Test
-    @DisplayName("employeeTdsService failure does not fail recalculation")
-    void employeeTdsFailureDoesNotFailRecalculation() {
+    @DisplayName("D-147: an employeeTdsService failure fails the recalculation instead of being swallowed")
+    void employeeTdsFailurePropagates() {
         EmployeeInvestmentDeclaration decl = new EmployeeInvestmentDeclaration();
         decl.setId(declarationId);
         decl.setTaxRegime("NEW");
@@ -253,10 +253,64 @@ class TaxRecalculationRulesTest {
 
         doThrow(new RuntimeException("TDS sync error")).when(employeeTdsService).record(any(), any(), any());
 
-        TaxComputationRecord record = service.recalculate(employeeId, fy.label(), TaxTrigger.OFFICER, officerId);
+        assertThatThrownBy(() -> service.recalculate(employeeId, fy.label(), TaxTrigger.OFFICER, officerId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("TDS sync error");
+    }
 
-        assertThat(record).isNotNull();
-        assertThat(record.getAnnualTax()).isEqualByComparingTo("62400");
+    @Test
+    @DisplayName("D-147: a successful recalculation closes the open failure for the employee and year")
+    void successResolvesOpenFailure() {
+        TaxRecalcFailureRepository failureRepository = org.mockito.Mockito.mock(TaxRecalcFailureRepository.class);
+        TaxRecalculationServiceImpl withFailures = new TaxRecalculationServiceImpl(
+                taxComputationRepository,
+                declarationRepository,
+                windowService,
+                taxCalculationService,
+                taxSummaryService,
+                taxSummaryFiguresMapper,
+                employeeService,
+                objectMapper,
+                employeeTdsService,
+                failureRepository);
+        given(declarationRepository.findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, employeeId, fy.label()))
+                .willReturn(Optional.empty());
+        given(windowService.findOrCreateDefault(tenantId, fy.label())).willReturn(null);
+        given(taxCalculationService.compute(employeeId, fy, TaxRegime.NEW))
+                .willReturn(sampleComputation(TaxRegime.NEW));
+        given(taxComputationRepository.save(any(TaxComputationRecord.class))).willAnswer(inv -> inv.getArgument(0));
+
+        withFailures.recalculate(employeeId, fy.label(), TaxTrigger.SALARY_REVISION, null);
+
+        verify(failureRepository).resolveOpen(eq(tenantId), eq(employeeId), eq(fy.label()), any(Instant.class));
+    }
+
+    @Test
+    @DisplayName("D-147: a failed recalculation leaves the open failure open")
+    void failureDoesNotResolve() {
+        TaxRecalcFailureRepository failureRepository = org.mockito.Mockito.mock(TaxRecalcFailureRepository.class);
+        TaxRecalculationServiceImpl withFailures = new TaxRecalculationServiceImpl(
+                taxComputationRepository,
+                declarationRepository,
+                windowService,
+                taxCalculationService,
+                taxSummaryService,
+                taxSummaryFiguresMapper,
+                employeeService,
+                objectMapper,
+                employeeTdsService,
+                failureRepository);
+        given(declarationRepository.findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, employeeId, fy.label()))
+                .willReturn(Optional.empty());
+        given(windowService.findOrCreateDefault(tenantId, fy.label())).willReturn(null);
+        given(taxCalculationService.compute(employeeId, fy, TaxRegime.NEW))
+                .willReturn(sampleComputation(TaxRegime.NEW));
+        given(taxComputationRepository.save(any(TaxComputationRecord.class))).willAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("TDS sync error")).when(employeeTdsService).record(any(), any(), any());
+
+        assertThatThrownBy(() -> withFailures.recalculate(employeeId, fy.label(), TaxTrigger.SALARY_REVISION, null))
+                .hasMessage("TDS sync error");
+        verify(failureRepository, never()).resolveOpen(any(), any(), any(), any());
     }
 
     @Test

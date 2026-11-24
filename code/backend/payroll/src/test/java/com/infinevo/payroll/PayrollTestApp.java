@@ -954,6 +954,76 @@ public class PayrollTestApp {
         };
     }
 
+    /** The tenant's name from {@code core.tenant}, which Form 16 prints as the deductor (D-149). */
+    @Bean
+    public com.infinevo.core.tenant.TenantProfileService tenantProfileService() {
+        return new com.infinevo.core.tenant.TenantProfileService() {
+            @Override
+            public com.infinevo.core.tenant.TenantProfileResponse current() {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public com.infinevo.core.tenant.TenantProfileResponse update(
+                    com.infinevo.core.tenant.TenantProfileRequest request) {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public Optional<com.infinevo.core.tenant.TenantBranding> branding() {
+                Optional<UUID> tenantId = TenantContext.current();
+                if (tenantId.isEmpty()) {
+                    return Optional.empty();
+                }
+                try (Connection conn = PayrollTestSchema.migrationConnection();
+                        PreparedStatement ps =
+                                conn.prepareStatement("SELECT name FROM core.tenant WHERE tenant_id = ?")) {
+                    ps.setObject(1, tenantId.get());
+                    try (ResultSet rs = ps.executeQuery()) {
+                        return rs.next()
+                                ? Optional.of(new com.infinevo.core.tenant.TenantBranding(
+                                        rs.getString("name"), null, null, null, null))
+                                : Optional.empty();
+                    }
+                } catch (SQLException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        };
+    }
+
+    /** No designation exists in the payroll test schema's employees: every lookup is a 404 (D-149). */
+    @Bean
+    public com.infinevo.core.org.DesignationService designationService() {
+        return new com.infinevo.core.org.DesignationService() {
+            @Override
+            public com.infinevo.core.org.DesignationResponse create(com.infinevo.core.org.DesignationRequest request) {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public java.util.List<com.infinevo.core.org.DesignationResponse> list(boolean activeOnly) {
+                return java.util.List.of();
+            }
+
+            @Override
+            public com.infinevo.core.org.DesignationResponse get(UUID id) {
+                throw new com.infinevo.core.org.OrgMasterService.NotFoundException("designation", id);
+            }
+
+            @Override
+            public com.infinevo.core.org.DesignationResponse update(
+                    UUID id, com.infinevo.core.org.DesignationRequest request) {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public void delete(UUID id) {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+        };
+    }
+
     @Bean
     public static org.springframework.context.support.PropertySourcesPlaceholderConfigurer
             propertySourcesPlaceholderConfigurer() {

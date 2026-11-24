@@ -81,6 +81,16 @@ export function failureReasonOf(run) {
   return run?.failure_reason || run?.failureReason || null;
 }
 
+// D-144: entries for the month written after the run was computed (`inputs_since_compute`, run
+// detail only). A locked or computed month still takes entries; the run must be computed again,
+// and the server refuses approval until it is. Same words as that 409.
+export function inputsSinceComputeNotice(run) {
+  if (!run || ['APPROVED', 'PAID', 'CANCELLED'].includes(run.status)) return null;
+  const n = Number(run.inputs_since_compute ?? run.inputsSinceCompute ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `${n} new pay input${n === 1 ? '' : 's'} since this run was computed. Compute again before approving.`;
+}
+
 // Who approved: the name the reply carries. Never the raw login id (D-79).
 function approverOf(run) {
   return run?.approved_by_name || run?.approvedByName || null;
@@ -498,6 +508,16 @@ export function RunPage() {
           description={failureReason || 'The server did not record a reason.'}
           type="error"
           showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {inputsSinceComputeNotice(run) && (
+        <Alert
+          message={inputsSinceComputeNotice(run)}
+          type="warning"
+          showIcon
+          data-testid="inputs-since-compute"
           style={{ marginBottom: 16 }}
         />
       )}

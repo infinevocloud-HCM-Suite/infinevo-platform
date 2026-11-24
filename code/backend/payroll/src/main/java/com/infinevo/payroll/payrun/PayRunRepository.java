@@ -50,6 +50,19 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
             @Param("fromPeriod") String fromPeriod,
             @Param("toPeriod") String toPeriod);
 
+    /**
+     * D-147: the earliest period in the range with a run of the type that is still open, i.e. not in one of
+     * {@code closedStatuses}. A new TDS record starts there so that month's run gets its tax line when computed.
+     */
+    @Query("SELECT MIN(r.period) FROM PayRun r WHERE r.tenantId = :tenantId AND r.runType = :runType "
+            + "AND r.status NOT IN :closedStatuses AND r.period >= :fromPeriod AND r.period <= :toPeriod")
+    Optional<String> findEarliestOpenPeriod(
+            @Param("tenantId") UUID tenantId,
+            @Param("runType") PayRunType runType,
+            @Param("closedStatuses") Collection<PayRunStatus> closedStatuses,
+            @Param("fromPeriod") String fromPeriod,
+            @Param("toPeriod") String toPeriod);
+
     /** The tenant's earliest run of a type, ignoring one status (W-38.3 §3: first regular run not cancelled). */
     Optional<PayRun> findFirstByTenantIdAndRunTypeAndStatusNotOrderByPeriodAsc(
             UUID tenantId, PayRunType runType, PayRunStatus status);
@@ -69,6 +82,30 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
               AND pr.period <= :endPeriod
             """)
     List<String> findPaidRegularPeriods(
+            @Param("tenantId") UUID tenantId,
+            @Param("startPeriod") String startPeriod,
+            @Param("endPeriod") String endPeriod);
+
+    /**
+     * D-145: distinct regular periods in the range whose run is computed, approved or paid - months whose
+     * TDS line is already counted in the year to date. A draft, locked, computing, failed or cancelled run
+     * leaves its month still to be paid.
+     */
+    @Query(
+            """
+            SELECT DISTINCT pr.period
+            FROM PayRun pr
+            WHERE pr.tenantId = :tenantId
+              AND pr.runType = com.infinevo.payroll.payrun.PayRunType.REGULAR
+              AND pr.status IN (
+                  com.infinevo.payroll.payrun.PayRunStatus.COMPUTED,
+                  com.infinevo.payroll.payrun.PayRunStatus.APPROVED,
+                  com.infinevo.payroll.payrun.PayRunStatus.PAID
+              )
+              AND pr.period >= :startPeriod
+              AND pr.period <= :endPeriod
+            """)
+    List<String> findCountedRegularPeriods(
             @Param("tenantId") UUID tenantId,
             @Param("startPeriod") String startPeriod,
             @Param("endPeriod") String endPeriod);

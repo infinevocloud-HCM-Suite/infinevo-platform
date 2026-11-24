@@ -375,4 +375,26 @@ describe('SalarySetupDrawer (W-75.2 §7)', () => {
     await sleep(500);
     expect(salaryService.preview).not.toHaveBeenCalled();
   });
+
+  it('D-145: with company TDS on the TDS tick is usable and there is no note', async () => {
+    renderDrawer();
+
+    await waitFor(() => expect(document.getElementById('chk-statutory-tds').checked).toBe(true), SLOW);
+    expect(statutoryService.get).toHaveBeenCalledWith('tds');
+    expect(document.getElementById('chk-statutory-tds').disabled).toBe(false);
+    expect(screen.queryByTestId('tds-company-off-note')).toBeNull();
+  });
+
+  it('D-145: with company TDS off the TDS tick is greyed out with the note', async () => {
+    statutoryService.get.mockImplementation((kind) =>
+      Promise.resolve(kind === 'tds' ? { enabled: false, source: 'PERSISTED' } : { is_enabled: true })
+    );
+    renderDrawer();
+
+    await waitFor(() => expect(screen.getByTestId('tds-company-off-note')).toBeDefined(), SLOW);
+    expect(screen.getByTestId('tds-company-off-note').textContent).toBe(
+      'Company TDS is off. This setting takes effect when it is turned on'
+    );
+    expect(document.getElementById('chk-statutory-tds').disabled).toBe(true);
+  });
 });

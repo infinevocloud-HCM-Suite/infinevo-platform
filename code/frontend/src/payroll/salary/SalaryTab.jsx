@@ -21,6 +21,7 @@ import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { salaryService } from './salaryService.js';
 import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
+import { EmployeeTdsCard } from './EmployeeTdsCard.jsx';
 import { ScheduledEarningsPanel } from './ScheduledEarningsPanel.jsx';
 import { SalarySetupDrawer } from './SalarySetupDrawer.jsx';
 import { StatutoryProfileDrawer } from './StatutoryProfileDrawer.jsx';
@@ -450,6 +451,9 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
             }}
           />
         )}
+
+        {/* TDS figures for the financial year (D-145); the card checks payroll.tax_declaration.read */}
+        {employeeId && <EmployeeTdsCard employeeId={employeeId} />}
 
         {/* Scheduled earnings (W-73.6) */}
         {employeeId && <ScheduledEarningsPanel employeeId={employeeId} />}

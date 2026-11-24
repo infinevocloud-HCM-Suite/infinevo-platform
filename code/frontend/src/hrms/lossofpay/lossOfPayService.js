@@ -44,8 +44,9 @@ export const lossOfPayService = {
   },
 
   /**
-   * Record `days` of loss of pay. The reply's `posted_period` is the month it landed in - the next
-   * open one when `period` was locked. `days` goes as text so the server reads an exact BigDecimal.
+   * Record `days` of loss of pay. The reply's `posted_period` is always `period`: a closed month is
+   * refused with a 409 naming the month to use, never moved (D-144). `days` goes as text so the
+   * server reads an exact BigDecimal.
    * `reason` goes as `note` (display only, at most 200 characters); `source_ref` is a fresh random
    * key, since a reason is not unique and the key column holds 64 characters.
    */

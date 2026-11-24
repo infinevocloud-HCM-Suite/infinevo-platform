@@ -2,12 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { StatutoryProfileDrawer } from './StatutoryProfileDrawer.jsx';
 import { statutoryProfileService } from './statutoryProfileService.js';
+import { statutoryService } from '../settings/statutoryService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 vi.mock('./statutoryProfileService.js', () => ({
   statutoryProfileService: {
     get: vi.fn(),
     save: vi.fn(),
+  },
+}));
+
+vi.mock('../settings/statutoryService.js', () => ({
+  statutoryService: {
+    get: vi.fn().mockResolvedValue({ enabled: true, source: 'PERSISTED' }),
   },
 }));
 
@@ -127,5 +134,31 @@ describe('StatutoryProfileDrawer (D-143)', () => {
 
     await waitFor(() => expect(screen.getByText('UAN must be exactly 12 digits')).toBeDefined());
     expect(statutoryProfileService.save).not.toHaveBeenCalled();
+  });
+
+  it('D-145: with company TDS on the TDS tick is usable and there is no note', async () => {
+    renderDrawer();
+
+    await waitFor(() => expect(checkbox('sp-chk-statutory-tds').checked).toBe(true));
+    expect(statutoryService.get).toHaveBeenCalledWith('tds');
+    expect(checkbox('sp-chk-statutory-tds').disabled).toBe(false);
+    expect(screen.queryByTestId('tds-company-off-note')).toBeNull();
+  });
+
+  it('D-145: with company TDS off the TDS tick is greyed out with the note, and its value is still saved', async () => {
+    statutoryService.get.mockResolvedValueOnce({ enabled: false, source: 'PERSISTED' });
+    statutoryProfileService.save.mockResolvedValueOnce({ id: 'p1' });
+    const { onClose } = renderDrawer({ profile: { ...PROFILE, tdsApplicable: false } });
+
+    await waitFor(() => expect(screen.getByTestId('tds-company-off-note')).toBeDefined());
+    expect(screen.getByTestId('tds-company-off-note').textContent).toBe(
+      'Company TDS is off. This setting takes effect when it is turned on'
+    );
+    expect(checkbox('sp-chk-statutory-tds').disabled).toBe(true);
+    expect(checkbox('sp-chk-statutory-tds').checked).toBe(false);
+
+    fireEvent.click(screen.getByTestId('statutory-profile-save'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(statutoryProfileService.save.mock.calls[0][1].tdsApplicable).toBe(false);
   });
 });

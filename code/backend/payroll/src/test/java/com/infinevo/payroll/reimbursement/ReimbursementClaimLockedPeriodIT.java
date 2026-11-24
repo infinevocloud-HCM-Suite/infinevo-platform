@@ -12,6 +12,7 @@ import com.infinevo.core.approval.ApprovalStep;
 import com.infinevo.core.approval.ApprovalStepRepository;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.payinput.PayInput;
+import com.infinevo.core.payinput.PayInputLockStage;
 import com.infinevo.core.payinput.PayInputRepository;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.PayrollTestApp;
@@ -129,7 +130,7 @@ class ReimbursementClaimLockedPeriodIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("When current period is locked, approval posts to next open period and posted_period says so")
+    @DisplayName("When current period is closed, approval posts to next open period and posted_period says so")
     void currentPeriodLockedRedirectsToNextPeriod() {
         // 1. Employee Charlie submits claim
         PayrollTestApp.CURRENT_EMPLOYEE.set(employee);
@@ -137,9 +138,9 @@ class ReimbursementClaimLockedPeriodIT extends AbstractIntegrationTest {
                 reimbursementId, new BigDecimal("1200.00"), LocalDate.now(), "Home broadband", null);
         ReimbursementClaimResponse submitted = claimService.submit(req);
 
-        // 2. Lock the current period via PayInputService
+        // 2. Close the current period via PayInputService (D-144: only CLOSED moves a write on)
         YearMonth currentPeriod = YearMonth.now();
-        payInputService.lock(currentPeriod);
+        payInputService.lock(currentPeriod, PayInputLockStage.CLOSED);
 
         // 3. Admin approves the claim
         PayrollTestApp.CURRENT_EMPLOYEE.set(adminEmployee);

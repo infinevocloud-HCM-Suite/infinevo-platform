@@ -171,6 +171,78 @@ class EmployeeTdsIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("D-145: GET carries the spread; a year not yet begun spreads from its effective month")
+    void getCarriesSpreadFigures() {
+        // A year after today, so the pay month is before the year and the spread starts at the effective month.
+        String laterFy = "2030-2031";
+        controller.put(
+                employeeId1,
+                laterFy,
+                new RecordTdsRequest(
+                        "NEW",
+                        new BigDecimal("1200000.00"),
+                        new BigDecimal("1000000.00"),
+                        new BigDecimal("60000.00"),
+                        "2030-10",
+                        "October figure"));
+
+        EmployeeTdsResponse figures = controller.get(employeeId1, laterFy).data();
+        assertThat(figures.deductedSoFar()).isEqualByComparingTo("0");
+        assertThat(figures.remaining()).isEqualByComparingTo("60000");
+        assertThat(figures.monthsLeft()).isEqualTo(6);
+        assertThat(figures.monthlyShare()).isEqualByComparingTo("10000.00");
+        assertThat(figures.nextPayMonth()).isEqualTo("2030-10");
+    }
+
+    @Test
+    @DisplayName("D-145: the next pay month is the first month with no computed, approved or paid regular run")
+    void nextPayMonthSkipsCountedRuns() throws SQLException {
+        insertRegularRun("2026-04", "PAID");
+        insertRegularRun("2026-05", "APPROVED");
+        insertRegularRun("2026-06", "COMPUTED");
+        insertRegularRun("2026-07", "LOCKED");
+        insertRegularRun("2026-08", "COMPUTED");
+        controller.put(
+                employeeId1,
+                FY,
+                new RecordTdsRequest(
+                        "NEW",
+                        new BigDecimal("1200000.00"),
+                        new BigDecimal("1000000.00"),
+                        new BigDecimal("90000.00"),
+                        "2026-04",
+                        "Spread from the open month"));
+
+        EmployeeTdsResponse figures = controller.get(employeeId1, FY).data();
+        // July is locked, not computed: it is the month the next run covers, nine months to March.
+        assertThat(figures.nextPayMonth()).isEqualTo("2026-07");
+        assertThat(figures.monthsLeft()).isEqualTo(9);
+        assertThat(figures.monthlyShare()).isEqualByComparingTo("10000.00");
+    }
+
+    private static void insertRegularRun(String period, String status) throws SQLException {
+        java.time.YearMonth month = java.time.YearMonth.parse(period);
+        java.time.LocalDate end = month.atEndOfMonth();
+        PayRunTestSchema.execute(
+                """
+                INSERT INTO payroll.payrun (
+                    id, tenant_id, period, period_start, period_end, cutoff_date, pay_date, paid_on,
+                    run_type, status, included_count, skipped_count, total_gross, total_deductions,
+                    total_net_pay, created_by, updated_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'REGULAR', ?, 0, 0, 0, 0, 0, 'seed', 'seed')
+                """,
+                UUID.randomUUID(),
+                TENANT_A,
+                period,
+                month.atDay(1),
+                end,
+                end.minusDays(5),
+                end,
+                "PAID".equals(status) ? end : null,
+                status);
+    }
+
+    @Test
     @DisplayName("GET .../history returns all rows, newest first")
     void historyReturnsNewestFirst() {
         controller.put(

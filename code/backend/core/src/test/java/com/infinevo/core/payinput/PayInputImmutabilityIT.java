@@ -21,9 +21,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
 
 /**
- * W-19 §7 — {@code app_user} holds no {@code UPDATE} or {@code DELETE} on either table
- * ({@code V031}, {@code V032}): a permission failure ({@code 42501}), not a row-count-zero UPDATE
- * that would be indistinguishable from RLS hiding the row.
+ * W-19 §7 — {@code app_user} holds no {@code UPDATE} or {@code DELETE} on {@code core.pay_input}
+ * ({@code V031}) and no UPDATE of any lock column but the stage ({@code V032}, {@code V220}): a
+ * permission failure ({@code 42501}), not a row-count-zero UPDATE that would be indistinguishable
+ * from RLS hiding the row. D-144 grants DELETE on the lock table, but a restrictive policy leaves
+ * only a LOCKED period lock visible to it; a CLOSED one is never deleted.
  */
 @SpringBootTest(classes = PayInputTestApp.class)
 @ContextConfiguration(
@@ -51,7 +53,7 @@ class PayInputImmutabilityIT extends AbstractIntegrationTest {
                 .record(new PayInputCommand(
                         employee, YearMonth.of(2026, 4), PayInputKind.LOP_DAYS, BigDecimal.ONE, null, "hrms", "imm-1"))
                 .id();
-        payInputService.lock(YearMonth.of(2026, 5));
+        payInputService.lock(YearMonth.of(2026, 5), PayInputLockStage.CLOSED);
         TenantContext.clear();
     }
 
@@ -95,15 +97,21 @@ class PayInputImmutabilityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("app_user cannot DELETE from core.pay_input_period_lock")
+    @DisplayName("app_user cannot DELETE a CLOSED core.pay_input_period_lock row (D-144 policy)")
     void appUserCannotDeleteLock() throws SQLException {
-        assertPermissionDenied(conn -> {
+        try (Connection conn = PayInputTestSchema.appConnection()) {
+            conn.setAutoCommit(false);
+            PayInputTestSchema.bindTenant(conn, tenant);
             try (PreparedStatement ps =
                     conn.prepareStatement("DELETE FROM core.pay_input_period_lock WHERE tenant_id = ?")) {
                 ps.setObject(1, tenant);
-                ps.executeUpdate();
+                assertThat(ps.executeUpdate()).isZero();
             }
-        });
+            conn.commit();
+        }
+        assertThat(PayInputTestSchema.count(
+                        "SELECT count(*) FROM core.pay_input_period_lock WHERE tenant_id = ?", tenant))
+                .isEqualTo(1);
     }
 
     private void assertPermissionDenied(SqlAction action) throws SQLException {

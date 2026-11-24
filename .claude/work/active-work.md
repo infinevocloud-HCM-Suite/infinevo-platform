@@ -6,6 +6,61 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — D-149 Form 16 fixes on `main`
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-149 | Form 16: tenant name as deductor, designation by name, full PAN, a Part B working that adds up under both regimes, a separate NO_COMPUTATION note, employee names on the Part A list, an error on a failed download, dashes when there is no statement | `dfbd5a75` |
+
+- Built by Claude; one independent read, no blocking defect; CI green on `a1b2bdb7`.
+- **Left:** F-2: under the old regime, a house-property loss that floors gross total income at 0 overstates the printed gross salary (`Form16Assembler.java:194`). By spec, not changed: only PAID runs count; no TDS record gives 404. The founder was asked whether to change either.
+- **Branch:** `dev-claude-d149` reset to `main`.
+
+## 2026-11-24 — D-144 to D-148 on `main`: ledger pickup month, TDS screens, tax declaration fixes
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-144 | A pay input for a locked month stays in that month until the run is approved; an approved month refuses hand entries (409); cancel releases the lock; approve is refused when inputs arrived after compute. Closes D-138. `V220`, `V221` | `d58fc4e2` |
+| D-145 | Employee TDS box disabled with a note while company TDS is off; TDS card and officer edit drawer on the Salary tab; `TdsSpread` shared by the pay run and the card | `9aaea36d` |
+| D-146 | A deduction can be entered for any future month; grid cap and server rule both removed | `68938a69` |
+| D-147 | Failed tax recalculations are recorded (`payroll.tax_recalc_failure`, `V222`) and retryable; a new TDS record starts at the earliest open month; the officer's read never creates a declaration | `93759220` |
+| D-148 | New-regime tax counts declared other income and net let-out income | `4606884a` |
+
+- Built by Claude, one branch per ticket, one independent read each, CI green on every branch. D-145 and D-147 met in `EmployeeTdsServiceImpl`; resolved at merge and retested.
+- **Left:** no screen lists tax recalculation failures (API only); a compute that stalls and resumes can miss an entry written in between; a run cancelled after approval keeps its month closed; an officer's manual TDS figure is replaced by a later declaration, proof verification or salary revision.
+- **For the migrated company:** company TDS stays off; Antoday's TDS is to be settled from the new officer TDS card at the founder's word.
+- **Branches:** `dev-claude-d144` to `dev-claude-d148` reset to `main`; they can be deleted.
+
+## 2026-11-24 — W-114.5 AI helper chat drawer on `main`
+
+- Ask button (only when the customer's helper is on) and a slide-over drawer: ask, read, New chat, Past chats, delete; full width on a phone; answers rendered as plain text only. `code/frontend/src/shell/assistant/`, one mount in `AppShell.jsx`.
+- Built by Claude; one independent read (one Medium fixed: a late-loading past chat no longer overwrites the open chat), CI green on `0ab0c679`.
+- **Known, left:** the button's status is read once per shell mount, so it does not refresh when a platform admin starts or ends impersonation.
+- **Next:** `W-114.6` HRMS read-only tools.
+
+## 2026-11-23 — W-114.4 AI helper answers questions on `main`
+
+| What | Where |
+|---|---|
+| `POST /api/v1/ai/sessions/{id}/messages`: masking (PAN, Aadhaar, bank, IFSC, UAN, ESI, tokens) before storing and sending; tool loop (5 rounds), last 20 messages; Azure OpenAI client on `/openai/v1` with managed identity; stub model when `INFINEVO_AI_ENDPOINT` is blank; seven own-data Core tools with ids stripped; per-user limit 10/min and 200/day (`AI_RATE_LIMITED`) | `core/ai/`, `app/application.yml` `infinevo.ai.*` |
+| Azure model capacity raised to 100K tokens a minute (live and in Bicep) | `infra/azure/` |
+| Specs hardened after the research review; new parts `W-114.23`–`.25` | `docs/target-state/features/W-114-*` |
+
+- Built by Claude; one independent read (one High fixed: identity client id now falls back to `AZURE_CLIENT_ID`), CI green on `deef0e00`.
+- **The live app still runs the stub model**: setting `INFINEVO_AI_ENDPOINT` and `INFINEVO_AI_DEPLOYMENT` on the app is a live change, founder's go needed.
+- **Next:** `W-114.5` chat drawer.
+
+## 2026-11-23 — W-114.3 AI chat sessions and tool registry on `main`; W-114.2 AI resources deployed
+
+| What | Where |
+|---|---|
+| `core.ai_session`, `ai_message`, `ai_action_intent` with RLS; `core.ai.use` granted to every system role (backfill + trigger for new customers). Own-chat API: `POST/GET /api/v1/ai/sessions`, `GET …/{id}/messages`, `DELETE …/{id}` — another user's chat is 404 | `V200`, `core/ai/AiSession*` |
+| `AiToolProvider`/`AiTool`/`AiToolRegistry`: a tool's name prefix (`core`/`hrms`/`payroll`) is its module licence; hidden and refused without the action or the licence; registry hands out descriptors only | `core/ai/AiTool*` |
+| Azure OpenAI `oai-infinevo-dev` (South India, `gpt-4.1-mini` Standard, private endpoint only, keys off, ₹5,000 budget) deployed through `infra/azure/ai-only.bicep` | `infra/azure/` |
+
+- Built by Claude, one independent read each, CI green. **Do not run the full `deploy.sh` on the live environment** until the hand-made Front Door custom domain, WAF link and storage lockdown are in Bicep.
+- **Next:** `W-114.4` model gateway with masking.
+
 ## 2026-11-23 — W-114.1 AI helper switch and monthly cap on `main` (`47c316c4`)
 
 | What | Where |

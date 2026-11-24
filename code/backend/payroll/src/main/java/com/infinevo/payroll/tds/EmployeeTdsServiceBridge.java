@@ -36,7 +36,10 @@ public class EmployeeTdsServiceBridge implements com.infinevo.payroll.taxcalc.re
                 figures.annualTax(),
                 null,
                 figures.declarationId(),
-                figures.note());
+                figures.note(),
+                // D-147: always the calculator's source. The seven-argument form picks OFFICER when there is
+                // no declaration, which mislabelled every salary-default recalculation as an officer's entry.
+                TdsSource.DECLARATION);
         delegate.record(employeeId, financialYear, tdsFigures);
     }
 }

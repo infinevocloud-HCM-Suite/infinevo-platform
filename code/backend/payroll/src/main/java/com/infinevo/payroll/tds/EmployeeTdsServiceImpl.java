@@ -2,6 +2,9 @@ package com.infinevo.payroll.tds;
 
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
+import com.infinevo.payroll.payrun.PayRunRepository;
+import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationRules;
@@ -14,9 +17,12 @@ import java.time.Instant;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,23 +43,31 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
 
     private static final Pattern PERIOD_PATTERN = Pattern.compile("^[0-9]{4}-(0[1-9]|1[0-2])$");
 
+    /** A regular run in one of these is closed: it is never computed again, so no TDS line can reach it. */
+    static final EnumSet<PayRunStatus> CLOSED_RUN_STATUSES =
+            EnumSet.of(PayRunStatus.APPROVED, PayRunStatus.PAID, PayRunStatus.CANCELLED);
+
     private final EmployeeTdsRepository repository;
     private final EmployeePayRunLineRepository lineRepository;
     private final EmployeeService employeeService;
     private final PriorPayrollTaxQuery priorTax;
+    private final PayRunRepository payRunRepository;
     private final Clock clock;
 
+    /** The constructor Spring uses: the pay run repository finds the earliest open month (D-147). */
     @Autowired
     public EmployeeTdsServiceImpl(
             EmployeeTdsRepository repository,
             EmployeePayRunLineRepository lineRepository,
             EmployeeService employeeService,
             PriorPayrollTaxQuery priorTax,
+            PayRunRepository payRunRepository,
             @Autowired(required = false) Clock clock) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.lineRepository = Objects.requireNonNull(lineRepository, "lineRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.priorTax = Objects.requireNonNull(priorTax, "priorTax must not be null");
+        this.payRunRepository = Objects.requireNonNull(payRunRepository, "payRunRepository must not be null");
         this.clock = clock != null ? clock : TaxDeclarationRules.defaultClock();
     }
 
@@ -61,8 +75,15 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
             EmployeeTdsRepository repository,
             EmployeePayRunLineRepository lineRepository,
             EmployeeService employeeService,
-            PriorPayrollTaxQuery priorTax) {
-        this(repository, lineRepository, employeeService, priorTax, TaxDeclarationRules.defaultClock());
+            PriorPayrollTaxQuery priorTax,
+            PayRunRepository payRunRepository) {
+        this(
+                repository,
+                lineRepository,
+                employeeService,
+                priorTax,
+                payRunRepository,
+                TaxDeclarationRules.defaultClock());
     }
 
     @Override
@@ -78,7 +99,7 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
         FinancialYear fy = validateAndParseFinancialYear(financialYear);
         validateFigures(figures, fy);
 
-        String effectiveFromPeriod = resolveEffectiveFromPeriod(figures.effectiveFromPeriod(), fy);
+        String effectiveFromPeriod = resolveEffectiveFromPeriod(tenantId, figures.effectiveFromPeriod(), fy);
 
         // Lock the active row so two concurrent PUTs supersede it one after the other; supersede and
         // flush so the unique partial index is cleared before the insert.
@@ -149,6 +170,28 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
                 .add(priorTax.total(tenantId, employeeId, fy));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public TdsSpread spread(EmployeeTds record, BigDecimal deductedSoFar) {
+        Objects.requireNonNull(record, "record must not be null");
+        FinancialYear fy = validateAndParseFinancialYear(record.getFinancialYear());
+        YearMonth effectiveFrom = YearMonth.parse(record.getEffectiveFromPeriod());
+        YearMonth fyStart = YearMonth.of(fy.startYear(), 4);
+        YearMonth march = YearMonth.of(fy.endYear(), 3);
+        YearMonth from = effectiveFrom.isAfter(fyStart) ? effectiveFrom : fyStart;
+
+        // The next regular run covers the first month whose run has not been computed, approved or paid:
+        // a month already computed is in deductedSoFar, so it is not a month left to spread over.
+        Set<String> counted = new HashSet<>(
+                payRunRepository.findCountedRegularPeriods(TenantContext.require(), from.toString(), march.toString()));
+        for (YearMonth month = from; !month.isAfter(march); month = month.plusMonths(1)) {
+            if (!counted.contains(month.toString())) {
+                return TdsSpread.of(record.getAnnualTax(), deductedSoFar, effectiveFrom, month, fy);
+            }
+        }
+        return TdsSpread.yearDone(record.getAnnualTax(), deductedSoFar);
+    }
+
     private FinancialYear validateAndParseFinancialYear(String financialYear) {
         if (financialYear == null || financialYear.isBlank()) {
             throw new EmployeeTdsValidationException("Financial year must not be null or blank");
@@ -209,7 +252,16 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
         }
     }
 
-    private String resolveEffectiveFromPeriod(String givenPeriod, FinancialYear fy) {
+    /**
+     * The month a new record takes effect when none is given (W-36.1 §4, D-147).
+     *
+     * <p>The current month, clamped to the financial year, unless an earlier month of the year still has a
+     * regular run that is open (not approved, paid or cancelled): then that earliest open month, so its run
+     * gets a TDS line when it is computed again. Months with no run, and closed runs, are left alone. Starting
+     * earlier cannot deduct twice: the tax line spreads the annual tax less every TDS line already written
+     * this year ({@code TaxLineContributor}), whichever record wrote it.
+     */
+    private String resolveEffectiveFromPeriod(UUID tenantId, String givenPeriod, FinancialYear fy) {
         if (givenPeriod != null && !givenPeriod.isBlank()) {
             return givenPeriod.trim();
         }
@@ -217,13 +269,24 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
         YearMonth currentMonth = YearMonth.now(clock.withZone(TaxDeclarationRules.ZONE));
         YearMonth fyStart = YearMonth.of(fy.startYear(), 4);
         YearMonth fyEnd = YearMonth.of(fy.endYear(), 3);
+        YearMonth floor;
         if (currentMonth.isBefore(fyStart)) {
-            return fyStart.toString();
+            floor = fyStart;
         } else if (currentMonth.isAfter(fyEnd)) {
-            return fyEnd.toString();
+            floor = fyEnd;
         } else {
-            return currentMonth.toString();
+            floor = currentMonth;
         }
+        if (!floor.isAfter(fyStart)) {
+            return floor.toString();
+        }
+        Optional<String> earliestOpen = payRunRepository.findEarliestOpenPeriod(
+                tenantId,
+                PayRunType.REGULAR,
+                CLOSED_RUN_STATUSES,
+                fyStart.toString(),
+                floor.minusMonths(1).toString());
+        return earliestOpen.filter(p -> PERIOD_PATTERN.matcher(p).matches()).orElse(floor.toString());
     }
 
     private static String currentActor() {

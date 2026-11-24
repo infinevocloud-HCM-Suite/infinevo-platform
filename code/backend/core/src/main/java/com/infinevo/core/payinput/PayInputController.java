@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/v1/pay-inputs} (W-19 §4). Three actions, three codes — a caller holding only
+ * {@code /api/v1/pay-inputs} (W-19 §4, D-144). Three actions, three codes — a caller holding only
  * {@code core.pay_input.read} must not be able to write or lock, so each verb carries its own
  * {@link RequiresAction} rather than one on the class ({@code PayInputGuardIT}).
  *
@@ -55,7 +55,8 @@ public class PayInputController {
                 request.sourceRef(),
                 request.runRef(),
                 request.note());
-        PayInputResponse created = payInputService.record(command);
+        // A hand entry (D-144): a CLOSED month is refused with a 409 naming the month to use, not moved.
+        PayInputResponse created = payInputService.recordEntry(command);
         return ResponseEntity.created(URI.create("/api/v1/pay-inputs/" + created.id()))
                 .body(created);
     }
@@ -84,10 +85,26 @@ public class PayInputController {
         return employeeId != null ? payInputService.forEmployee(employeeId, parsed) : payInputService.forPeriod(parsed);
     }
 
+    /**
+     * Where an untagged entry for {@code period} would post (D-144): OPEN and LOCKED post there
+     * (LOCKED: the run must be recomputed); CLOSED would be refused, and {@code posted_period} is
+     * the first open month. Read-only, so the read action is enough.
+     */
+    @GetMapping("/posting/{period}")
+    @RequiresAction("core.pay_input.read")
+    public PayInputPosting posting(@PathVariable("period") String period) {
+        return payInputService.posting(parsePeriod(period));
+    }
+
+    /**
+     * Locks a period at LOCKED - entries still post there and the run must be recomputed (D-144).
+     * Closing a month and removing a lock are not offered over HTTP: payroll does both through
+     * {@link PayInputService} when a run is approved or cancelled, and no screen needs either.
+     */
     @PostMapping("/periods/{period}/lock")
     @RequiresAction("core.pay_input.lock")
     public ResponseEntity<Void> lockPeriod(@PathVariable("period") String period) {
-        payInputService.lock(parsePeriod(period));
+        payInputService.lock(parsePeriod(period), PayInputLockStage.LOCKED);
         return ResponseEntity.ok().build();
     }
 
@@ -132,6 +149,11 @@ public class PayInputController {
 
     @ExceptionHandler(PayInputService.RunLockedException.class)
     public ResponseEntity<ApiErrorResponse> handleRunLocked(PayInputService.RunLockedException e) {
+        return error(HttpStatus.CONFLICT, ApiError.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(PayInputService.PeriodClosedException.class)
+    public ResponseEntity<ApiErrorResponse> handlePeriodClosed(PayInputService.PeriodClosedException e) {
         return error(HttpStatus.CONFLICT, ApiError.CONFLICT, e.getMessage());
     }
 

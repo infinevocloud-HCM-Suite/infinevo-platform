@@ -67,6 +67,7 @@ class TaxDeclarationControllerTest {
             false,
             null,
             null,
+            java.time.Instant.parse("2026-04-12T09:30:00Z"),
             true,
             true,
             true,
@@ -264,7 +265,21 @@ class TaxDeclarationControllerTest {
         officerMvc
                 .perform(get("/api/v1/payroll/employees/{employeeId}/tax-declaration/{fy}", employeeId, fy))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(200));
+                .andExpect(jsonPath("$.status").value(200))
+                // D-147: "Last updated" on the officer's view reads this.
+                .andExpect(jsonPath("$.data.updated_at").exists());
+    }
+
+    @Test
+    @DisplayName("D-147: officer GET answers 404 when the employee has no declaration for the year")
+    void testOfficerGetNotFound() throws Exception {
+        given(permissionService.holds("payroll.tax_declaration.read")).willReturn(true);
+        given(taxDeclarationService.read(employeeId, fy)).willThrow(new DeclarationNotFoundException(employeeId, fy));
+
+        officerMvc
+                .perform(get("/api/v1/payroll/employees/{employeeId}/tax-declaration/{fy}", employeeId, fy))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     @Test
@@ -335,6 +350,38 @@ class TaxDeclarationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.data.financial_year").value(fy));
+    }
+
+    @Test
+    @DisplayName("D-147: settings GET carries updated_at for a saved window")
+    void testSettingsGetCarriesUpdatedAt() throws Exception {
+        given(permissionService.holds("payroll.settings.manage")).willReturn(true);
+        given(windowService.get(fy))
+                .willReturn(new TaxDeclarationWindowResponse(
+                        UUID.randomUUID(),
+                        fy,
+                        LocalDate.of(2026, 4, 1),
+                        LocalDate.of(2026, 4, 30),
+                        false,
+                        "NEW",
+                        true,
+                        true,
+                        false,
+                        false,
+                        true,
+                        true,
+                        null,
+                        null,
+                        false,
+                        true,
+                        false,
+                        false,
+                        java.time.Instant.parse("2026-04-02T05:00:00Z")));
+
+        settingsMvc
+                .perform(get("/api/v1/payroll/tax-declaration/settings/{fy}", fy))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updated_at").exists());
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.infinevo.core.payinput;
 
 import java.time.YearMonth;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -9,20 +10,29 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Reads and writes {@code core.pay_input_period_lock} (W-19). {@code app_user} holds no
- * {@code UPDATE} or {@code DELETE} on the table ({@code V031}); a lock is written once and never
- * changed.
+ * Reads and writes {@code core.pay_input_period_lock} (W-19). Since D-144 ({@code V220}) a period
+ * lock carries a stage, and {@code app_user} may make exactly two changes, both here as single
+ * statements: {@link #closeIfLocked} ({@code LOCKED -> CLOSED}) and {@link #deleteIfLocked}. The
+ * restrictive policies in {@code V220} refuse anything else.
  */
 @Transactional(readOnly = true)
 public interface PayInputPeriodLockRepository extends JpaRepository<PayInputPeriodLock, UUID> {
 
     /**
-     * Whether the tenant's period itself is locked — a run lock does not count, even though it
-     * carries the run's period too (W-30.1 spec §6). {@link PayInputServiceImpl#record} calls this
-     * before every untagged insert so a late input can be redirected; {@code trg_pay_input_period_lock}
-     * ({@code V032}, {@code V060}) is what actually stops anything this check missed.
+     * Whether the tenant's period itself has a lock of any stage — a run lock does not count, even
+     * though it carries the run's period too (W-30.1 spec §6). Posting no longer reads this (D-144:
+     * {@link #findPeriodStage}); a LOCKED month still takes entries.
      */
     boolean existsByTenantIdAndPeriodAndRunRefIsNull(UUID tenantId, YearMonth period);
+
+    /**
+     * The stage of the tenant's period lock for {@code period}, or empty when the month has none -
+     * a run lock never counts (W-30.1). {@link PayInputServiceImpl}'s one posting rule reads this
+     * (D-144); {@code trg_pay_input_period_lock} ({@code V220}) is what refuses a CLOSED month anyway.
+     */
+    @Query("select l.stage from PayInputPeriodLock l"
+            + " where l.tenantId = :tenantId and l.period = :period and l.runRef is null")
+    Optional<PayInputLockStage> findPeriodStage(@Param("tenantId") UUID tenantId, @Param("period") YearMonth period);
 
     /** Whether a run is locked (W-30.1) — checked before a tagged insert, in place of the period check. */
     boolean existsByTenantIdAndRunRef(UUID tenantId, UUID runRef);
@@ -42,17 +52,55 @@ public interface PayInputPeriodLockRepository extends JpaRepository<PayInputPeri
      * (which never sets {@code run_ref}, leaving it {@code NULL}) would otherwise fail with
      * "no unique or exclusion constraint matching the ON CONFLICT specification".
      *
+     * <p>{@code stage} is {@code LOCKED} or {@code CLOSED} (D-144). An existing row is left as it
+     * is whatever its stage - raising it is {@link #closeIfLocked}, and nothing lowers it.
+     *
      * @return {@code 1} if this call created the lock, {@code 0} if it already existed
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
-            value = "INSERT INTO core.pay_input_period_lock (tenant_id, period, locked_by, created_by, updated_by)"
-                    + " VALUES (:tenantId, CAST(:period AS char(7)), :lockedBy, :lockedBy, :lockedBy)"
-                    + " ON CONFLICT (tenant_id, period) WHERE run_ref IS NULL DO NOTHING",
+            value =
+                    "INSERT INTO core.pay_input_period_lock (tenant_id, period, stage, locked_by, created_by, updated_by)"
+                            + " VALUES (:tenantId, CAST(:period AS char(7)), :stage, :lockedBy, :lockedBy, :lockedBy)"
+                            + " ON CONFLICT (tenant_id, period) WHERE run_ref IS NULL DO NOTHING",
             nativeQuery = true)
     @Transactional
     int insertIfAbsent(
-            @Param("tenantId") UUID tenantId, @Param("period") String period, @Param("lockedBy") String lockedBy);
+            @Param("tenantId") UUID tenantId,
+            @Param("period") String period,
+            @Param("stage") String stage,
+            @Param("lockedBy") String lockedBy);
+
+    /**
+     * Raises the tenant's period lock from LOCKED to CLOSED - the run was approved (D-144). A
+     * CLOSED row, or no row, is a zero-row outcome. Allowed by {@code V220}'s column grant and its
+     * {@code close_period_lock_only} policy, which refuses any other UPDATE.
+     *
+     * @return {@code 1} if the lock was raised, {@code 0} otherwise
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            value = "UPDATE core.pay_input_period_lock SET stage = 'CLOSED', updated_at = CURRENT_TIMESTAMP,"
+                    + " updated_by = :actor WHERE tenant_id = :tenantId AND period = CAST(:period AS char(7))"
+                    + " AND run_ref IS NULL AND stage = 'LOCKED'",
+            nativeQuery = true)
+    @Transactional
+    int closeIfLocked(@Param("tenantId") UUID tenantId, @Param("period") String period, @Param("actor") String actor);
+
+    /**
+     * Removes the tenant's LOCKED period lock - the run was cancelled (D-144, D-138). A CLOSED row is
+     * never removed: the statement does not match it, and {@code V220}'s
+     * {@code delete_locked_period_lock_only} policy would hide it from a DELETE anyway.
+     *
+     * @return {@code 1} if a lock was removed, {@code 0} otherwise
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            value = "DELETE FROM core.pay_input_period_lock WHERE tenant_id = :tenantId"
+                    + " AND period = CAST(:period AS char(7)) AND run_ref IS NULL AND stage = 'LOCKED'",
+            nativeQuery = true)
+    @Transactional
+    int deleteIfLocked(@Param("tenantId") UUID tenantId, @Param("period") String period);
 
     /**
      * Locks a run, or does nothing if it is already locked (W-30.1) — {@code period} is stored

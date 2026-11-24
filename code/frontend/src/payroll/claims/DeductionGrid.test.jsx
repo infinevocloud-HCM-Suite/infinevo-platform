@@ -130,4 +130,14 @@ describe('DeductionGrid (W-47.4 §7)', () => {
       document_id: null,
     });
   });
+  it('D-146: a month far in the future can be picked, the picker no longer stops at next month', async () => {
+    render(<DeductionGrid open onClose={() => {}} onPosted={() => {}} />);
+    fireEvent.click(addButton());
+    const month = dayjs().add(14, 'month').format('YYYY-MM');
+    const input = screen.getAllByPlaceholderText('Month')[0];
+    fireEvent.mouseDown(input);
+    fireEvent.change(input, { target: { value: month } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    await waitFor(() => expect(input.value).toBe(month));
+  });
 });

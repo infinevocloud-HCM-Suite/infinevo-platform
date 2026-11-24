@@ -69,6 +69,9 @@ gives `PAY-15` no table. The statement is **rendered, not stored**, as the paysl
        balance     = tds.annual_tax − deducted                     > 0 still owed, < 0 excess
        breakdown   = computation, when computation.annual_tax = tds.annual_tax
                      else null, with breakdown_note = "OFFICER_OVERRIDE"
+                     no computation at all: null, with breakdown_note = "NO_COMPUTATION" (D-149)
+                     the breakdown carries grossSalary and incomeFromSalary worked back from the
+                     stored total, so each printed line follows from the one above (D-149)
        final       = a PAID run exists for every period April..March of fy
    --> 200 Form16Statement
 ```

@@ -198,6 +198,10 @@ public final class TaxDeclarationTestSchema {
     public static void clearDeclarations() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            // D-147: a failed recalculation leaves a row pointing at the employee, which is deleted below.
+            if (tableExists(conn, "payroll", "tax_recalc_failure")) {
+                stmt.execute("DELETE FROM payroll.tax_recalc_failure");
+            }
             if (tableExists(conn, "payroll", "employee_inv_tax_summary")) {
                 stmt.execute("DELETE FROM payroll.employee_inv_tax_summary");
             }

@@ -19,7 +19,6 @@ function renderAt(route, { actions = ['payroll.tax_declaration.read'] } = {}) {
       <MemoryRouter initialEntries={[route]}>
         <Routes>
           <Route path="/employees/:employeeId/tax-declaration/:fy" element={<OfficerDeclarationView />} />
-          <Route path="/payroll/tax-declarations/:employeeId/:fy" element={<OfficerDeclarationView />} />
         </Routes>
       </MemoryRouter>
     </NavigationProvider>,
@@ -39,6 +38,7 @@ describe('OfficerDeclarationView', () => {
     is_repaying_self_occupied_loan: false,
     has_let_out_property: false,
     submitted_at: '2026-04-10T12:00:00Z',
+    updated_at: '2026-04-12T09:30:00Z',
   };
 
   beforeEach(() => {
@@ -46,7 +46,7 @@ describe('OfficerDeclarationView', () => {
   });
 
   it('renders NotEntitled without payroll.tax_declaration.read, and reads nothing', () => {
-    renderAt(`/payroll/tax-declarations/${EMPLOYEE_ID}/2026-27`, { actions: [] });
+    renderAt(`/employees/${EMPLOYEE_ID}/tax-declaration/2026-27`, { actions: [] });
 
     expect(screen.getByText('Module Not Subscribed')).toBeTruthy();
     expect(screen.queryByText('Officer Declaration Review')).toBeNull();
@@ -56,7 +56,7 @@ describe('OfficerDeclarationView', () => {
   it('reads :employeeId and :fy from the route and links back to the employee page', async () => {
     declarationService.headerOf.mockResolvedValueOnce(sampleHeader);
 
-    renderAt(`/payroll/tax-declarations/${EMPLOYEE_ID}/2026-27`);
+    renderAt(`/employees/${EMPLOYEE_ID}/tax-declaration/2026-27`);
 
     expect(declarationService.headerOf).toHaveBeenCalledWith(EMPLOYEE_ID, '2026-27');
     await waitFor(() => {
@@ -71,8 +71,19 @@ describe('OfficerDeclarationView', () => {
     expect(screen.queryByText(EMPLOYEE_ID)).toBeNull();
   });
 
+  it('shows the header updated_at as Last Updated (D-147)', async () => {
+    declarationService.headerOf.mockResolvedValueOnce(sampleHeader);
+
+    renderAt(`/employees/${EMPLOYEE_ID}/tax-declaration/2026-27`);
+
+    await waitFor(() => {
+      expect(screen.getByText('Last Updated')).toBeTruthy();
+      expect(screen.getByText('12 Apr 2026')).toBeTruthy();
+    });
+  });
+
   it('has no free-text employee box and never sends an id that is not a UUID', () => {
-    renderAt('/payroll/tax-declarations/EMP-1001/2026-27');
+    renderAt('/employees/EMP-1001/tax-declaration/2026-27');
 
     expect(screen.queryByTestId('officer-employee-input')).toBeNull();
     expect(screen.getByTestId('officer-invalid-employee')).toBeTruthy();
@@ -82,7 +93,7 @@ describe('OfficerDeclarationView', () => {
   it('says so when the employee has no declaration (404)', async () => {
     declarationService.headerOf.mockRejectedValueOnce({ status: 404, code: 'NOT_FOUND', message: 'Not found' });
 
-    renderAt(`/payroll/tax-declarations/${EMPLOYEE_ID}/2026-27`);
+    renderAt(`/employees/${EMPLOYEE_ID}/tax-declaration/2026-27`);
 
     await waitFor(() => {
       expect(screen.getByText(/No tax declaration found for this employee in FY 2026-27/i)).toBeTruthy();

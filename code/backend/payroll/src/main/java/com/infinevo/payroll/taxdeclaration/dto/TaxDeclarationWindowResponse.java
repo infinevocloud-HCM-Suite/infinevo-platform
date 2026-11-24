@@ -1,9 +1,11 @@
 package com.infinevo.payroll.taxdeclaration.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
+/** The year's declaration window; {@code updated_at} is null for a year never saved (D-147). */
 public record TaxDeclarationWindowResponse(
         UUID id,
         @JsonProperty("financial_year") String financialYear,
@@ -22,9 +24,10 @@ public record TaxDeclarationWindowResponse(
         @JsonProperty("poi_locked") boolean poiLocked,
         @JsonProperty("poi_attachment_mandatory") boolean poiAttachmentMandatory,
         @JsonProperty("poi_comment_mandatory") boolean poiCommentMandatory,
-        @JsonProperty("poi_is_open") boolean poiIsOpen) {
+        @JsonProperty("poi_is_open") boolean poiIsOpen,
+        @JsonProperty("updated_at") Instant updatedAt) {
 
-    /** The W-32.1 shape: no proof window set, attachments mandatory, comments not. */
+    /** The W-32.1 shape: no proof window set, attachments mandatory, comments not; never saved. */
     public TaxDeclarationWindowResponse(
             UUID id,
             String financialYear,
@@ -56,6 +59,7 @@ public record TaxDeclarationWindowResponse(
                 false,
                 true,
                 false,
-                false);
+                false,
+                null);
     }
 }

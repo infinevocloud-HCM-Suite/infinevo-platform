@@ -121,7 +121,7 @@ All new, under `code/backend/payroll/src/main/java/com/infinevo/payroll/deductio
 **Validation per line, all `400` naming the line**
 
 - `employee_id` is an active employee of the bound tenant (`EmployeeService`)
-- `period` parses as `YearMonth`, not more than one month in the future
+- `period` parses as `YearMonth`; any past or future month is accepted (the one-month-ahead limit was removed by D-146)
 - `amount > 0`, scale at most 2
 - `deduction_type` one of the enum
 - `reason` 1–255 characters; `remarks` at most 500

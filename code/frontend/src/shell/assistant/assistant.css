@@ -1,0 +1,121 @@
+/*
+ * The AI helper drawer (W-114.5). Layout only: every colour comes from the Ant Design theme tokens,
+ * set inline by the components.
+ */
+
+/* The drawer is never taller than the visible screen, so on a phone the input stays above the keyboard. */
+.assistant-drawer .ant-drawer-content-wrapper {
+  max-height: 100dvh;
+}
+
+.assistant-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.assistant-row {
+  display: flex;
+}
+
+.assistant-row-user {
+  justify-content: flex-end;
+}
+
+.assistant-row-helper {
+  justify-content: flex-start;
+}
+
+.assistant-bubble {
+  max-width: 85%;
+  /* Line breaks in a question or an answer are kept; nothing else in the text is interpreted. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 8px;
+}
+
+.assistant-alert {
+  margin-top: 8px;
+}
+
+.assistant-loading {
+  align-self: center;
+  margin-top: 24px;
+}
+
+.assistant-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assistant-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.assistant-input textarea {
+  flex: 1 1 auto;
+}
+
+.assistant-usage {
+  font-size: 12px;
+}
+
+.assistant-sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.assistant-session {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.assistant-session-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+
+.assistant-session-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-session-date {
+  font-size: 12px;
+}
+
+/* Read by a screen reader, not shown. */
+.assistant-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
