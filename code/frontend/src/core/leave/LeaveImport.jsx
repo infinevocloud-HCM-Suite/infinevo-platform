@@ -10,7 +10,7 @@ import {
   Col,
   Upload,
   Switch,
-  InputNumber,
+  Select,
   Tag,
   Statistic,
   Alert,
@@ -27,10 +27,35 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { leaveImportService } from './leaveImportService.js';
 import { documentService } from '../document/documentService.js';
+import { companyProfileService } from '../settings/companyProfileService.js';
 import { EMPTY, formatDateTime, statusTag } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 const { Dragger } = Upload;
+
+/** The server's default for core.tenant.leave_year_start_month (V033): April. */
+const DEFAULT_LEAVE_YEAR_START_MONTH = 4;
+
+/** The year a leave year starts in, for the leave year that holds `today`. */
+export function currentLeaveYearStart(today, startMonth) {
+  return today.month() + 1 >= startMonth ? today.year() : today.year() - 1;
+}
+
+/**
+ * The leave year as the server stores it (LeaveDateUtils.canonicalizeLeaveYear): '2026' when the company's
+ * year starts in January, '2026-27' for any other start month (D-49).
+ */
+export function leaveYearValue(startYear, startMonth) {
+  if (startMonth === 1) return String(startYear);
+  return `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
+}
+
+/** '2026-27 (Apr 2026 to Mar 2027)': what HR picks, so nobody has to know the format. */
+export function leaveYearLabel(startYear, startMonth) {
+  const start = dayjs(new Date(startYear, startMonth - 1, 1));
+  const end = start.add(1, 'year').subtract(1, 'day');
+  return `${leaveYearValue(startYear, startMonth)} (${start.format('MMM YYYY')} to ${end.format('MMM YYYY')})`;
+}
 
 const STATUS_TAGS = {
   PENDING: { color: 'processing', label: 'Processing' },
@@ -43,7 +68,14 @@ export function LeaveImport() {
   const canManage = useCan('core.leave_balance.manage');
   const { token } = theme.useToken();
 
-  const [leaveYear, setLeaveYear] = useState(dayjs().year());
+  // D-49: the leave year follows the company's start month, which the platform admin sets. Until the
+  // company profile answers, assume April - the server's own default.
+  const [leaveYearStartMonth, setLeaveYearStartMonth] = useState(DEFAULT_LEAVE_YEAR_START_MONTH);
+  const [leaveYearFromTenant, setLeaveYearFromTenant] = useState(true);
+  const [leaveYearStart, setLeaveYearStart] = useState(() =>
+    currentLeaveYearStart(dayjs(), DEFAULT_LEAVE_YEAR_START_MONTH)
+  );
+  const [openingReport, setOpeningReport] = useState(false);
   const [dryRun, setDryRun] = useState(true);
   const [documentId, setDocumentId] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -83,6 +115,39 @@ export function LeaveImport() {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, [canManage, loadHistory]);
+
+  useEffect(() => {
+    if (!canManage) return undefined;
+    let live = true;
+    companyProfileService
+      .get()
+      .catch(() => null)
+      .then((profile) => {
+        if (!live) return;
+        const month = Number(profile?.leaveYearStartMonth);
+        const known = month >= 1 && month <= 12;
+        const startMonth = known ? month : DEFAULT_LEAVE_YEAR_START_MONTH;
+        setLeaveYearStartMonth(startMonth);
+        setLeaveYearFromTenant(known);
+        setLeaveYearStart(currentLeaveYearStart(dayjs(), startMonth));
+      });
+    return () => {
+      live = false;
+    };
+  }, [canManage]);
+
+  // D-51: the error report is a stored document; open it through its signed link.
+  const handleOpenErrorReport = async (id) => {
+    setOpeningReport(true);
+    try {
+      const { url } = await documentService.link(id);
+      window.open(url, '_blank', 'noopener');
+    } catch (err) {
+      await errorMsg(err);
+    } finally {
+      setOpeningReport(false);
+    }
+  };
 
   const handleCustomUpload = async ({ file, onSuccess, onError }) => {
     setUploading(true);
@@ -152,7 +217,7 @@ export function LeaveImport() {
     try {
       const payload = {
         documentId,
-        leaveYear: String(leaveYear),
+        leaveYear: leaveYearValue(leaveYearStart, leaveYearStartMonth),
         dryRun,
       };
 
@@ -179,6 +244,12 @@ export function LeaveImport() {
   if (!canManage) {
     return <NotEntitled />;
   }
+
+  // Last, current and next leave year around the one in view.
+  const thisLeaveYear = currentLeaveYearStart(dayjs(), leaveYearStartMonth);
+  const leaveYearOptions = [...new Set([thisLeaveYear - 1, thisLeaveYear, thisLeaveYear + 1, leaveYearStart])]
+    .sort((a, b) => a - b)
+    .map((y) => ({ value: y, label: leaveYearLabel(y, leaveYearStartMonth) }));
 
   const historyColumns = [
     {
@@ -259,12 +330,19 @@ export function LeaveImport() {
             <Col xs={24} sm={12} md={6}>
               <Text strong>Leave Year:</Text>
               <div style={{ marginTop: 8 }}>
-                <InputNumber
-                  value={leaveYear}
-                  onChange={setLeaveYear}
+                <Select
+                  aria-label="Leave Year"
+                  value={leaveYearStart}
+                  onChange={setLeaveYearStart}
+                  options={leaveYearOptions}
                   style={{ width: '100%' }}
                 />
               </div>
+              {!leaveYearFromTenant && (
+                <Text type="secondary">
+                  Company settings could not be read; assuming the leave year starts in April.
+                </Text>
+              )}
             </Col>
             <Col xs={24} sm={12} md={6}>
               <Text strong>Dry Run (No database writes):</Text>
@@ -355,11 +433,22 @@ export function LeaveImport() {
                 type="warning"
                 showIcon
                 message="Errors Encountered"
-                description={`Some rows had validation errors. ${
+                description={
                   currentImport.errorDocumentId
-                    ? `Download error report document: ${currentImport.errorDocumentId}`
-                    : 'Check row constraints, employee numbers, and active leave types.'
-                }`}
+                    ? 'Some rows had validation errors. The error report lists each failed row and the reason.'
+                    : 'Some rows had validation errors. Check row constraints, employee numbers, and active leave types.'
+                }
+                action={
+                  currentImport.errorDocumentId ? (
+                    <Button
+                      icon={<DownloadOutlined aria-hidden="true" />}
+                      loading={openingReport}
+                      onClick={() => handleOpenErrorReport(currentImport.errorDocumentId)}
+                    >
+                      Download error report
+                    </Button>
+                  ) : null
+                }
                 style={{ marginTop: 16 }}
               />
             )}
