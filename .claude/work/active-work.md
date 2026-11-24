@@ -53,8 +53,8 @@
 | D-152 | Proof-of-investment screens: employee receipts tab, officer verification queue and review drawer, chase list with the POI reminder; inbox link. Closes D-95 | `985b1ec2` |
 
 - Built by Claude; one independent read each, defects fixed on the branch, CI green.
-- **Left:** the stored tax working holds no amounts (`Money` has no JSON serializer).
-- **Left (D-151):** a background recalculation can fail on `core.employee.read` (seen in CI); no isolated test of the lock DELETE policy.
+- ~~**Left:** the stored tax working holds no amounts (`Money` has no JSON serializer).~~ Fixed by D-153 (`a1461088`).
+- **Left (D-151):** ~~a background recalculation can fail on `core.employee.read`~~ (fixed by D-154, `7f1b7850`); no isolated test of the lock DELETE policy.
 - **Branches:** `dev-claude-d150` to `dev-claude-d152` reset to `main`.
 - **Left (D-152):** payroll officers see proofs read-only (verifying needs `payroll.proof.review`); no screen for proof item comments.
 
@@ -65,7 +65,7 @@
 | D-149 | Form 16: tenant name as deductor, designation by name, full PAN, a Part B working that adds up under both regimes, a separate NO_COMPUTATION note, employee names on the Part A list, an error on a failed download, dashes when there is no statement | `dfbd5a75` |
 
 - Built by Claude; one independent read, no blocking defect; CI green on `a1b2bdb7`.
-- **Left:** F-2: under the old regime, a house-property loss that floors gross total income at 0 overstates the printed gross salary (`Form16Assembler.java:194`). By spec, not changed: only PAID runs count; no TDS record gives 404. The founder was asked whether to change either.
+- **Since fixed:** F-2 by D-150 (`86a71006`); the PAID-only rule and the 404 were changed by D-150 at the founder's word. Was: F-2: under the old regime, a house-property loss that floors gross total income at 0 overstates the printed gross salary (`Form16Assembler.java:194`). By spec, not changed: only PAID runs count; no TDS record gives 404. The founder was asked whether to change either.
 - **Branch:** `dev-claude-d149` reset to `main`.
 
 ## 2026-11-24 — D-144 to D-148 on `main`: ledger pickup month, TDS screens, tax declaration fixes
