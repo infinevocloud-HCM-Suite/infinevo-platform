@@ -539,4 +539,72 @@ describe('AppShell component', () => {
       expect(content().style.marginLeft).toBe('230px');
     });
   });
+
+  describe('AI helper launcher (W-114.5)', () => {
+    const feed = {
+      items: [{ key: 'core', labelKey: 'Core Menu Item', path: '/core' }],
+      loading: false,
+    };
+    const desktopWidth = window.innerWidth;
+    const setWidth = (width) => Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+
+    afterEach(() => setWidth(desktopWidth));
+
+    function statusAnswers(answer) {
+      return vi.spyOn(clientModule.apiClient, 'get').mockImplementation((url) =>
+        url === '/v1/ai/status' ? answer() : Promise.resolve({ data: { content: [], totalElements: 0 } }),
+      );
+    }
+
+    it('mounts the launcher once and asks for the status once', async () => {
+      const get = statusAnswers(() =>
+        Promise.resolve({ data: { enabled: true, monthlyRequestCap: 500, usedThisMonth: 0, month: '2026-11' } }),
+      );
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+
+      const { container } = render(
+        <MemoryRouter initialEntries={['/core']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByRole('button', { name: 'Ask the AI helper' })).toBeDefined();
+      expect(container.querySelectorAll('#btn-ai-helper')).toHaveLength(1);
+      expect(get.mock.calls.filter(([url]) => url === '/v1/ai/status')).toHaveLength(1);
+    });
+
+    it('renders the shell unchanged and no button when the status call fails', async () => {
+      const get = statusAnswers(() => Promise.reject({ code: 'INTERNAL', status: 500 }));
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+
+      render(
+        <MemoryRouter initialEntries={['/core']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => expect(get.mock.calls.some(([url]) => url === '/v1/ai/status')).toBe(true));
+      expect(screen.getByText('Core Menu Item')).toBeDefined();
+      expect(screen.getByTestId('brand').textContent).toBe('Infinevo HCM Suite');
+      expect(screen.queryByRole('button', { name: 'Ask the AI helper' })).toBeNull();
+    });
+
+    it('opens the drawer full width in phone mode', async () => {
+      setWidth(375);
+      statusAnswers(() =>
+        Promise.resolve({ data: { enabled: true, monthlyRequestCap: 500, usedThisMonth: 0, month: '2026-11' } }),
+      );
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+
+      render(
+        <MemoryRouter initialEntries={['/core']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Ask the AI helper' }));
+      await screen.findByLabelText('Your question');
+      expect(document.querySelector('.assistant-drawer .ant-drawer-content-wrapper').style.width).toBe('100%');
+    });
+  });
 });

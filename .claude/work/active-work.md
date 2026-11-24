@@ -21,6 +21,13 @@
 - **For the migrated company:** company TDS stays off; Antoday's TDS is to be settled from the new officer TDS card at the founder's word.
 - **Branches:** `dev-claude-d144` to `dev-claude-d148` reset to `main`; they can be deleted.
 
+## 2026-11-24 — W-114.5 AI helper chat drawer on `main`
+
+- Ask button (only when the customer's helper is on) and a slide-over drawer: ask, read, New chat, Past chats, delete; full width on a phone; answers rendered as plain text only. `code/frontend/src/shell/assistant/`, one mount in `AppShell.jsx`.
+- Built by Claude; one independent read (one Medium fixed: a late-loading past chat no longer overwrites the open chat), CI green on `0ab0c679`.
+- **Known, left:** the button's status is read once per shell mount, so it does not refresh when a platform admin starts or ends impersonation.
+- **Next:** `W-114.6` HRMS read-only tools.
+
 ## 2026-11-23 — W-114.4 AI helper answers questions on `main`
 
 | What | Where |
