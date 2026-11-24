@@ -6,6 +6,19 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — W-95 and W-93 on `main` (`6833cd7b`): ESI and PT reports, guided statutory setup
+
+| Ticket | What | Where |
+|---|---|---|
+| `W-95` | ESI and PT return files (XLSX, CSV) for a computed, approved or paid regular run; Statutory Returns menu on the pay run page; off-cycle runs refused | `statutory/report/`, `RunPage.jsx` |
+| `W-93` | Guided setup wizard for EPF, ESI and PT at Payroll › Settings; a PT registration number is stored without copying slabs, and the pay run uses the reference slabs when an override has none | `statutory/guided/`, `ProfessionalTaxServiceImpl`, `GuidedStatutorySetup.jsx` |
+
+- Built by Sayeed on `dev-sayeed`; one independent read per ticket, findings fixed by Sayeed and then by Claude on `dev-claude-sayeed`; CI green on `246f0809` (same files). No migration.
+- **Founder decisions 2026-11-24:** PT number stored without a slab copy; `W-87` stores EPF, EPS and EDLI wages on the pay run; `W-92` LWF rules live in a dated reference table with no customer override.
+- **Specs on `main`, not built:** `W-87`, `W-92` (both wait on the CA), `W-110`, `W-111`, `W-112`. `W-110` proposes a minimum group of 5 for anonymous results: founder to confirm.
+- **Left:** the ESI wage column is rebuilt at report time, not stored (`W-87` fixes it); ESI stops the month wages cross the ceiling, with no contribution-period carry-on (CA to confirm).
+- **Branches:** `dev-claude-sayeed` can be deleted; `dev-sayeed` resets to `main`. `dev-sayeed-statutory-epf-pt` and `W-69-document-migration` hold nothing unmerged and can be deleted.
+
 ## 2026-11-24 — D-150 to D-152 on `main`: Form 16, officer TDS, proof screens
 
 | Ticket | What | Commit |
