@@ -118,7 +118,7 @@ export function GuidedStatutorySetup() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [form]);
 
   useEffect(() => {
     loadReadiness();
@@ -572,8 +572,8 @@ export function GuidedStatutorySetup() {
                   <Alert
                     type="info"
                     showIcon
-                    message="Standard Legal Split Applied Automatically"
-                    description="Employee deduction: 12.00% · Employer share: 12.00% (3.67% EPF + 8.33% EPS pension) · EDLI: 0.50% · Admin charges: 0.50%."
+                    message="Standard legal split for a new setup"
+                    description="Employee deduction: 12.00% · Employer share: 12.00% (3.67% EPF + 8.33% EPS pension) · EDLI: 0.50% · Admin charges: 0.50%. If your company already has its own rates or wage ceiling in EPF settings, they are kept."
                   />
                 </div>
               ) : (
@@ -688,8 +688,8 @@ export function GuidedStatutorySetup() {
                   <Alert
                     type="info"
                     showIcon
-                    message="Standard Legal ESI Rates Applied"
-                    description="Employee deduction: 0.75% of gross wages · Employer contribution: 3.25% of gross wages · Wage ceiling: ₹21,000/month."
+                    message="Standard legal ESI rates for a new setup"
+                    description="Employee deduction: 0.75% of gross wages · Employer contribution: 3.25% of gross wages · Wage ceiling: ₹21,000/month. If your company already has its own rates or wage ceiling in ESI settings, they are kept."
                   />
                 </div>
               ) : (

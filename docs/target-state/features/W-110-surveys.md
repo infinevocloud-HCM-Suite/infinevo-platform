@@ -96,8 +96,8 @@ CREATE TABLE hrms.survey_response (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
     survey_id UUID NOT NULL REFERENCES hrms.survey(id) ON DELETE CASCADE,
-    employee_id UUID REFERENCES core.employee(id),
-    submission_token VARCHAR(64) NOT NULL,
+    employee_id UUID REFERENCES core.employee(id), -- always NULL for an anonymous survey
+    submission_token VARCHAR(64) NOT NULL,          -- HMAC-SHA256(server secret, tenant_id | survey_id | employee_id)
     submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_survey_response_token UNIQUE (tenant_id, survey_id, submission_token)
 );
@@ -154,7 +154,8 @@ Follows standard role grant pattern established in `code/backend/migration/src/m
 ### In Scope
 1. **Survey Definition (`hrms.survey`):**
    - Title, description/instructions, survey category (`PULSE_POLL`, `SATISFACTION`, `ONBOARDING_FEEDBACK`, `GENERAL`).
-   - `is_anonymous`: When true, individual answers are permanently decoupled from employee records.
+   - `is_anonymous`: When true, `survey_response.employee_id` is never stored. One vote per person is kept by `submission_token`, an HMAC keyed with a server secret held in Key Vault, so the token cannot be recomputed from the database alone. `submitted_at` is stored as the date only. `is_anonymous` cannot be changed after the survey is published.
+   - **Minimum group size (proposed, founder to confirm): 5.** Results for an anonymous survey, and any department or location breakdown, are shown only once at least 5 responses exist.
    - Target audience: `ALL_EMPLOYEES`, `DEPARTMENT`, or `WORK_LOCATION`.
    - Schedule: `start_date` and `end_date`.
    - Status lifecycle: `DRAFT`, `PUBLISHED`, `CLOSED`.
@@ -232,7 +233,7 @@ Follows standard role grant pattern established in `code/backend/migration/src/m
 | **AC-2** | A draft survey has valid dates and questions | HR sets status to `PUBLISHED` | Survey transitions to `PUBLISHED` and becomes visible to targeted employees in `/me/surveys` |
 | **AC-3** | An active employee targeted by a published survey | Submits survey answers via `POST /api/v1/me/surveys/{id}/submit` | Submission is recorded; survey moves to completed list for that employee |
 | **AC-4** | An employee has already answered a survey | Attempts to submit a second response to the same survey | Server rejects with `HTTP 409 Conflict` (anti-duplicate voting) |
-| **AC-5** | A survey is marked `is_anonymous = true` | Employee submits answers | `survey_response.employee_id` is stored as null or hashed token; responses cannot be tied back to employee |
+| **AC-5** | A survey is marked `is_anonymous = true` | Employee submits answers | `survey_response.employee_id` is NULL and `submitted_at` carries the date only; a second submit by the same employee is still refused with `409`; results are withheld until 5 responses exist |
 | **AC-6** | Survey end date has passed or HR closed it | Employee attempts to submit answers | Server rejects with `HTTP 400 Bad Request` (survey is closed) |
 | **AC-7** | HR requests survey results via `GET /results` | Multiple responses exist | Returns total participant count, percentage participation, question average scores, and option breakdown |
 | **AC-8** | User without `hrms.survey.manage` calls create or status endpoint | Request is executed | Server returns `HTTP 403 Forbidden` |
@@ -243,8 +244,8 @@ Follows standard role grant pattern established in `code/backend/migration/src/m
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| **Employee anonymity breached via response timestamps** | Low | In anonymous surveys, `employee_id` is null; answers are decoupled; timestamps are jittered or rounded if necessary. |
-| **Employees submit duplicate votes via multiple browser tabs** | Medium | Database unique constraint on `(tenant_id, survey_id, submission_token)` where token is HMAC of `(tenant_id, survey_id, employee_id)` prevents duplicates. |
+| **Employee anonymity breached via response timestamps** | Low | In anonymous surveys `employee_id` is never stored, `submitted_at` holds the date only, and results are withheld below 5 responses. |
+| **Employees submit duplicate votes via multiple browser tabs** | Medium | Database unique constraint on `(tenant_id, survey_id, submission_token)` where token is HMAC-SHA256 of `(tenant_id, survey_id, employee_id)` keyed with a server secret prevents duplicates. |
 | **Non-targeted employees access and answer department surveys** | Low | Server validates target audience criteria (`ALL_EMPLOYEES`, `DEPARTMENT`, `WORK_LOCATION`) against employee's active record before accepting responses. |
 
 ---

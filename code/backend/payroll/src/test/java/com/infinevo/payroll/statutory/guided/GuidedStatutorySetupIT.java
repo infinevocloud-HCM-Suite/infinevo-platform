@@ -37,6 +37,7 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -50,6 +51,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Acceptance integration tests for Guided Statutory Setup (W-93, spec section 10).
@@ -77,6 +80,9 @@ class GuidedStatutorySetupIT extends AbstractIntegrationTest {
 
     @Autowired
     private PermissionService permissionService;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private MockMvc mvc;
     private ObjectMapper objectMapper;
@@ -159,13 +165,13 @@ class GuidedStatutorySetupIT extends AbstractIntegrationTest {
         mvc.perform(get("/api/v1/payroll/settings/guided-setup"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
-                .andExpect(jsonPath("$.data.epf_configured").value(false))
-                .andExpect(jsonPath("$.data.esi_configured").value(false))
-                .andExpect(jsonPath("$.data.defaults.epf_employee_rate").value(12.0))
-                .andExpect(jsonPath("$.data.defaults.epf_wage_ceiling").value(15000.0))
-                .andExpect(jsonPath("$.data.defaults.esi_wage_ceiling").value(21000.0))
-                .andExpect(jsonPath("$.data.operating_states[0].state_code").value("KA"))
-                .andExpect(jsonPath("$.data.operating_states[0].levies_pt").value(true));
+                .andExpect(jsonPath("$.data.epfConfigured").value(false))
+                .andExpect(jsonPath("$.data.esiConfigured").value(false))
+                .andExpect(jsonPath("$.data.defaults.epfEmployeeRate").value(12.0))
+                .andExpect(jsonPath("$.data.defaults.epfWageCeiling").value(15000.0))
+                .andExpect(jsonPath("$.data.defaults.esiWageCeiling").value(21000.0))
+                .andExpect(jsonPath("$.data.operatingStates[0].stateCode").value("KA"))
+                .andExpect(jsonPath("$.data.operatingStates[0].leviesPt").value(true));
     }
 
     @Test
@@ -197,38 +203,38 @@ class GuidedStatutorySetupIT extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
-                .andExpect(jsonPath("$.data.all_statutory_configured").value(true))
-                .andExpect(jsonPath("$.data.epf.is_enabled").value(true))
-                .andExpect(jsonPath("$.data.esi.is_enabled").value(true));
+                .andExpect(jsonPath("$.data.allStatutoryConfigured").value(true))
+                .andExpect(jsonPath("$.data.epf.isEnabled").value(true))
+                .andExpect(jsonPath("$.data.esi.isEnabled").value(true));
 
         // Verify persisted entities in database
-        Optional<EpfSetting> epf = epfSettingRepository.findByTenantId(TENANT_A);
+        Optional<EpfSetting> epf = inTx(() -> epfSettingRepository.findByTenantId(TENANT_A));
         assertThat(epf).isPresent();
         assertThat(epf.get().isEnabled()).isTrue();
         assertThat(epf.get().getRegistrationNumber()).isEqualTo("DLCPM1234567000");
         assertThat(epf.get().getEmployeeRate()).isEqualByComparingTo("12.0000");
         assertThat(epf.get().getWageCeiling()).isEqualByComparingTo("15000.0000");
 
-        Optional<EsiSetting> esi = esiSettingRepository.findByTenantId(TENANT_A);
+        Optional<EsiSetting> esi = inTx(() -> esiSettingRepository.findByTenantId(TENANT_A));
         assertThat(esi).isPresent();
         assertThat(esi.get().isEnabled()).isTrue();
         assertThat(esi.get().getRegistrationNumber()).isEqualTo("31000123450000101");
         assertThat(esi.get().getEmployeeRate()).isEqualByComparingTo("0.7500");
         assertThat(esi.get().getWageCeiling()).isEqualByComparingTo("21000.0000");
 
-        Optional<OrgPtOverride> pt = orgPtOverrideRepository.findByTenantIdAndStateCode(TENANT_A, "KA");
+        Optional<OrgPtOverride> pt = inTx(() -> orgPtOverrideRepository.findByTenantIdAndStateCode(TENANT_A, "KA"));
         assertThat(pt).isPresent();
         assertThat(pt.get().getRegistrationNumber()).isEqualTo("29123456789");
         assertThat(pt.get().getEffectiveFrom()).isEqualTo(LocalDate.of(2025, 4, 1));
 
         // Founder decision 2026-11-24: Entering PT reg number must NOT copy reference slabs to org_pt_override_slab
-        var overrideSlabs = orgPtOverrideSlabRepository.findByTenantIdAndOverrideIdOrderBySortOrderAsc(
-                TENANT_A, pt.get().getId());
+        var overrideSlabs = inTx(() -> orgPtOverrideSlabRepository.findByTenantIdAndOverrideIdOrderBySortOrderAsc(
+                TENANT_A, pt.get().getId()));
         assertThat(overrideSlabs).isEmpty();
 
         // Calculate PT: with empty override slabs, it dynamically falls through to reference slabs
-        Money ptAmount = professionalTaxService.resolve(
-                TENANT_A, "KA", Money.of("30000.0000"), "male", LocalDate.of(2025, 5, 31));
+        Money ptAmount = inTx(() -> professionalTaxService.resolve(
+                TENANT_A, "KA", Money.of("30000.0000"), "male", LocalDate.of(2025, 5, 31)));
         assertThat(ptAmount).isEqualTo(Money.of("200.0000"));
     }
 
@@ -237,7 +243,7 @@ class GuidedStatutorySetupIT extends AbstractIntegrationTest {
     void reRunningGuidedSetupPreservesExistingPtEffectiveFrom() throws Exception {
         // First run seeds PT override with effective date 2024-04-01
         OrgPtOverride initial = new OrgPtOverride(TENANT_A, "KA", "29INITIAL123", LocalDate.of(2024, 4, 1), "system");
-        orgPtOverrideRepository.save(initial);
+        inTx(() -> orgPtOverrideRepository.save(initial));
 
         // Re-run wizard with null or different date in request
         GuidedStatutorySetupRequest request = new GuidedStatutorySetupRequest(
@@ -250,9 +256,14 @@ class GuidedStatutorySetupIT extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        Optional<OrgPtOverride> updated = orgPtOverrideRepository.findByTenantIdAndStateCode(TENANT_A, "KA");
+        Optional<OrgPtOverride> updated =
+                inTx(() -> orgPtOverrideRepository.findByTenantIdAndStateCode(TENANT_A, "KA"));
         assertThat(updated).isPresent();
         assertThat(updated.get().getRegistrationNumber()).isEqualTo("29UPDATED999");
         assertThat(updated.get().getEffectiveFrom()).isEqualTo(LocalDate.of(2024, 4, 1));
+    }
+
+    private <T> T inTx(Supplier<T> work) {
+        return new TransactionTemplate(transactionManager).execute(status -> work.get());
     }
 }

@@ -175,13 +175,20 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                     : (existing != null ? existing.getRegistrationDate() : null);
 
             DeductionCycle deductionCycle = existing != null ? existing.getDeductionCycle() : DeductionCycle.MONTHLY;
-            BigDecimal employeeRate = StatutoryDefaults.EPF_EMPLOYEE_RATE;
-            BigDecimal employerRate = StatutoryDefaults.EPF_EMPLOYER_RATE;
-            BigDecimal epsRate = StatutoryDefaults.EPF_EPS_RATE;
-            BigDecimal edliRate = StatutoryDefaults.EPF_EDLI_RATE;
-            BigDecimal adminChargeRate = StatutoryDefaults.EPF_ADMIN_RATE;
-            BigDecimal wageCeiling = StatutoryDefaults.EPF_WAGE_CEILING;
-            boolean prorateRestrictedWage = restrict;
+            // A re-run keeps the company's own rates and ceiling; the standard values start a new setup only.
+            BigDecimal employeeRate =
+                    existing != null ? existing.getEmployeeRate() : StatutoryDefaults.EPF_EMPLOYEE_RATE;
+            BigDecimal employerRate =
+                    existing != null ? existing.getEmployerRate() : StatutoryDefaults.EPF_EMPLOYER_RATE;
+            BigDecimal epsRate = existing != null ? existing.getEpsRate() : StatutoryDefaults.EPF_EPS_RATE;
+            BigDecimal edliRate = existing != null ? existing.getEdliRate() : StatutoryDefaults.EPF_EDLI_RATE;
+            BigDecimal adminChargeRate =
+                    existing != null ? existing.getAdminChargeRate() : StatutoryDefaults.EPF_ADMIN_RATE;
+            BigDecimal wageCeiling = existing != null ? existing.getWageCeiling() : StatutoryDefaults.EPF_WAGE_CEILING;
+            // Proration follows the ceiling answer (spec section 4), unless the answer is unchanged on a re-run.
+            boolean prorateRestrictedWage = existing != null && existing.isRestrictEmployeeToCeiling() == restrict
+                    ? existing.isProrateRestrictedWage()
+                    : restrict;
             boolean considerEarnedWage = existing != null ? existing.isConsiderEarnedWage() : true;
             boolean restrictEmployer = existing != null ? existing.isRestrictEmployerToCeiling() : restrict;
             int epsSeniorAge = existing != null ? existing.getEpsSeniorAge() : 58;
@@ -231,9 +238,11 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                     : (existing != null ? existing.getRegistrationDate() : null);
 
             DeductionCycle deductionCycle = existing != null ? existing.getDeductionCycle() : DeductionCycle.MONTHLY;
-            BigDecimal employeeRate = StatutoryDefaults.ESI_EMPLOYEE_RATE;
-            BigDecimal employerRate = StatutoryDefaults.ESI_EMPLOYER_RATE;
-            BigDecimal wageCeiling = StatutoryDefaults.ESI_WAGE_CEILING;
+            BigDecimal employeeRate =
+                    existing != null ? existing.getEmployeeRate() : StatutoryDefaults.ESI_EMPLOYEE_RATE;
+            BigDecimal employerRate =
+                    existing != null ? existing.getEmployerRate() : StatutoryDefaults.ESI_EMPLOYER_RATE;
+            BigDecimal wageCeiling = existing != null ? existing.getWageCeiling() : StatutoryDefaults.ESI_WAGE_CEILING;
             boolean includeInStructure = existing != null ? existing.isIncludeInStructure() : includeCtc;
 
             EsiSettingRequest esiReq = new EsiSettingRequest(

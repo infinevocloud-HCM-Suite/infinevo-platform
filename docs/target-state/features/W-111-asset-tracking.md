@@ -77,14 +77,14 @@ CREATE INDEX idx_company_asset_serial ON hrms.company_asset(tenant_id, serial_nu
 CREATE TABLE hrms.asset_assignment (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
-    asset_id UUID NOT NULL REFERENCES hrms.company_asset(id) ON DELETE CASCADE,
+    asset_id UUID NOT NULL REFERENCES hrms.company_asset(id), -- no cascade: custody history is never deleted; an asset with history is retired, not deleted
     employee_id UUID NOT NULL REFERENCES core.employee(id),
     assigned_date DATE NOT NULL,
-    assigned_by UUID REFERENCES core.employee(id),
+    assigned_by VARCHAR(100) NOT NULL, -- the acting user's label, as created_by elsewhere; an admin may have no employee row
     assignment_condition VARCHAR(32) NOT NULL DEFAULT 'GOOD',
     assignment_notes TEXT,
     returned_date DATE,
-    returned_by UUID REFERENCES core.employee(id),
+    returned_by VARCHAR(100),
     return_condition VARCHAR(32),
     return_notes TEXT,
     is_active BOOLEAN NOT NULL DEFAULT true,
@@ -197,8 +197,8 @@ Follows standard role grant pattern established in `code/backend/migration/src/m
 - Registered route: `/hrms/assets` and `/hrms/assets/:id`.
 
 ### 2. Employee Profile & Portal
-- `code/frontend/src/core/employee/tabs/AssetsTab.jsx`: Tab on employee page (`/employees/:id/assets`) displaying all assigned equipment.
-- `code/frontend/src/shell/portal/panels/MyAssets.jsx`: Self-service view under `/me/assets` allowing employees to verify their assigned company equipment.
+- `code/frontend/src/hrms/assets/AssetsTab.jsx`: Tab on the employee page showing all assigned equipment. It is exported from the HRMS module as an `employeeTabs` entry and composed by the shell (`shell/moduleTabs.js`), so Core's front end never imports HRMS.
+- `code/frontend/src/hrms/assets/MyAssets.jsx`: registered through a `PortalPanelProvider` bean in `hrms` (as `hrms/portal/TimesheetPanelProvider.java` does), gated by `hrms.asset.read_own`, with a menu entry in `HrmsNavigation.java`. Self-service view under `/me/assets` allowing employees to verify their assigned company equipment.
 
 ---
 

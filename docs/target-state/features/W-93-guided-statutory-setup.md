@@ -43,9 +43,9 @@ Completing the guided wizard automatically marks all three statutory steps (`EPF
 1. **Read API (`GET /api/v1/payroll/settings/guided-setup`):** Retrieves the tenant's statutory readiness, auto-detecting operating states from `core.work_location`, reporting whether each state levies PT, returning current EPF/ESI configurations, and providing legal statutory defaults.
 2. **Apply API (`POST /api/v1/payroll/settings/guided-setup`):** Validates answers to the statutory questionnaire and atomically saves EPF, ESI, and PT configurations in a single `@Transactional` service call.
 3. **Statutory Rule Auto-Derivation:**
-   - **EPF:** Standard statutory rates (12.0000% EE, 12.0000% ER split into 3.6700% PF + 8.3300% EPS, 0.5000% EDLI, 0.5000% Admin), ₹15,000 statutory ceiling, age 58 senior threshold.
-   - **ESI:** Standard statutory rates (0.7500% EE, 3.2500% ER), ₹21,000 statutory wage ceiling.
-   - **PT:** Auto-detects operating states from active work locations, maps PT levy status from `reference.pt_state`, links PTRC numbers to `payroll.org_pt_override`, and seeds standard slabs from `reference.pt_slab`.
+   - **EPF (new setup only; an existing row keeps its own rates and ceiling):** Standard statutory rates (12.0000% EE, 12.0000% ER split into 3.6700% PF + 8.3300% EPS, 0.5000% EDLI, 0.5000% Admin), ₹15,000 statutory ceiling, age 58 senior threshold.
+   - **ESI (new setup only; an existing row keeps its own rates and ceiling):** Standard statutory rates (0.7500% EE, 3.2500% ER), ₹21,000 statutory wage ceiling.
+   - **PT:** Auto-detects operating states from active work locations, maps PT levy status from `reference.pt_state`, stores PTRC numbers on `payroll.org_pt_override`, and leaves the company on the standard slabs in `reference.pt_slab` (no slab copy; founder decision 2026-11-24).
 4. **Setup Checklist Resolution:** Saving statutory settings via the wizard marks `EPF`, `ESI`, and `PROFESSIONAL_TAX` as completed in `SetupChecklist` by clearing `updated_by` template markers and writing persistence rows.
 5. **Interactive Frontend Wizard:** 5-step wizard component in `src/payroll/settings/GuidedStatutorySetup.jsx` at `/payroll/settings/guided-setup`, with discovery banners in `SettingsLayout.jsx` and direct links from `SetupChecklist.jsx`.
 
@@ -375,7 +375,10 @@ Because `GuidedStatutorySetupServiceImpl.applySetup` persists actual `EpfSetting
    - *Mitigation:* The readiness endpoint returns an empty `operatingStates` list without error; the wizard displays a helpful advisory alert informing the admin they can configure locations now or add state PTRC numbers later under `/payroll/settings/professional-tax`.
 2. **Accidentally overwriting existing customized PT slabs:**
    - *Risk:* If a tenant with custom state PT slabs runs guided setup to update their PTRC number, custom slabs could be overwritten.
-   - *Mitigation:* The service checks if an `OrgPtOverride` already exists for the state; if slabs already exist, it preserves the custom slabs and only updates `registration_number` and `effective_from`.
+   - *Mitigation:* If an `OrgPtOverride` already exists for the state, the service updates `registration_number` only. Its slabs and its `effective_from` are kept as they are.
+3. **Resetting rates the company set itself:**
+   - *Risk:* A re-run of the wizard could replace a company's own EPF or ESI rates and wage ceilings with the standard values.
+   - *Mitigation:* The standard rates and ceilings apply to a new setup only. When a settings row already exists, its rates, ceilings and (unless the ceiling answer changes) its proration choice are kept; the screen says so.
 3. **Invalid EPF / ESI registration numbers:**
    - *Risk:* Admin enters invalid characters or excessively long strings.
    - *Mitigation:* Request validation validates registration numbers ($\le 32$ characters, non-blank when registered = true) and returns `400 BAD_REQUEST` with clear field errors matching `StatutorySettingsValidationException`.
