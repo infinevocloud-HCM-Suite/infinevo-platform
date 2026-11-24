@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — W-114.6 AI helper HRMS tools on `main`
+
+- Five read-only tools on the caller's own data: today's clock status, clock sessions, regularizations, one timesheet week, timesheets. 93-day cap; no employee id taken; the login must be the context's employee. `code/backend/hrms/src/main/java/com/infinevo/hrms/ai/`.
+- Shared input, id-stripping and quoted-text helpers moved to `core/ai` (`AiToolInputs`, `AiToolResults`, `AiUntrustedText`); Core tools unchanged in behaviour.
+- Built by Claude; one independent read (one Low fixed: a permission refusal no longer says "no employee record").
+- **Known, left:** the HRMS licence gate is in `AiToolRegistry` (by the `hrms.` name), not in the provider; the integration test is in `hrms` against the registry, not in `app` with the stub model.
+- **Next:** `W-114.7` Payroll read-only tools.
+
 ## 2026-11-24 — D-144 to D-148 on `main`: ledger pickup month, TDS screens, tax declaration fixes
 
 | Ticket | What | Commit |
