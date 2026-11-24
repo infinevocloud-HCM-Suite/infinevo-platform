@@ -9,7 +9,6 @@ import com.infinevo.payroll.statutory.pt.OrgPtOverrideSlabRepository;
 import com.infinevo.payroll.statutory.pt.PtHistory;
 import com.infinevo.payroll.statutory.pt.PtHistoryOperation;
 import com.infinevo.payroll.statutory.pt.PtHistoryRepository;
-import com.infinevo.payroll.statutory.pt.PtSlab;
 import com.infinevo.payroll.statutory.pt.PtSlabDto;
 import com.infinevo.payroll.statutory.pt.PtSlabRepository;
 import com.infinevo.payroll.statutory.pt.PtState;
@@ -102,7 +101,7 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
 
         Optional<EpfSetting> epfOpt = epfSettingRepository.findByTenantId(tenantId);
         boolean epfConfigured =
-                epfOpt.isPresent() && !"TEMPLATE".equals(epfOpt.get().getUpdatedBy());
+                epfOpt.isPresent() && !"template".equalsIgnoreCase(epfOpt.get().getUpdatedBy());
         EpfReadiness epfReadiness = epfOpt.map(e -> new EpfReadiness(
                         e.isEnabled(),
                         e.getRegistrationNumber(),
@@ -115,7 +114,7 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
 
         Optional<EsiSetting> esiOpt = esiSettingRepository.findByTenantId(tenantId);
         boolean esiConfigured =
-                esiOpt.isPresent() && !"TEMPLATE".equals(esiOpt.get().getUpdatedBy());
+                esiOpt.isPresent() && !"template".equalsIgnoreCase(esiOpt.get().getUpdatedBy());
         EsiReadiness esiReadiness = esiOpt.map(e -> new EsiReadiness(
                         e.isEnabled(), e.getRegistrationNumber(), e.getRegistrationDate(), e.isIncludeEmployerInCtc()))
                 .orElseGet(() -> new EsiReadiness(false, null, null, false));
@@ -136,8 +135,11 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                     orgPtOverrideRepository.findByTenantIdAndStateCode(tenantId, stateCode);
             boolean configured = overrideOpt.isPresent() || !leviesPt;
             String regNo = overrideOpt.map(OrgPtOverride::getRegistrationNumber).orElse(null);
+            LocalDate existingEffFrom =
+                    overrideOpt.map(OrgPtOverride::getEffectiveFrom).orElse(null);
 
-            operatingStates.add(new PtStateReadiness(stateCode, stateName, leviesPt, regNo, configured));
+            operatingStates.add(
+                    new PtStateReadiness(stateCode, stateName, leviesPt, regNo, configured, existingEffFrom));
         }
 
         return new GuidedStatutoryReadinessResponse(
@@ -173,14 +175,15 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                     : (existing != null ? existing.getRegistrationDate() : null);
 
             DeductionCycle deductionCycle = existing != null ? existing.getDeductionCycle() : DeductionCycle.MONTHLY;
-            BigDecimal employeeRate = existing != null ? existing.getEmployeeRate() : new BigDecimal("12.0000");
-            BigDecimal employerRate = existing != null ? existing.getEmployerRate() : new BigDecimal("12.0000");
-            BigDecimal epsRate = existing != null ? existing.getEpsRate() : new BigDecimal("8.3300");
-            BigDecimal edliRate = existing != null ? existing.getEdliRate() : new BigDecimal("0.5000");
-            BigDecimal adminChargeRate = existing != null ? existing.getAdminChargeRate() : new BigDecimal("0.5000");
-            BigDecimal wageCeiling = existing != null ? existing.getWageCeiling() : new BigDecimal("15000.0000");
-            boolean prorateRestrictedWage = existing != null ? existing.isProrateRestrictedWage() : restrict;
-            boolean considerEarnedWage = existing != null ? existing.isConsiderEarnedWage() : restrict;
+            BigDecimal employeeRate = StatutoryDefaults.EPF_EMPLOYEE_RATE;
+            BigDecimal employerRate = StatutoryDefaults.EPF_EMPLOYER_RATE;
+            BigDecimal epsRate = StatutoryDefaults.EPF_EPS_RATE;
+            BigDecimal edliRate = StatutoryDefaults.EPF_EDLI_RATE;
+            BigDecimal adminChargeRate = StatutoryDefaults.EPF_ADMIN_RATE;
+            BigDecimal wageCeiling = StatutoryDefaults.EPF_WAGE_CEILING;
+            boolean prorateRestrictedWage = restrict;
+            boolean considerEarnedWage = existing != null ? existing.isConsiderEarnedWage() : true;
+            boolean restrictEmployer = existing != null ? existing.isRestrictEmployerToCeiling() : restrict;
             int epsSeniorAge = existing != null ? existing.getEpsSeniorAge() : 58;
             boolean inStructure = existing != null ? existing.isIncludeEmployerInStructure() : includeCtc;
             boolean edliInStructure = existing != null ? existing.isIncludeEdliInStructure() : includeEdli;
@@ -199,7 +202,7 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                     adminChargeRate,
                     wageCeiling,
                     restrict,
-                    restrict,
+                    restrictEmployer,
                     prorateRestrictedWage,
                     considerEarnedWage,
                     epsSeniorAge,
@@ -228,9 +231,9 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                     : (existing != null ? existing.getRegistrationDate() : null);
 
             DeductionCycle deductionCycle = existing != null ? existing.getDeductionCycle() : DeductionCycle.MONTHLY;
-            BigDecimal employeeRate = existing != null ? existing.getEmployeeRate() : new BigDecimal("0.7500");
-            BigDecimal employerRate = existing != null ? existing.getEmployerRate() : new BigDecimal("3.2500");
-            BigDecimal wageCeiling = existing != null ? existing.getWageCeiling() : new BigDecimal("21000.0000");
+            BigDecimal employeeRate = StatutoryDefaults.ESI_EMPLOYEE_RATE;
+            BigDecimal employerRate = StatutoryDefaults.ESI_EMPLOYER_RATE;
+            BigDecimal wageCeiling = StatutoryDefaults.ESI_WAGE_CEILING;
             boolean includeInStructure = existing != null ? existing.isIncludeInStructure() : includeCtc;
 
             EsiSettingRequest esiReq = new EsiSettingRequest(
@@ -280,32 +283,13 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                                         .stream()
                                         .map(OrgPtOverrideSlab::toDto)
                                         .toList();
-                        existing.update(regNo, effFrom, actorLabel);
+                        LocalDate eff = existing.getEffectiveFrom() != null ? existing.getEffectiveFrom() : effFrom;
+                        existing.update(regNo, eff, actorLabel);
                         override = orgPtOverrideRepository.save(existing);
                     } else {
-                        beforeSlabs = ptSlabRepository.inForce(normState, effFrom).stream()
-                                .map(PtSlab::toDto)
-                                .toList();
+                        beforeSlabs = List.of();
                         override = new OrgPtOverride(tenantId, normState, regNo, effFrom, actorLabel);
                         override = orgPtOverrideRepository.save(override);
-
-                        List<PtSlab> refSlabs = ptSlabRepository.inForce(normState, effFrom);
-                        if (refSlabs != null && !refSlabs.isEmpty()) {
-                            short sortOrder = 1;
-                            for (PtSlab slab : refSlabs) {
-                                OrgPtOverrideSlab overrideSlab = new OrgPtOverrideSlab(
-                                        tenantId,
-                                        override.getId(),
-                                        slab.getFromAmount(),
-                                        slab.getToAmount(),
-                                        slab.getAmount(),
-                                        slab.isFemaleExempt(),
-                                        slab.getDeductionMonths(),
-                                        sortOrder++,
-                                        actorLabel);
-                                orgPtOverrideSlabRepository.save(overrideSlab);
-                            }
-                        }
                     }
 
                     List<PtSlabDto> afterSlabs =
@@ -359,6 +343,11 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
                 PtStateSetupRequest ptReq = request.ptStates().get(i);
                 if (ptReq.stateCode() == null || ptReq.stateCode().isBlank()) {
                     errors.put("ptStates[" + i + "].stateCode", "State code is required");
+                } else {
+                    String norm = ptReq.stateCode().trim().toUpperCase(Locale.ROOT);
+                    if (!referenceStateRepository.existsById(norm)) {
+                        errors.put("ptStates[" + i + "].stateCode", "Unknown state code: " + ptReq.stateCode());
+                    }
                 }
                 if (ptReq.registrationNumber() != null
                         && ptReq.registrationNumber().length() > 32) {

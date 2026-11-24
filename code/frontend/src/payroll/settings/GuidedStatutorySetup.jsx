@@ -80,9 +80,16 @@ export function GuidedStatutorySetup() {
         if (st.leviesPt) {
           initialPt[st.stateCode] = {
             registrationNumber: st.registrationNumber || '',
-            effectiveFrom: dayjs().startOf('year'),
+            effectiveFrom: st.effectiveFrom ? dayjs(st.effectiveFrom) : dayjs().startOf('year'),
           };
         }
+      });
+
+      const epfReg = data.epf?.registrationNumber || '';
+      const esiReg = data.esi?.registrationNumber || '';
+      form.setFieldsValue({
+        epfRegistrationNumber: epfReg,
+        esiRegistrationNumber: esiReg,
       });
 
       setFormData((prev) => ({
@@ -90,7 +97,7 @@ export function GuidedStatutorySetup() {
         epf: {
           ...prev.epf,
           registered: data.epf?.isEnabled ?? true,
-          registrationNumber: data.epf?.registrationNumber || '',
+          registrationNumber: epfReg,
           registrationDate: data.epf?.registrationDate ? dayjs(data.epf.registrationDate) : null,
           restrictToWageCeiling: data.epf?.restrictEmployeeToCeiling ?? true,
           includeEmployerInCtc: data.epf?.includeEmployerInCtc ?? true,
@@ -100,7 +107,7 @@ export function GuidedStatutorySetup() {
         esi: {
           ...prev.esi,
           registered: data.esi?.isEnabled ?? false,
-          registrationNumber: data.esi?.registrationNumber || '',
+          registrationNumber: esiReg,
           registrationDate: data.esi?.registrationDate ? dayjs(data.esi.registrationDate) : null,
           includeEmployerInCtc: data.esi?.includeEmployerInCtc ?? true,
         },
@@ -116,6 +123,13 @@ export function GuidedStatutorySetup() {
   useEffect(() => {
     loadReadiness();
   }, [loadReadiness]);
+
+  useEffect(() => {
+    form.setFieldsValue({
+      epfRegistrationNumber: formData.epf.registrationNumber || '',
+      esiRegistrationNumber: formData.esi.registrationNumber || '',
+    });
+  }, [currentStep, formData.epf.registrationNumber, formData.esi.registrationNumber, form]);
 
   const handleNext = async () => {
     try {
@@ -349,7 +363,7 @@ export function GuidedStatutorySetup() {
           />
         )}
 
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" preserve={true}>
           {/* STEP 0: OVERVIEW & LOCATIONS */}
           {currentStep === 0 && (
             <div data-testid="step-overview">
@@ -440,12 +454,16 @@ export function GuidedStatutorySetup() {
               <Form.Item label="Is your organization registered with the EPFO?" style={{ marginBottom: 16 }}>
                 <Radio.Group
                   value={formData.epf.registered}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const reg = e.target.value;
                     setFormData((prev) => ({
                       ...prev,
-                      epf: { ...prev.epf, registered: e.target.value },
-                    }))
-                  }
+                      epf: { ...prev.epf, registered: reg },
+                    }));
+                    if (reg) {
+                      form.setFieldsValue({ epfRegistrationNumber: formData.epf.registrationNumber || '' });
+                    }
+                  }}
                   data-testid="radio-epf-registered"
                 >
                   <Space orientation="vertical">
@@ -476,12 +494,14 @@ export function GuidedStatutorySetup() {
                           placeholder="e.g. DLCPM1234567000"
                           maxLength={32}
                           value={formData.epf.registrationNumber}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setFormData((prev) => ({
                               ...prev,
-                              epf: { ...prev.epf, registrationNumber: e.target.value },
-                            }))
-                          }
+                              epf: { ...prev.epf, registrationNumber: val },
+                            }));
+                            form.setFieldsValue({ epfRegistrationNumber: val });
+                          }}
                           data-testid="input-epf-registration-number"
                         />
                       </Form.Item>
@@ -580,12 +600,16 @@ export function GuidedStatutorySetup() {
               <Form.Item label="Is your organization covered under ESI?" style={{ marginBottom: 16 }}>
                 <Radio.Group
                   value={formData.esi.registered}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const reg = e.target.value;
                     setFormData((prev) => ({
                       ...prev,
-                      esi: { ...prev.esi, registered: e.target.value },
-                    }))
-                  }
+                      esi: { ...prev.esi, registered: reg },
+                    }));
+                    if (reg) {
+                      form.setFieldsValue({ esiRegistrationNumber: formData.esi.registrationNumber || '' });
+                    }
+                  }}
                   data-testid="radio-esi-registered"
                 >
                   <Space orientation="vertical">
@@ -616,12 +640,14 @@ export function GuidedStatutorySetup() {
                           placeholder="e.g. 31000123450000101"
                           maxLength={32}
                           value={formData.esi.registrationNumber}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setFormData((prev) => ({
                               ...prev,
-                              esi: { ...prev.esi, registrationNumber: e.target.value },
-                            }))
-                          }
+                              esi: { ...prev.esi, registrationNumber: val },
+                            }));
+                            form.setFieldsValue({ esiRegistrationNumber: val });
+                          }}
                           data-testid="input-esi-registration-number"
                         />
                       </Form.Item>

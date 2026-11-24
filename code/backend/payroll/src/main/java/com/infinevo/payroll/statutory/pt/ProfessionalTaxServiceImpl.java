@@ -220,9 +220,11 @@ public class ProfessionalTaxServiceImpl implements ProfessionalTaxService {
             List<OrgPtOverrideSlab> overrideSlabs =
                     orgPtOverrideSlabRepository.findByTenantIdAndOverrideIdOrderBySortOrderAsc(
                             tenantId, overrideOpt.get().getId());
-            List<PtSlabDto> dtoList =
-                    overrideSlabs.stream().map(OrgPtOverrideSlab::toDto).toList();
-            return PtSlabMatcher.match(gross, gender, periodEnd, dtoList);
+            if (!overrideSlabs.isEmpty()) {
+                List<PtSlabDto> dtoList =
+                        overrideSlabs.stream().map(OrgPtOverrideSlab::toDto).toList();
+                return PtSlabMatcher.match(gross, gender, periodEnd, dtoList);
+            }
         }
 
         List<PtSlab> referenceSlabs = ptSlabRepository.inForce(normCode, periodEnd);
@@ -245,10 +247,16 @@ public class ProfessionalTaxServiceImpl implements ProfessionalTaxService {
                             .stream()
                             .map(OrgPtOverrideSlab::toDto)
                             .toList();
+            boolean hasCustomSlabs = !slabs.isEmpty();
+            if (!hasCustomSlabs) {
+                slabs = ptSlabRepository.inForce(stateCode, today).stream()
+                        .map(PtSlab::toDto)
+                        .toList();
+            }
             return new PtStateResponse(
                     stateCode,
                     stateName,
-                    PtSource.OVERRIDE,
+                    hasCustomSlabs ? PtSource.OVERRIDE : PtSource.REFERENCE,
                     override.getRegistrationNumber(),
                     override.getEffectiveFrom(),
                     slabs);

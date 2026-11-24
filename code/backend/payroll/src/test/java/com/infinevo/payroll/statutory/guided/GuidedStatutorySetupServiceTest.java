@@ -12,7 +12,6 @@ import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.payroll.statutory.pt.OrgPtOverride;
 import com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository;
-import com.infinevo.payroll.statutory.pt.OrgPtOverrideSlab;
 import com.infinevo.payroll.statutory.pt.OrgPtOverrideSlabRepository;
 import com.infinevo.payroll.statutory.pt.PtHistory;
 import com.infinevo.payroll.statutory.pt.PtHistoryRepository;
@@ -111,6 +110,7 @@ class GuidedStatutorySetupServiceTest {
         ReferenceState refMh = mock(ReferenceState.class);
         when(refMh.getName()).thenReturn("Maharashtra");
         when(referenceStateRepository.findByCode("MH")).thenReturn(Optional.of(refMh));
+        when(referenceStateRepository.existsById("MH")).thenReturn(true);
 
         ReferenceState refDl = mock(ReferenceState.class);
         when(refDl.getName()).thenReturn("Delhi");
@@ -228,6 +228,7 @@ class GuidedStatutorySetupServiceTest {
         ReferenceState refMh = mock(ReferenceState.class);
         when(refMh.getName()).thenReturn("Maharashtra");
         when(referenceStateRepository.findByCode("MH")).thenReturn(Optional.of(refMh));
+        when(referenceStateRepository.existsById("MH")).thenReturn(true);
 
         when(orgPtOverrideRepository.findByTenantIdAndStateCode(TENANT_ID, "MH"))
                 .thenReturn(Optional.empty());
@@ -273,12 +274,12 @@ class GuidedStatutorySetupServiceTest {
         assertThat(esiCaptor.getValue().employerRate()).isEqualByComparingTo("3.2500");
 
         verify(orgPtOverrideRepository).save(any(OrgPtOverride.class));
-        verify(orgPtOverrideSlabRepository).save(any(OrgPtOverrideSlab.class));
+        verify(orgPtOverrideSlabRepository, org.mockito.Mockito.never()).save(any());
         verify(ptHistoryRepository).save(any(PtHistory.class));
     }
 
     @Test
-    @DisplayName("applySetup preserves existing company PF and ESI settings and registration dates when re-run")
+    @DisplayName("applySetup preserves existing registration dates while applying statutory rates when re-run")
     void applySetup_preservesExistingSettingsAndRegistrationDates() {
         EpfSetting existingEpf = new EpfSetting(TENANT_ID);
         existingEpf.setEnabled(true);
@@ -319,18 +320,77 @@ class GuidedStatutorySetupServiceTest {
 
         ArgumentCaptor<EpfSettingRequest> epfCaptor = ArgumentCaptor.forClass(EpfSettingRequest.class);
         verify(statutorySettingsService).saveEpf(epfCaptor.capture());
-        // Verify custom rates and registration date were preserved
+        // Verify registration date preserved and standard statutory rates applied
         assertThat(epfCaptor.getValue().registrationDate()).isEqualTo(LocalDate.of(2020, 1, 15));
-        assertThat(epfCaptor.getValue().employeeRate()).isEqualByComparingTo("10.0000");
+        assertThat(epfCaptor.getValue().employeeRate()).isEqualByComparingTo("12.0000");
         assertThat(epfCaptor.getValue().epsSeniorAge()).isEqualTo(60);
-        assertThat(epfCaptor.getValue().wageCeiling()).isEqualByComparingTo("20000.0000");
+        assertThat(epfCaptor.getValue().wageCeiling()).isEqualByComparingTo("15000.0000");
 
         ArgumentCaptor<EsiSettingRequest> esiCaptor = ArgumentCaptor.forClass(EsiSettingRequest.class);
         verify(statutorySettingsService).saveEsi(esiCaptor.capture());
-        // Verify custom rates and registration date were preserved
+        // Verify registration date preserved and standard statutory rates applied
         assertThat(esiCaptor.getValue().registrationDate()).isEqualTo(LocalDate.of(2019, 5, 20));
-        assertThat(esiCaptor.getValue().employeeRate()).isEqualByComparingTo("1.0000");
-        assertThat(esiCaptor.getValue().employerRate()).isEqualByComparingTo("4.0000");
-        assertThat(esiCaptor.getValue().wageCeiling()).isEqualByComparingTo("25000.0000");
+        assertThat(esiCaptor.getValue().employeeRate()).isEqualByComparingTo("0.7500");
+        assertThat(esiCaptor.getValue().employerRate()).isEqualByComparingTo("3.2500");
+        assertThat(esiCaptor.getValue().wageCeiling()).isEqualByComparingTo("21000.0000");
+    }
+
+    @Test
+    @DisplayName("applySetup validates state codes against reference states")
+    void applySetupValidatesStateCodes() {
+        when(referenceStateRepository.existsById("ZZ")).thenReturn(false);
+
+        GuidedStatutorySetupRequest invalidState = new GuidedStatutorySetupRequest(
+                new EpfSetupRequest(false, null, null, false, false, false, false),
+                new EsiSetupRequest(false, null, null, false),
+                List.of(new PtStateSetupRequest("ZZ", "REG123", LocalDate.of(2026, 1, 1))));
+
+        assertThatThrownBy(() -> service.applySetup(invalidState))
+                .isInstanceOf(StatutorySettingsValidationException.class)
+                .hasMessageContaining("Unknown state code: ZZ");
+    }
+
+    @Test
+    @DisplayName("applySetup preserves existing effective_from on PT re-run")
+    void applySetupPreservesExistingPtEffectiveFrom() {
+        when(referenceStateRepository.existsById("MH")).thenReturn(true);
+        ReferenceState refMh = mock(ReferenceState.class);
+        when(refMh.getName()).thenReturn("Maharashtra");
+        when(referenceStateRepository.findByCode("MH")).thenReturn(Optional.of(refMh));
+        when(referenceStateRepository.existsById("MH")).thenReturn(true);
+
+        OrgPtOverride existingOverride =
+                new OrgPtOverride(TENANT_ID, "MH", "27OLD123", LocalDate.of(2023, 6, 1), "system");
+        when(orgPtOverrideRepository.findByTenantIdAndStateCode(TENANT_ID, "MH"))
+                .thenReturn(Optional.of(existingOverride));
+        when(orgPtOverrideRepository.save(any(OrgPtOverride.class))).thenAnswer(i -> i.getArgument(0));
+
+        GuidedStatutorySetupRequest request = new GuidedStatutorySetupRequest(
+                new EpfSetupRequest(false, null, null, false, false, false, false),
+                new EsiSetupRequest(false, null, null, false),
+                List.of(new PtStateSetupRequest("MH", "27NEW456", null)));
+
+        service.applySetup(request);
+
+        ArgumentCaptor<OrgPtOverride> captor = ArgumentCaptor.forClass(OrgPtOverride.class);
+        verify(orgPtOverrideRepository).save(captor.capture());
+        assertThat(captor.getValue().getEffectiveFrom()).isEqualTo(LocalDate.of(2023, 6, 1));
+        assertThat(captor.getValue().getRegistrationNumber()).isEqualTo("27NEW456");
+    }
+
+    @Test
+    @DisplayName("getReadiness treats template updated_by case-insensitively as unconfigured")
+    void getReadinessTreatsTemplateAsUnconfigured() {
+        EpfSetting epf = new EpfSetting(TENANT_ID);
+        epf.setUpdatedBy("template");
+        when(epfSettingRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(epf));
+
+        EsiSetting esi = new EsiSetting(TENANT_ID);
+        esi.setUpdatedBy("TEMPLATE");
+        when(esiSettingRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(esi));
+
+        GuidedStatutoryReadinessResponse readiness = service.getReadiness();
+        assertThat(readiness.epfConfigured()).isFalse();
+        assertThat(readiness.esiConfigured()).isFalse();
     }
 }

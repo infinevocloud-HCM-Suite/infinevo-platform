@@ -254,6 +254,19 @@ export function SetupChecklist() {
 
               const actions = [];
               if (canOpen) {
+                if (['EPF', 'ESI', 'PROFESSIONAL_TAX'].includes(step.code) && !step.completed) {
+                  actions.push(
+                    <Button
+                      key="guided"
+                      type="link"
+                      className="btn-spring"
+                      onClick={() => navigate('/payroll/settings/guided-setup')}
+                      id={`btn-guided-step-${step.code.toLowerCase().replace(/_/g, '-')}`}
+                    >
+                      Guided Setup
+                    </Button>
+                  );
+                }
                 actions.push(
                   <Button
                     key="open"

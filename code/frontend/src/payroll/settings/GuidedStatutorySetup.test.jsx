@@ -223,9 +223,11 @@ describe('GuidedStatutorySetup component (W-93)', () => {
     // Move through steps to review
     fireEvent.click(screen.getByTestId('btn-wizard-next')); // to EPF
     await waitFor(() => expect(screen.getByTestId('step-epf')).toBeDefined());
+    expect(screen.getByTestId('input-epf-registration-number').value).toBe('DLCPM1234567000');
 
     fireEvent.click(screen.getByTestId('btn-wizard-next')); // to ESI
     await waitFor(() => expect(screen.getByTestId('step-esi')).toBeDefined());
+    expect(screen.getByTestId('input-esi-registration-number').value).toBe('31000123450000101');
 
     fireEvent.click(screen.getByTestId('btn-wizard-next')); // to PT
     await waitFor(() => expect(screen.getByTestId('step-pt')).toBeDefined());
