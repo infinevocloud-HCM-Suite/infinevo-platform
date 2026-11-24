@@ -348,7 +348,7 @@ export function RunPage() {
   const totalDeductions = run.total_deductions !== undefined ? run.total_deductions : run.totalDeductions;
   const totalNet = run.total_net_pay !== undefined ? run.total_net_pay : run.totalNetPay;
   const isComputed = status === 'COMPUTED' || status === 'APPROVED' || status === 'PAID';
-  const canDownloadStatutory = canReadStatutory && isComputed;
+  const canDownloadStatutory = canReadStatutory && isComputed && isRegular;
   const failureReason = status === 'FAILED' ? failureReasonOf(run) : null;
   const approver = approverOf(run);
 

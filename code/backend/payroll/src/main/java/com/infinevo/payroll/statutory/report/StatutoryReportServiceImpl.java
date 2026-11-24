@@ -2,6 +2,7 @@ package com.infinevo.payroll.statutory.report;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.core.report.ExportFormat;
@@ -21,7 +22,7 @@ import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfile;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfileRepository;
 import com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository;
-import com.infinevo.payroll.statutory.settings.EsiSettingResponse;
+import com.infinevo.payroll.statutory.settings.EpfSettingResponse;
 import com.infinevo.payroll.statutory.settings.StatutorySettingsService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.io.BufferedWriter;
@@ -186,7 +187,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
                     case CSV -> renderPtCsv(rows);
                 };
 
-        String stateSuffix = (state != null && !state.isBlank()) ? state.trim().toLowerCase() + "-" : "";
+        String stateSuffix = sanitizeState(state);
         String filename = "pt-return-" + stateSuffix + run.getPeriod() + "." + format.extension();
         MediaType mediaType = format == ExportFormat.XLSX ? XLSX_MEDIA_TYPE : CSV_MEDIA_TYPE;
         return new StatutoryReportFile(bytes, filename, mediaType);
@@ -216,6 +217,18 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
             return List.of();
         }
 
+        boolean considerEarnedWage = true;
+        if (statutorySettingsService != null) {
+            try {
+                EpfSettingResponse epf = statutorySettingsService.epf(tenantId);
+                if (epf != null) {
+                    considerEarnedWage = epf.considerEarnedWage();
+                }
+            } catch (Exception e) {
+                log.debug("Using default EPF settings for tenant {}: {}", tenantId, e.getMessage());
+            }
+        }
+
         List<EmployeePayRunLine> lines = employeePayRunLineRepository.findByTenantIdAndPayrunId(tenantId, run.getId());
         Map<UUID, List<EmployeePayRunLine>> linesByPayrunEmployee =
                 lines.stream().collect(Collectors.groupingBy(EmployeePayRunLine::getEmployeePayrunId));
@@ -236,22 +249,30 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
 
             BigDecimal ipContrib = sumComponent(empLines, "ESI_EMPLOYEE");
             BigDecimal erContrib = sumComponent(empLines, "ESI_EMPLOYER");
+            BigDecimal paidDays = epr.getPaidDays() != null ? epr.getPaidDays() : BigDecimal.ZERO;
 
-            boolean eligible = (profile != null && profile.isEligibleForEsi())
-                    || ipContrib.compareTo(BigDecimal.ZERO) > 0
-                    || erContrib.compareTo(BigDecimal.ZERO) > 0;
+            boolean hasEsiLines = ipContrib.compareTo(BigDecimal.ZERO) > 0 || erContrib.compareTo(BigDecimal.ZERO) > 0;
+            boolean zeroDaysEligible =
+                    profile != null && profile.isEligibleForEsi() && paidDays.compareTo(BigDecimal.ZERO) == 0;
 
-            if (!eligible) {
+            if (!hasEsiLines && !zeroDaysEligible) {
                 continue;
             }
 
             EmployeeResponse emp = employeeCache.get(empId);
             String ipNumber = (profile != null && profile.getEsiNumber() != null) ? profile.getEsiNumber() : "";
             String ipName = formatEmployeeName(emp);
-            BigDecimal paidDays = epr.getPaidDays() != null ? epr.getPaidDays() : BigDecimal.ZERO;
-            BigDecimal monthlyWages = computeEsiMonthlyWages(epr, empLines, paidDays, ipContrib, erContrib, tenantId);
+            BigDecimal monthlyWages = computeEsiMonthlyWages(epr, empLines, paidDays, hasEsiLines, considerEarnedWage);
             BigDecimal totalContrib = ipContrib.add(erContrib);
-            String reasonCode = (paidDays.compareTo(BigDecimal.ZERO) == 0) ? "1" : "";
+
+            String reasonCode = "";
+            if (paidDays.compareTo(BigDecimal.ZERO) == 0) {
+                boolean leftService = emp != null
+                        && (emp.status() == EmploymentStatus.TERMINATED
+                                || (emp.terminationDate() != null
+                                        && !emp.terminationDate().isAfter(run.getPeriodEnd())));
+                reasonCode = leftService ? "2" : "1";
+            }
 
             result.add(new EsiReturnRow(
                     ipNumber, ipName, paidDays, monthlyWages, ipContrib, erContrib, totalContrib, reasonCode));
@@ -348,33 +369,12 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
             EmployeePayRun epr,
             List<EmployeePayRunLine> empLines,
             BigDecimal paidDays,
-            BigDecimal ipContrib,
-            BigDecimal erContrib,
-            UUID tenantId) {
-        if (paidDays.compareTo(BigDecimal.ZERO) == 0
-                || (ipContrib.compareTo(BigDecimal.ZERO) == 0 && erContrib.compareTo(BigDecimal.ZERO) == 0)) {
+            boolean hasEsiLines,
+            boolean considerEarnedWage) {
+        if (paidDays.compareTo(BigDecimal.ZERO) == 0 || !hasEsiLines) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
 
-        BigDecimal eeRate = new BigDecimal("0.7500");
-        BigDecimal erRate = new BigDecimal("3.2500");
-        if (statutorySettingsService != null) {
-            try {
-                EsiSettingResponse esiResp = statutorySettingsService.esi(tenantId);
-                if (esiResp != null) {
-                    if (esiResp.employeeRate() != null) {
-                        eeRate = esiResp.employeeRate();
-                    }
-                    if (esiResp.employerRate() != null) {
-                        erRate = esiResp.employerRate();
-                    }
-                }
-            } catch (Exception e) {
-                log.debug("Using default ESI rates for tenant {}: {}", tenantId, e.getMessage());
-            }
-        }
-
-        BigDecimal lop = sumComponent(empLines, "LOP");
         BigDecimal baseGross = BigDecimal.ZERO;
         for (EmployeePayRunLine l : empLines) {
             if (l.getLineKind() == LineKind.EARNING && l.getSource() == LineSource.STRUCTURE && l.getAmount() != null) {
@@ -385,42 +385,33 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
             baseGross = epr.getGrossEarnings();
         }
 
-        BigDecimal earnedCandidate = baseGross.subtract(lop);
-        if (epr.getUnpaidDays() != null
-                && epr.getUnpaidDays().compareTo(BigDecimal.ZERO) > 0
-                && lop.compareTo(BigDecimal.ZERO) == 0) {
-            BigDecimal totalDays = paidDays.add(epr.getUnpaidDays());
-            if (totalDays.compareTo(BigDecimal.ZERO) > 0) {
-                earnedCandidate = baseGross.multiply(paidDays).divide(totalDays, 4, RoundingMode.HALF_UP);
-            }
-        }
-        if (earnedCandidate.compareTo(BigDecimal.ZERO) < 0) {
-            earnedCandidate = BigDecimal.ZERO;
+        if (!considerEarnedWage) {
+            return baseGross.setScale(2, RoundingMode.HALF_UP);
         }
 
-        if (ipContrib.compareTo(BigDecimal.ZERO) > 0 && eeRate.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal expectedEe = earnedCandidate
-                    .multiply(eeRate)
-                    .divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
-                    .setScale(0, RoundingMode.CEILING);
-            if (expectedEe.compareTo(ipContrib.setScale(0, RoundingMode.CEILING)) == 0) {
-                return earnedCandidate.setScale(2, RoundingMode.HALF_UP);
-            }
-            BigDecimal rateFrac = eeRate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP);
-            return ipContrib.divide(rateFrac, 2, RoundingMode.HALF_UP);
-        } else if (erContrib.compareTo(BigDecimal.ZERO) > 0 && erRate.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal expectedEr = earnedCandidate
-                    .multiply(erRate)
-                    .divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
-                    .setScale(0, RoundingMode.CEILING);
-            if (expectedEr.compareTo(erContrib.setScale(0, RoundingMode.CEILING)) == 0) {
-                return earnedCandidate.setScale(2, RoundingMode.HALF_UP);
-            }
-            BigDecimal rateFrac = erRate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP);
-            return erContrib.divide(rateFrac, 2, RoundingMode.HALF_UP);
-        } else {
-            return earnedCandidate.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal lop = sumComponent(empLines, "LOP");
+        if (lop.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal earned = baseGross.subtract(lop);
+            return (earned.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : earned).setScale(2, RoundingMode.HALF_UP);
         }
+
+        if (epr.getPayableDays() != null
+                && epr.getPayableDays().signum() > 0
+                && paidDays.compareTo(epr.getPayableDays()) < 0) {
+            BigDecimal earned = baseGross.multiply(paidDays).divide(epr.getPayableDays(), 2, RoundingMode.HALF_UP);
+            return (earned.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : earned).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        if (epr.getUnpaidDays() != null && epr.getUnpaidDays().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal totalDays = paidDays.add(epr.getUnpaidDays());
+            if (totalDays.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal earned = baseGross.multiply(paidDays).divide(totalDays, 2, RoundingMode.HALF_UP);
+                return (earned.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : earned)
+                        .setScale(2, RoundingMode.HALF_UP);
+            }
+        }
+
+        return baseGross.setScale(2, RoundingMode.HALF_UP);
     }
 
     private Map<UUID, EmployeeResponse> loadEmployees(List<UUID> empIds) {
@@ -525,11 +516,11 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
                 Row row = sheet.createRow(rowIndex++);
                 writeCell(row, 0, r.ipNumber());
                 writeCell(row, 1, r.ipName());
-                writeCell(row, 2, formatDays(r.paidDays()));
-                writeCell(row, 3, formatMoney(r.totalMonthlyWages()));
-                writeCell(row, 4, formatMoney(r.ipContribution()));
-                writeCell(row, 5, formatMoney(r.employerContribution()));
-                writeCell(row, 6, formatMoney(r.totalContribution()));
+                writeNumericCell(row, 2, r.paidDays());
+                writeNumericCell(row, 3, r.totalMonthlyWages());
+                writeNumericCell(row, 4, r.ipContribution());
+                writeNumericCell(row, 5, r.employerContribution());
+                writeNumericCell(row, 6, r.totalContribution());
                 writeCell(row, 7, r.reasonCodeZeroDays());
             }
 
@@ -559,8 +550,8 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
                 writeCell(row, 1, r.ptrcNumber());
                 writeCell(row, 2, r.employeeCode());
                 writeCell(row, 3, r.employeeName());
-                writeCell(row, 4, formatMoney(r.grossSalary()));
-                writeCell(row, 5, formatMoney(r.ptDeducted()));
+                writeNumericCell(row, 4, r.grossSalary());
+                writeNumericCell(row, 5, r.ptDeducted());
             }
 
             SXSSFSheet summarySheet = workbook.createSheet("State Summary");
@@ -571,8 +562,8 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
                 Row row = summarySheet.createRow(summaryRowIndex++);
                 writeCell(row, 0, s.stateCode());
                 writeCell(row, 1, s.ptrcNumber());
-                writeCell(row, 2, String.valueOf(s.totalEmployeesLiable()));
-                writeCell(row, 3, formatMoney(s.totalPtDeducted()));
+                writeNumericCell(row, 2, s.totalEmployeesLiable());
+                writeNumericCell(row, 3, s.totalPtDeducted());
             }
 
             workbook.write(baos);
@@ -607,6 +598,28 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
         if (value != null) {
             cell.setCellValue(neutraliseFormula(value));
         }
+    }
+
+    private static void writeNumericCell(Row row, int colIndex, BigDecimal value) {
+        Cell cell = row.createCell(colIndex);
+        if (value != null) {
+            cell.setCellValue(value.doubleValue());
+        } else {
+            cell.setCellValue(0.0);
+        }
+    }
+
+    private static void writeNumericCell(Row row, int colIndex, long value) {
+        Cell cell = row.createCell(colIndex);
+        cell.setCellValue((double) value);
+    }
+
+    private static String sanitizeState(String state) {
+        if (state == null || state.isBlank()) {
+            return "";
+        }
+        String cleaned = state.trim().replaceAll("[^a-zA-Z0-9_-]", "").toLowerCase();
+        return cleaned.isEmpty() ? "" : cleaned + "-";
     }
 
     // --- CSV Rendering ---

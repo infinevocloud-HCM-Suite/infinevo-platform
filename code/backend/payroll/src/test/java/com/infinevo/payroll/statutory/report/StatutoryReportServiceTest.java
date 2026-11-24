@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.core.report.ExportFormat;
@@ -27,6 +29,8 @@ import com.infinevo.payroll.salary.EmployeeStatutoryProfile;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfileRepository;
 import com.infinevo.payroll.statutory.pt.OrgPtOverride;
 import com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository;
+import com.infinevo.payroll.statutory.settings.EpfSettingResponse;
+import com.infinevo.payroll.statutory.settings.StatutorySettingsService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -37,6 +41,7 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.AfterEach;
@@ -75,6 +80,9 @@ class StatutoryReportServiceTest {
     @Mock
     private WorkLocationService workLocationService;
 
+    @Mock
+    private StatutorySettingsService statutorySettingsService;
+
     private StatutoryReportServiceImpl service;
 
     @BeforeEach
@@ -87,7 +95,8 @@ class StatutoryReportServiceTest {
                 employeeStatutoryProfileRepository,
                 orgPtOverrideRepository,
                 employeeService,
-                workLocationService);
+                workLocationService,
+                statutorySettingsService);
     }
 
     @AfterEach
@@ -107,10 +116,14 @@ class StatutoryReportServiceTest {
         UUID emp1Id = UUID.randomUUID();
         UUID emp2Id = UUID.randomUUID();
         UUID emp3Id = UUID.randomUUID();
+        UUID emp4Id = UUID.randomUUID();
+        UUID emp5Id = UUID.randomUUID();
 
         UUID epr1Id = UUID.randomUUID();
         UUID epr2Id = UUID.randomUUID();
         UUID epr3Id = UUID.randomUUID();
+        UUID epr4Id = UUID.randomUUID();
+        UUID epr5Id = UUID.randomUUID();
 
         EmployeePayRun epr1 = mock(EmployeePayRun.class);
         when(epr1.getId()).thenReturn(epr1Id);
@@ -126,10 +139,23 @@ class StatutoryReportServiceTest {
         EmployeePayRun epr3 = mock(EmployeePayRun.class);
         when(epr3.getId()).thenReturn(epr3Id);
         when(epr3.getEmployeeId()).thenReturn(emp3Id);
+        when(epr3.getPaidDays()).thenReturn(BigDecimal.ZERO);
+
+        // emp4: Eligible for ESI, 26 paid days, BUT NO ESI lines (exceeds wage ceiling) -> excluded
+        EmployeePayRun epr4 = mock(EmployeePayRun.class);
+        when(epr4.getId()).thenReturn(epr4Id);
+        when(epr4.getEmployeeId()).thenReturn(emp4Id);
+        when(epr4.getPaidDays()).thenReturn(new BigDecimal("26"));
+
+        // emp5: Not eligible for ESI -> excluded
+        EmployeePayRun epr5 = mock(EmployeePayRun.class);
+        when(epr5.getId()).thenReturn(epr5Id);
+        when(epr5.getEmployeeId()).thenReturn(emp5Id);
+        when(epr5.getPaidDays()).thenReturn(new BigDecimal("26"));
 
         when(employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
                         TENANT_ID, PAYRUN_ID, InclusionStatus.INCLUDED))
-                .thenReturn(List.of(epr1, epr2, epr3));
+                .thenReturn(List.of(epr1, epr2, epr3, epr4, epr5));
 
         EmployeePayRunLine line1Ee = mock(EmployeePayRunLine.class);
         when(line1Ee.getEmployeePayrunId()).thenReturn(epr1Id);
@@ -153,10 +179,18 @@ class StatutoryReportServiceTest {
         prof2.setEsiNumber("9876543210");
 
         EmployeeStatutoryProfile prof3 = new EmployeeStatutoryProfile(TENANT_ID, emp3Id, "test");
-        prof3.setEligibleForEsi(false);
+        prof3.setEligibleForEsi(true);
+        prof3.setEsiNumber("9876543211");
+
+        EmployeeStatutoryProfile prof4 = new EmployeeStatutoryProfile(TENANT_ID, emp4Id, "test");
+        prof4.setEligibleForEsi(true);
+        prof4.setEsiNumber("9876543212");
+
+        EmployeeStatutoryProfile prof5 = new EmployeeStatutoryProfile(TENANT_ID, emp5Id, "test");
+        prof5.setEligibleForEsi(false);
 
         when(employeeStatutoryProfileRepository.findAllByTenantIdAndEmployeeIdIn(eq(TENANT_ID), any()))
-                .thenReturn(List.of(prof1, prof2, prof3));
+                .thenReturn(List.of(prof1, prof2, prof3, prof4, prof5));
 
         EmployeeResponse emp1 = mock(EmployeeResponse.class);
         when(emp1.firstName()).thenReturn("Alice");
@@ -166,7 +200,14 @@ class StatutoryReportServiceTest {
         EmployeeResponse emp2 = mock(EmployeeResponse.class);
         when(emp2.firstName()).thenReturn("Bob");
         when(emp2.lastName()).thenReturn("Jones");
+        when(emp2.status()).thenReturn(EmploymentStatus.ACTIVE);
         when(employeeService.get(emp2Id)).thenReturn(emp2);
+
+        EmployeeResponse emp3 = mock(EmployeeResponse.class);
+        when(emp3.firstName()).thenReturn("Charlie");
+        when(emp3.lastName()).thenReturn("Terminated");
+        when(emp3.status()).thenReturn(EmploymentStatus.TERMINATED);
+        when(employeeService.get(emp3Id)).thenReturn(emp3);
 
         StatutoryReportFile result = service.generateEsiReturnFile(PAYRUN_ID, ExportFormat.XLSX);
 
@@ -178,8 +219,8 @@ class StatutoryReportServiceTest {
         try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(result.content()))) {
             XSSFSheet sheet = wb.getSheet("ESI Return");
             assertThat(sheet).isNotNull();
-            // Row 0 is header, Row 1 is emp1, Row 2 is emp2 (emp3 excluded)
-            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(3);
+            // Row 0 is header, Row 1 is emp1, Row 2 is emp2, Row 3 is emp3 (emp4, emp5 excluded)
+            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(4);
 
             // Headers
             assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("IP Number");
@@ -191,25 +232,50 @@ class StatutoryReportServiceTest {
             assertThat(sheet.getRow(0).getCell(6).getStringCellValue()).isEqualTo("Total Contribution");
             assertThat(sheet.getRow(0).getCell(7).getStringCellValue()).isEqualTo("Reason Code for Zero Days");
 
-            // Row 1: Alice Smith
+            // Row 1: Alice Smith (numeric cells for numbers)
             assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("1234567890");
             assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("Alice Smith");
-            assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("26");
-            assertThat(sheet.getRow(1).getCell(3).getStringCellValue()).isEqualTo("20000.00");
-            assertThat(sheet.getRow(1).getCell(4).getStringCellValue()).isEqualTo("150.00");
-            assertThat(sheet.getRow(1).getCell(5).getStringCellValue()).isEqualTo("650.00");
-            assertThat(sheet.getRow(1).getCell(6).getStringCellValue()).isEqualTo("800.00");
+            assertThat(sheet.getRow(1).getCell(2).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(1).getCell(2).getNumericCellValue()).isEqualTo(26.0);
+            assertThat(sheet.getRow(1).getCell(3).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(1).getCell(3).getNumericCellValue()).isEqualTo(20000.00);
+            assertThat(sheet.getRow(1).getCell(4).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(150.00);
+            assertThat(sheet.getRow(1).getCell(5).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(1).getCell(5).getNumericCellValue()).isEqualTo(650.00);
+            assertThat(sheet.getRow(1).getCell(6).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(1).getCell(6).getNumericCellValue()).isEqualTo(800.00);
             assertThat(sheet.getRow(1).getCell(7).getStringCellValue()).isEmpty();
 
-            // Row 2: Bob Jones (zero days worked)
+            // Row 2: Bob Jones (zero days worked, active -> reason code 1)
             assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("9876543210");
             assertThat(sheet.getRow(2).getCell(1).getStringCellValue()).isEqualTo("Bob Jones");
-            assertThat(sheet.getRow(2).getCell(2).getStringCellValue()).isEqualTo("0");
-            assertThat(sheet.getRow(2).getCell(3).getStringCellValue()).isEqualTo("0.00");
-            assertThat(sheet.getRow(2).getCell(4).getStringCellValue()).isEqualTo("0.00");
-            assertThat(sheet.getRow(2).getCell(5).getStringCellValue()).isEqualTo("0.00");
-            assertThat(sheet.getRow(2).getCell(6).getStringCellValue()).isEqualTo("0.00");
+            assertThat(sheet.getRow(2).getCell(2).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(2).getCell(2).getNumericCellValue()).isEqualTo(0.0);
+            assertThat(sheet.getRow(2).getCell(3).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(2).getCell(3).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(sheet.getRow(2).getCell(4).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(2).getCell(4).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(sheet.getRow(2).getCell(5).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(2).getCell(5).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(sheet.getRow(2).getCell(6).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(2).getCell(6).getNumericCellValue()).isEqualTo(0.00);
             assertThat(sheet.getRow(2).getCell(7).getStringCellValue()).isEqualTo("1");
+
+            // Row 3: Charlie Terminated (zero days worked, terminated -> reason code 2)
+            assertThat(sheet.getRow(3).getCell(0).getStringCellValue()).isEqualTo("9876543211");
+            assertThat(sheet.getRow(3).getCell(1).getStringCellValue()).isEqualTo("Charlie Terminated");
+            assertThat(sheet.getRow(3).getCell(2).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(3).getCell(2).getNumericCellValue()).isEqualTo(0.0);
+            assertThat(sheet.getRow(3).getCell(3).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(3).getCell(3).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(sheet.getRow(3).getCell(4).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(3).getCell(4).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(sheet.getRow(3).getCell(5).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(3).getCell(5).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(sheet.getRow(3).getCell(6).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(sheet.getRow(3).getCell(6).getNumericCellValue()).isEqualTo(0.00);
+            assertThat(sheet.getRow(3).getCell(7).getStringCellValue()).isEqualTo("2");
         }
     }
 
@@ -354,16 +420,20 @@ class StatutoryReportServiceTest {
             assertThat(ptSheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("PTRC-KA-12345");
             assertThat(ptSheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("EMP001");
             assertThat(ptSheet.getRow(1).getCell(3).getStringCellValue()).isEqualTo("Deepak Sharma");
-            assertThat(ptSheet.getRow(1).getCell(4).getStringCellValue()).isEqualTo("45000.00");
-            assertThat(ptSheet.getRow(1).getCell(5).getStringCellValue()).isEqualTo("200.00");
+            assertThat(ptSheet.getRow(1).getCell(4).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(ptSheet.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(45000.00);
+            assertThat(ptSheet.getRow(1).getCell(5).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(ptSheet.getRow(1).getCell(5).getNumericCellValue()).isEqualTo(200.00);
 
             // Row 2: MH Pooja Patil (no override configured)
             assertThat(ptSheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("MH");
             assertThat(ptSheet.getRow(2).getCell(1).getStringCellValue()).isEqualTo("NOT_CONFIGURED");
             assertThat(ptSheet.getRow(2).getCell(2).getStringCellValue()).isEqualTo("EMP002");
             assertThat(ptSheet.getRow(2).getCell(3).getStringCellValue()).isEqualTo("Pooja Patil");
-            assertThat(ptSheet.getRow(2).getCell(4).getStringCellValue()).isEqualTo("60000.00");
-            assertThat(ptSheet.getRow(2).getCell(5).getStringCellValue()).isEqualTo("200.00");
+            assertThat(ptSheet.getRow(2).getCell(4).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(ptSheet.getRow(2).getCell(4).getNumericCellValue()).isEqualTo(60000.00);
+            assertThat(ptSheet.getRow(2).getCell(5).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(ptSheet.getRow(2).getCell(5).getNumericCellValue()).isEqualTo(200.00);
 
             // Sheet 2: State Summary
             XSSFSheet summarySheet = wb.getSheet("State Summary");
@@ -373,14 +443,18 @@ class StatutoryReportServiceTest {
             // KA Summary
             assertThat(summarySheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("KA");
             assertThat(summarySheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("PTRC-KA-12345");
-            assertThat(summarySheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("1");
-            assertThat(summarySheet.getRow(1).getCell(3).getStringCellValue()).isEqualTo("200.00");
+            assertThat(summarySheet.getRow(1).getCell(2).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(summarySheet.getRow(1).getCell(2).getNumericCellValue()).isEqualTo(1.0);
+            assertThat(summarySheet.getRow(1).getCell(3).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(summarySheet.getRow(1).getCell(3).getNumericCellValue()).isEqualTo(200.00);
 
             // MH Summary
             assertThat(summarySheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("MH");
             assertThat(summarySheet.getRow(2).getCell(1).getStringCellValue()).isEqualTo("NOT_CONFIGURED");
-            assertThat(summarySheet.getRow(2).getCell(2).getStringCellValue()).isEqualTo("1");
-            assertThat(summarySheet.getRow(2).getCell(3).getStringCellValue()).isEqualTo("200.00");
+            assertThat(summarySheet.getRow(2).getCell(2).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(summarySheet.getRow(2).getCell(2).getNumericCellValue()).isEqualTo(1.0);
+            assertThat(summarySheet.getRow(2).getCell(3).getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(summarySheet.getRow(2).getCell(3).getNumericCellValue()).isEqualTo(200.00);
         }
     }
 
@@ -631,5 +705,206 @@ class StatutoryReportServiceTest {
         assertThatThrownBy(() -> service.generatePtReturn(PAYRUN_ID, ExportFormat.XLSX, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Statutory reports cannot be generated for off-cycle pay runs");
+    }
+
+    @Test
+    @DisplayName("ESI wages column uses unreduced base gross when considerEarnedWage switch is off even with LOP")
+    void wageTest_LopWithEarnedWageSwitchOff() {
+        PayRun run = mock(PayRun.class);
+        when(run.getId()).thenReturn(PAYRUN_ID);
+        when(run.getStatus()).thenReturn(PayRunStatus.COMPUTED);
+        when(run.getPeriod()).thenReturn(YearMonth.of(2026, 4));
+        when(payRunRepository.findByIdAndTenantId(PAYRUN_ID, TENANT_ID)).thenReturn(Optional.of(run));
+
+        EpfSettingResponse epfSetting = mock(EpfSettingResponse.class);
+        when(epfSetting.considerEarnedWage()).thenReturn(false);
+        when(statutorySettingsService.epf(TENANT_ID)).thenReturn(epfSetting);
+
+        UUID empId = UUID.randomUUID();
+        UUID eprId = UUID.randomUUID();
+
+        EmployeePayRun epr = mock(EmployeePayRun.class);
+        when(epr.getId()).thenReturn(eprId);
+        when(epr.getEmployeeId()).thenReturn(empId);
+        when(epr.getPaidDays()).thenReturn(new BigDecimal("20"));
+
+        when(employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                        TENANT_ID, PAYRUN_ID, InclusionStatus.INCLUDED))
+                .thenReturn(List.of(epr));
+
+        EmployeePayRunLine basicLine = mock(EmployeePayRunLine.class);
+        when(basicLine.getEmployeePayrunId()).thenReturn(eprId);
+        when(basicLine.getLineKind()).thenReturn(com.infinevo.payroll.payrun.LineKind.EARNING);
+        when(basicLine.getSource()).thenReturn(com.infinevo.payroll.payrun.LineSource.STRUCTURE);
+        when(basicLine.getAmount()).thenReturn(new BigDecimal("15000.00"));
+
+        EmployeePayRunLine lopLine = mock(EmployeePayRunLine.class);
+        when(lopLine.getEmployeePayrunId()).thenReturn(eprId);
+        lenient().when(lopLine.getComponentCode()).thenReturn("LOP");
+        lenient().when(lopLine.getAmount()).thenReturn(new BigDecimal("5000.00"));
+
+        EmployeePayRunLine eeEsi = mock(EmployeePayRunLine.class);
+        when(eeEsi.getEmployeePayrunId()).thenReturn(eprId);
+        when(eeEsi.getComponentCode()).thenReturn("ESI_EMPLOYEE");
+        when(eeEsi.getAmount()).thenReturn(new BigDecimal("113.00"));
+
+        EmployeePayRunLine erEsi = mock(EmployeePayRunLine.class);
+        when(erEsi.getEmployeePayrunId()).thenReturn(eprId);
+        when(erEsi.getComponentCode()).thenReturn("ESI_EMPLOYER");
+        when(erEsi.getAmount()).thenReturn(new BigDecimal("488.00"));
+
+        when(employeePayRunLineRepository.findByTenantIdAndPayrunId(TENANT_ID, PAYRUN_ID))
+                .thenReturn(List.of(basicLine, lopLine, eeEsi, erEsi));
+
+        EmployeeStatutoryProfile prof = new EmployeeStatutoryProfile(TENANT_ID, empId, "test");
+        prof.setEligibleForEsi(true);
+        prof.setEsiNumber("1234567890");
+        when(employeeStatutoryProfileRepository.findAllByTenantIdAndEmployeeIdIn(eq(TENANT_ID), any()))
+                .thenReturn(List.of(prof));
+
+        EmployeeResponse emp = mock(EmployeeResponse.class);
+        when(emp.firstName()).thenReturn("Charlie");
+        when(emp.lastName()).thenReturn("Brown");
+        when(employeeService.get(empId)).thenReturn(emp);
+
+        StatutoryReportFile result = service.generateEsiReturnFile(PAYRUN_ID, ExportFormat.CSV);
+        String csvResult = new String(result.content(), StandardCharsets.UTF_8);
+
+        // When considerEarnedWage is false, wage is 15000.00 (unreduced base gross, NOT 15066.67 and NOT 10000.00)
+        assertThat(csvResult).contains("1234567890,Charlie Brown,20,15000.00,113.00,488.00,601.00,");
+    }
+
+    @Test
+    @DisplayName("Formula injection chars (=, +, -, @) in CSV cells are neutralized with leading quote")
+    void formulaInjectionNeutralization() {
+        PayRun run = mock(PayRun.class);
+        when(run.getId()).thenReturn(PAYRUN_ID);
+        when(run.getStatus()).thenReturn(PayRunStatus.COMPUTED);
+        when(run.getPeriod()).thenReturn(YearMonth.of(2026, 4));
+        when(payRunRepository.findByIdAndTenantId(PAYRUN_ID, TENANT_ID)).thenReturn(Optional.of(run));
+
+        UUID emp1Id = UUID.randomUUID();
+        UUID emp2Id = UUID.randomUUID();
+        UUID emp3Id = UUID.randomUUID();
+        UUID emp4Id = UUID.randomUUID();
+
+        UUID epr1Id = UUID.randomUUID();
+        UUID epr2Id = UUID.randomUUID();
+        UUID epr3Id = UUID.randomUUID();
+        UUID epr4Id = UUID.randomUUID();
+
+        EmployeePayRun epr1 = mock(EmployeePayRun.class);
+        when(epr1.getId()).thenReturn(epr1Id);
+        when(epr1.getEmployeeId()).thenReturn(emp1Id);
+        when(epr1.getPaidDays()).thenReturn(new BigDecimal("30"));
+        when(epr1.getGrossEarnings()).thenReturn(new BigDecimal("10000.00"));
+
+        EmployeePayRun epr2 = mock(EmployeePayRun.class);
+        when(epr2.getId()).thenReturn(epr2Id);
+        when(epr2.getEmployeeId()).thenReturn(emp2Id);
+        when(epr2.getPaidDays()).thenReturn(new BigDecimal("30"));
+        when(epr2.getGrossEarnings()).thenReturn(new BigDecimal("10000.00"));
+
+        EmployeePayRun epr3 = mock(EmployeePayRun.class);
+        when(epr3.getId()).thenReturn(epr3Id);
+        when(epr3.getEmployeeId()).thenReturn(emp3Id);
+        when(epr3.getPaidDays()).thenReturn(new BigDecimal("30"));
+        when(epr3.getGrossEarnings()).thenReturn(new BigDecimal("10000.00"));
+
+        EmployeePayRun epr4 = mock(EmployeePayRun.class);
+        when(epr4.getId()).thenReturn(epr4Id);
+        when(epr4.getEmployeeId()).thenReturn(emp4Id);
+        when(epr4.getPaidDays()).thenReturn(new BigDecimal("30"));
+        when(epr4.getGrossEarnings()).thenReturn(new BigDecimal("10000.00"));
+
+        when(employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                        TENANT_ID, PAYRUN_ID, InclusionStatus.INCLUDED))
+                .thenReturn(List.of(epr1, epr2, epr3, epr4));
+
+        EmployeePayRunLine line1 = mock(EmployeePayRunLine.class);
+        when(line1.getEmployeePayrunId()).thenReturn(epr1Id);
+        when(line1.getComponentCode()).thenReturn("ESI_EMPLOYEE");
+        when(line1.getAmount()).thenReturn(new BigDecimal("75.00"));
+
+        EmployeePayRunLine line2 = mock(EmployeePayRunLine.class);
+        when(line2.getEmployeePayrunId()).thenReturn(epr2Id);
+        when(line2.getComponentCode()).thenReturn("ESI_EMPLOYEE");
+        when(line2.getAmount()).thenReturn(new BigDecimal("75.00"));
+
+        EmployeePayRunLine line3 = mock(EmployeePayRunLine.class);
+        when(line3.getEmployeePayrunId()).thenReturn(epr3Id);
+        when(line3.getComponentCode()).thenReturn("ESI_EMPLOYEE");
+        when(line3.getAmount()).thenReturn(new BigDecimal("75.00"));
+
+        EmployeePayRunLine line4 = mock(EmployeePayRunLine.class);
+        when(line4.getEmployeePayrunId()).thenReturn(epr4Id);
+        when(line4.getComponentCode()).thenReturn("ESI_EMPLOYEE");
+        when(line4.getAmount()).thenReturn(new BigDecimal("75.00"));
+
+        when(employeePayRunLineRepository.findByTenantIdAndPayrunId(TENANT_ID, PAYRUN_ID))
+                .thenReturn(List.of(line1, line2, line3, line4));
+
+        EmployeeStatutoryProfile p1 = new EmployeeStatutoryProfile(TENANT_ID, emp1Id, "test");
+        p1.setEligibleForEsi(true);
+        p1.setEsiNumber("111");
+
+        EmployeeStatutoryProfile p2 = new EmployeeStatutoryProfile(TENANT_ID, emp2Id, "test");
+        p2.setEligibleForEsi(true);
+        p2.setEsiNumber("222");
+
+        EmployeeStatutoryProfile p3 = new EmployeeStatutoryProfile(TENANT_ID, emp3Id, "test");
+        p3.setEligibleForEsi(true);
+        p3.setEsiNumber("333");
+
+        EmployeeStatutoryProfile p4 = new EmployeeStatutoryProfile(TENANT_ID, emp4Id, "test");
+        p4.setEligibleForEsi(true);
+        p4.setEsiNumber("444");
+
+        when(employeeStatutoryProfileRepository.findAllByTenantIdAndEmployeeIdIn(eq(TENANT_ID), any()))
+                .thenReturn(List.of(p1, p2, p3, p4));
+
+        EmployeeResponse e1 = mock(EmployeeResponse.class);
+        when(e1.firstName()).thenReturn("=cmd");
+        when(e1.lastName()).thenReturn("calc");
+        when(employeeService.get(emp1Id)).thenReturn(e1);
+
+        EmployeeResponse e2 = mock(EmployeeResponse.class);
+        when(e2.firstName()).thenReturn("+plus");
+        when(e2.lastName()).thenReturn("user");
+        when(employeeService.get(emp2Id)).thenReturn(e2);
+
+        EmployeeResponse e3 = mock(EmployeeResponse.class);
+        when(e3.firstName()).thenReturn("-minus");
+        when(e3.lastName()).thenReturn("user");
+        when(employeeService.get(emp3Id)).thenReturn(e3);
+
+        EmployeeResponse e4 = mock(EmployeeResponse.class);
+        when(e4.firstName()).thenReturn("@at");
+        when(e4.lastName()).thenReturn("user");
+        when(employeeService.get(emp4Id)).thenReturn(e4);
+
+        StatutoryReportFile result = service.generateEsiReturnFile(PAYRUN_ID, ExportFormat.CSV);
+        String csv = new String(result.content(), StandardCharsets.UTF_8);
+
+        assertThat(csv).contains("111,'=cmd calc,");
+        assertThat(csv).contains("222,'+plus user,");
+        assertThat(csv).contains("333,'-minus user,");
+        assertThat(csv).contains("444,'@at user,");
+    }
+
+    @Test
+    @DisplayName("State filter parameter is sanitized in generated PT filename")
+    void sanitizeStateInPtFileName() {
+        PayRun run = mock(PayRun.class);
+        when(run.getId()).thenReturn(PAYRUN_ID);
+        when(run.getStatus()).thenReturn(PayRunStatus.COMPUTED);
+        when(run.getPeriod()).thenReturn(YearMonth.of(2026, 4));
+        when(payRunRepository.findByIdAndTenantId(PAYRUN_ID, TENANT_ID)).thenReturn(Optional.of(run));
+        when(employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                        TENANT_ID, PAYRUN_ID, InclusionStatus.INCLUDED))
+                .thenReturn(List.of());
+
+        StatutoryReportFile result = service.generatePtReturnFile(PAYRUN_ID, ExportFormat.CSV, "../KA; evil/2026");
+        assertThat(result.filename()).isEqualTo("pt-return-kaevil2026-2026-04.csv");
     }
 }
