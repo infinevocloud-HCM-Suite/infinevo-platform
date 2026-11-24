@@ -121,6 +121,7 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
     setMessages([]);
     setFailure(null);
     setChatError(false);
+    setChatLoading(false);
     setView('chat');
     inputRef.current?.focus?.();
   };
@@ -148,13 +149,17 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
     setChatLoading(true);
     selectSession(session.id);
     setMessages([]);
+    // A reply for a chat the user has since left (New chat, or another past chat) is dropped,
+    // so one chat's history never shows while questions go into another.
+    const stillOpen = () => sessionRef.current === session.id;
     try {
       const list = await assistantService.listMessages(session.id);
+      if (!stillOpen()) return;
       setMessages(list.filter((m) => m.role === 'USER' || m.role === 'ASSISTANT'));
     } catch {
-      setChatError(true);
+      if (stillOpen()) setChatError(true);
     } finally {
-      setChatLoading(false);
+      if (stillOpen()) setChatLoading(false);
     }
   };
 
@@ -167,6 +172,7 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
         selectSession(null);
         setMessages([]);
         setFailure(null);
+        setChatLoading(false);
       }
     } catch {
       setDeleteError(true);

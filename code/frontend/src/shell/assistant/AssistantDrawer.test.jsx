@@ -135,6 +135,24 @@ describe('AssistantDrawer', () => {
     expect(await screen.findByText('Old answer')).toBeDefined();
   });
 
+  it('a past chat that loads after the user pressed New chat does not show in the new chat', async () => {
+    const slow = deferred();
+    vi.spyOn(assistantService, 'listSessions').mockResolvedValue([{ id: 's9', title: 'Old chat' }]);
+    vi.spyOn(assistantService, 'listMessages').mockReturnValue(slow.promise);
+    renderDrawer();
+
+    fireEvent.click(screen.getByRole('button', { name: /Past chats/ }));
+    fireEvent.click(await screen.findByText('Old chat'));
+    fireEvent.click(screen.getByRole('button', { name: /New chat/ }));
+    await act(async () => {
+      slow.resolve([{ id: 'a1', role: 'ASSISTANT', content: 'Old answer' }]);
+    });
+
+    expect(screen.queryByText('Old answer')).toBeNull();
+    expect(screen.getByText(EMPTY_STATE_TEXT)).toBeDefined();
+    expect(screen.getByLabelText('Your question').disabled).toBe(false);
+  });
+
   it('429 AI_RATE_LIMITED says how many seconds to wait', async () => {
     vi.spyOn(assistantService, 'createSession').mockResolvedValue({ id: 's1' });
     vi.spyOn(assistantService, 'sendMessage').mockRejectedValue({
