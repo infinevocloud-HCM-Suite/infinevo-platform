@@ -6,6 +6,15 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-24 — D-150 to D-152 on `main`: Form 16, officer TDS, proof screens
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-150 | Form 16: true salary when old-regime income is floored; an "Approved, not yet paid" line; a nil statement when there is no TDS record | `86a71006` |
+
+- Built by Claude; one independent read each, defects fixed on the branch, CI green.
+- **Left:** the stored tax working holds no amounts (`Money` has no JSON serializer).
+
 ## 2026-11-24 — D-149 Form 16 fixes on `main`
 
 | Ticket | What | Commit |
