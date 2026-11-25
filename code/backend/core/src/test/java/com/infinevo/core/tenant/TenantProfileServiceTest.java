@@ -209,16 +209,31 @@ class TenantProfileServiceTest {
         assertThat(response.leaveYearLocked()).isTrue();
     }
 
+    @Test
+    @DisplayName("W-116: null leaveYearStartMonth in database yields null in TenantBranding")
+    void nullLeaveYearStartMonthInDb() {
+        stubRow("Acme Ltd", "Tagline", null, null, "IN", "Asia/Kolkata");
+        TenantBranding branding = new TenantProfileServiceImpl(jdbc, () -> links, () -> payRunChecker)
+                .branding()
+                .orElseThrow();
+        assertThat(branding.leaveYearStartMonth()).isNull();
+    }
+
     @SuppressWarnings("unchecked")
-    private void stubRow(String name, String tagline, UUID logo, short leaveYear, String countryCode, String timezone) {
+    private void stubRow(String name, String tagline, UUID logo, Short leaveYear, String countryCode, String timezone) {
         when(jdbc.query(anyString(), any(RowMapper.class), eq(TENANT))).thenAnswer(invocation -> {
             RowMapper<TenantBranding> mapper = invocation.getArgument(1);
             java.sql.ResultSet rs = mock(java.sql.ResultSet.class);
             when(rs.getString("name")).thenReturn(name);
             when(rs.getString("tagline")).thenReturn(tagline);
             when(rs.getObject("logo_document_id", UUID.class)).thenReturn(logo);
-            when(rs.getShort("leave_year_start_month")).thenReturn(leaveYear);
-            when(rs.wasNull()).thenReturn(false);
+            if (leaveYear != null) {
+                when(rs.getShort("leave_year_start_month")).thenReturn(leaveYear);
+                when(rs.wasNull()).thenReturn(false);
+            } else {
+                when(rs.getShort("leave_year_start_month")).thenReturn((short) 0);
+                when(rs.wasNull()).thenReturn(true);
+            }
             when(rs.getString("country_code")).thenReturn(countryCode);
             when(rs.getString("timezone")).thenReturn(timezone);
             return List.of(mapper.mapRow(rs, 0));

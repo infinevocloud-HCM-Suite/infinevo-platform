@@ -190,16 +190,14 @@ public class TenantProfileServiceImpl implements TenantProfileService {
                 "SELECT name, tagline, logo_document_id, leave_year_start_month, country_code, timezone"
                         + " FROM core.tenant WHERE tenant_id = ?",
                 (rs, rowNum) -> {
+                    String name = rs.getString("name");
+                    String tagline = rs.getString("tagline");
                     UUID logoId = rs.getObject("logo_document_id", UUID.class);
-                    short month = rs.getShort("leave_year_start_month");
-                    return new TenantBranding(
-                            rs.getString("name"),
-                            rs.getString("tagline"),
-                            logoId,
-                            logoUrl(logoId),
-                            rs.wasNull() ? null : month,
-                            rs.getString("country_code"),
-                            rs.getString("timezone"));
+                    short rawMonth = rs.getShort("leave_year_start_month");
+                    Short month = rs.wasNull() ? null : rawMonth;
+                    String countryCode = rs.getString("country_code");
+                    String timezone = rs.getString("timezone");
+                    return new TenantBranding(name, tagline, logoId, logoUrl(logoId), month, countryCode, timezone);
                 },
                 tenantId);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
