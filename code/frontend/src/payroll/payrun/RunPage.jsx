@@ -210,11 +210,14 @@ export function RunPage() {
     try {
       setStatutoryLoading(true);
       const isEsi = type === 'ESI';
+      const isPt = type === 'PT';
       const blob = isEsi
         ? await payrunService.downloadEsiReturn(id, format)
-        : await payrunService.downloadPtReturn(id, format);
+        : isPt
+        ? await payrunService.downloadPtReturn(id, format)
+        : await payrunService.downloadLwfReturn(id, format);
       const ext = format.toLowerCase();
-      const filename = `${isEsi ? 'esi' : 'pt'}-return-${run?.period || 'monthly'}.${ext}`;
+      const filename = `${type.toLowerCase()}-return-${run?.period || 'monthly'}.${ext}`;
       const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a');
       link.href = url;
@@ -256,6 +259,16 @@ export function RunPage() {
       key: 'pt-csv',
       label: 'Professional Tax Return (.csv)',
       onClick: () => handleStatutoryDownload('PT', 'CSV'),
+    },
+    {
+      key: 'lwf-xlsx',
+      label: 'LWF Return (.xlsx)',
+      onClick: () => handleStatutoryDownload('LWF', 'XLSX'),
+    },
+    {
+      key: 'lwf-csv',
+      label: 'LWF Return (.csv)',
+      onClick: () => handleStatutoryDownload('LWF', 'CSV'),
     },
   ];
 

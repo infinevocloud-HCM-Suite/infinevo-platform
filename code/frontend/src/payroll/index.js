@@ -46,6 +46,9 @@ const GuidedStatutorySetup = lazy(() =>
 const BankFileTemplates = lazy(() =>
   import('./settings/BankFileTemplates.jsx').then((m) => ({ default: m.BankFileTemplates }))
 );
+const LwfSetting = lazy(() =>
+  import('./settings/LwfSetting.jsx').then((m) => ({ default: m.LwfSetting }))
+);
 
 const TaxWindowScreen = lazy(() =>
   import('./tax/TaxWindowScreen.jsx').then((m) => ({ default: m.TaxWindowScreen }))
@@ -119,6 +122,10 @@ export const routes = [
   {
     path: '/payroll/settings/professional-tax',
     element: React.createElement(SettingsLayout, null, React.createElement(ProfessionalTaxScreen)),
+  },
+  {
+    path: '/payroll/settings/lwf',
+    element: React.createElement(SettingsLayout, null, React.createElement(LwfSetting)),
   },
   {
     path: '/payroll/settings/tds',

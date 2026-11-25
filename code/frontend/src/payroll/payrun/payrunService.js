@@ -99,6 +99,20 @@ export const payrunService = {
   },
 
   /**
+   * Download Labour Welfare Fund (LWF) return statement (W-92).
+   * @param {string} id Payrun ID
+   * @param {string} [format='XLSX'] 'XLSX' | 'CSV'
+   * @returns {Promise<Blob>}
+   */
+  async downloadLwfReturn(id, format = 'XLSX') {
+    const res = await apiClient.get(`${BASE_PATH}/${id}/reports/lwf`, {
+      params: { format },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
+  /**
    * List employees considered in this run, paged with optional inclusion filter.
    */
   async employees(id, params = {}) {

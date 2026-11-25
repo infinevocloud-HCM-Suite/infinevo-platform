@@ -15,6 +15,8 @@ import com.infinevo.payroll.salary.SalaryComponentItemResponse;
 import com.infinevo.payroll.salary.StatutoryProfileResponse;
 import com.infinevo.payroll.statutory.lines.SalaryStatutoryItemResponse;
 import com.infinevo.payroll.statutory.lines.StatutoryComponentCode;
+import com.infinevo.payroll.statutory.lwf.LwfCalculationResult;
+import com.infinevo.payroll.statutory.lwf.LwfService;
 import com.infinevo.payroll.statutory.pt.ProfessionalTaxService;
 import com.infinevo.payroll.statutory.settings.EpfSettingResponse;
 import com.infinevo.payroll.statutory.settings.EsiSettingResponse;
@@ -79,6 +81,11 @@ public class StatutoryLineContributor implements PayLineContributor {
     static final String CODE_PT = "PROFESSIONAL_TAX";
     static final String NAME_PT = "Professional tax";
 
+    public static final String CODE_LWF_EE = "LWF_EMPLOYEE";
+    public static final String NAME_LWF_EE = "Labour welfare fund - employee";
+    public static final String CODE_LWF_ER = "LWF_EMPLOYER";
+    public static final String NAME_LWF_ER = "Labour welfare fund - employer";
+
     private static final BigDecimal HUNDRED = new BigDecimal("100");
     private static final BigDecimal DEFAULT_EMPLOYER_PF_RATE = new BigDecimal("12.0000");
 
@@ -87,6 +94,7 @@ public class StatutoryLineContributor implements PayLineContributor {
     private final WorkLocationService workLocationService;
     private final EmployeeStatutoryProfileService employeeStatutoryProfileService;
     private final EmployeePersonalService employeePersonalService;
+    private final LwfService lwfService;
 
     private final Map<UUID, EpfSettingResponse> epfCache = new ConcurrentHashMap<>();
     private final Map<UUID, EsiSettingResponse> esiCache = new ConcurrentHashMap<>();
@@ -107,6 +115,22 @@ public class StatutoryLineContributor implements PayLineContributor {
                 professionalTaxService,
                 workLocationService,
                 employeeStatutoryProfileService,
+                null,
+                null);
+    }
+
+    public StatutoryLineContributor(
+            StatutorySettingsService statutorySettingsService,
+            ProfessionalTaxService professionalTaxService,
+            WorkLocationService workLocationService,
+            EmployeeStatutoryProfileService employeeStatutoryProfileService,
+            EmployeePersonalService employeePersonalService) {
+        this(
+                statutorySettingsService,
+                professionalTaxService,
+                workLocationService,
+                employeeStatutoryProfileService,
+                employeePersonalService,
                 null);
     }
 
@@ -116,7 +140,8 @@ public class StatutoryLineContributor implements PayLineContributor {
             ProfessionalTaxService professionalTaxService,
             WorkLocationService workLocationService,
             EmployeeStatutoryProfileService employeeStatutoryProfileService,
-            @Autowired(required = false) EmployeePersonalService employeePersonalService) {
+            @Autowired(required = false) EmployeePersonalService employeePersonalService,
+            @Autowired(required = false) LwfService lwfService) {
         this.statutorySettingsService =
                 Objects.requireNonNull(statutorySettingsService, "statutorySettingsService must not be null");
         this.professionalTaxService =
@@ -125,6 +150,7 @@ public class StatutoryLineContributor implements PayLineContributor {
         this.employeeStatutoryProfileService = Objects.requireNonNull(
                 employeeStatutoryProfileService, "employeeStatutoryProfileService must not be null");
         this.employeePersonalService = employeePersonalService;
+        this.lwfService = lwfService;
     }
 
     @Override
@@ -297,12 +323,48 @@ public class StatutoryLineContributor implements PayLineContributor {
             }
         }
 
-        List<PayLine> lines = new ArrayList<>(8);
+        PayLine eeLwfLine = null;
+        PayLine erLwfLine = null;
+        if (lwfService != null && profile != null && profile.eligibleForLwf()) {
+            Money grossForLwf = computeGrossForPt(ctx);
+            String stateCode = resolveStateCode(ctx.employee().workLocationId());
+            LocalDate periodEnd = ctx.periodEnd();
+            int month = periodEnd.getMonthValue();
+            LwfCalculationResult lwf =
+                    lwfService.calculate(ctx.tenantId(), stateCode, grossForLwf.toAmount(), month, periodEnd);
+            if (lwf != null && lwf.hasContribution()) {
+                if (lwf.employeeAmount() != null && lwf.employeeAmount().signum() > 0) {
+                    eeLwfLine = new PayLine(
+                            LineKind.DEDUCTION,
+                            LineSource.STATUTORY,
+                            null,
+                            CODE_LWF_EE,
+                            NAME_LWF_EE,
+                            Money.of(lwf.employeeAmount()),
+                            false);
+                }
+                if (lwf.employerAmount() != null && lwf.employerAmount().signum() > 0) {
+                    erLwfLine = new PayLine(
+                            LineKind.BENEFIT,
+                            LineSource.STATUTORY,
+                            null,
+                            CODE_LWF_ER,
+                            NAME_LWF_ER,
+                            Money.of(lwf.employerAmount()),
+                            false);
+                }
+            }
+        }
+
+        List<PayLine> lines = new ArrayList<>(10);
         if (eePfLine != null) {
             lines.add(eePfLine);
         }
         if (ptLine != null) {
             lines.add(ptLine);
+        }
+        if (eeLwfLine != null) {
+            lines.add(eeLwfLine);
         }
         if (eeEsiLine != null) {
             lines.add(eeEsiLine);
@@ -321,6 +383,9 @@ public class StatutoryLineContributor implements PayLineContributor {
         }
         if (erEsiLine != null) {
             lines.add(erEsiLine);
+        }
+        if (erLwfLine != null) {
+            lines.add(erLwfLine);
         }
         return lines;
     }

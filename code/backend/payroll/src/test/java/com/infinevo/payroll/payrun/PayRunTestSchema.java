@@ -80,6 +80,10 @@ public final class PayRunTestSchema {
             if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_payrun", "epf_wage")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V225__payrun_statutory_wages.sql");
             }
+            // W-92: LWF reference tables and tenant settings.
+            if (!PayrollTestSchema.tableExists(conn, "reference", "lwf_rule")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V226__lwf_schema.sql");
+            }
             // W-36.2: approve and pay columns on payrun.
             if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "approved_at")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V103__payrun_approve_pay.sql");
@@ -143,6 +147,11 @@ public final class PayRunTestSchema {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DELETE FROM payroll.bank_file_export");
                     st.execute("DELETE FROM payroll.bank_file_template");
+                }
+            }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "org_lwf_setting")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.org_lwf_setting");
                 }
             }
             // W-73.6: references core.employee ON DELETE RESTRICT, so it goes before the employees do.
