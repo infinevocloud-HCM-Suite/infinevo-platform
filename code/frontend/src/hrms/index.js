@@ -59,6 +59,23 @@ const LossOfPayLog = lazy(() =>
 );
 const MyWork = lazy(() => import('./projects/MyWork.jsx').then((m) => ({ default: m.MyWork })));
 
+// W-112: Hiring & Recruitment Management
+const JobOpeningList = lazy(() =>
+  import('./hiring/openings/JobOpeningList.jsx').then((m) => ({ default: m.JobOpeningList }))
+);
+const JobOpeningDetail = lazy(() =>
+  import('./hiring/openings/JobOpeningDetail.jsx').then((m) => ({ default: m.JobOpeningDetail }))
+);
+const CandidateList = lazy(() =>
+  import('./hiring/candidates/CandidateList.jsx').then((m) => ({ default: m.CandidateList }))
+);
+const InterviewList = lazy(() =>
+  import('./hiring/interviews/InterviewList.jsx').then((m) => ({ default: m.InterviewList }))
+);
+const OfferList = lazy(() =>
+  import('./hiring/offers/OfferList.jsx').then((m) => ({ default: m.OfferList }))
+);
+
 // HRMS module entry point (W-45 §5, W-48.2 §5). The week grid sits beneath `/hrms/timesheets`, the menu path
 // the feed carries (`hrms.timesheets`), so it mounts with it.
 export const routes = [
@@ -88,6 +105,12 @@ export const routes = [
   { path: '/hrms/overtime-requests/:id', mountWith: ['/approvals', '/hrms/overtime-requests/all'], element: React.createElement(OvertimeDetail) },
   // D-140: HR's manual loss of pay (feed `hrms.loss_of_pay`).
   { path: '/hrms/loss-of-pay', element: React.createElement(LossOfPayLog) },
+  // W-112: Hiring & Recruitment Management
+  { path: '/hrms/hiring/openings', element: React.createElement(JobOpeningList) },
+  { path: '/hrms/hiring/openings/:id', element: React.createElement(JobOpeningDetail) },
+  { path: '/hrms/hiring/candidates', element: React.createElement(CandidateList) },
+  { path: '/hrms/hiring/interviews', element: React.createElement(InterviewList) },
+  { path: '/hrms/hiring/offers', element: React.createElement(OfferList) },
 ];
 
 export const reducers = {};
