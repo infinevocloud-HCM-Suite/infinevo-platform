@@ -675,6 +675,27 @@ jobs:
           rg="rg-infinevo-${ENV}"
           backend="${ACR_LOGIN_SERVER}/infinevo-backend:${IMAGE_TAG}"
 
+          # W-114.2: the AI helper's model, for the app only (the worker never calls it).
+          # Looked up from Azure, not stored here, so the values cannot drift from the
+          # account ai-only.bicep created. No account means no settings, and the app keeps
+          # its stub client (AiModelConfig). Sign-in is by id-app through AZURE_CLIENT_ID;
+          # there is no key. Each customer still has its own AI switch, off by default (V192).
+          ai_env=()
+          ai_endpoint=$(az cognitiveservices account show -g "$rg" -n "oai-infinevo-${ENV}" \
+            --query properties.endpoint -o tsv 2>/dev/null || true)
+          if [ -n "$ai_endpoint" ]; then
+            ai_deployment=$(az cognitiveservices account deployment list -g "$rg" -n "oai-infinevo-${ENV}" \
+              --query "[0].name" -o tsv)
+            if [ -z "$ai_deployment" ]; then
+              echo "::error::oai-infinevo-${ENV} exists but has no model deployment"
+              exit 1
+            fi
+            ai_env=("INFINEVO_AI_ENDPOINT=${ai_endpoint}" "INFINEVO_AI_DEPLOYMENT=${ai_deployment}")
+            echo "app AI   -> ${ai_endpoint} (${ai_deployment})"
+          else
+            echo "app AI   -> none (stub model)"
+          fi
+
           az containerapp update -g "$rg" -n "ca-infinevo-${ENV}-app" \
             --image "$backend" --container-name app \
             --set-env-vars \
@@ -685,6 +706,7 @@ jobs:
               "INVITATION_LINK_BASE_URL=https://${FD_HOST}/invitations/accept" \
               "PAYSLIP_LINK_BASE_URL=https://${FD_HOST}/public/payslips" \
               "MANAGEMENT_HEALTH_REDIS_ENABLED=false" \
+              ${ai_env[@]+"${ai_env[@]}"} \
             --revision-suffix "$SUFFIX" --output none
           echo "app      -> ${backend}"
 
