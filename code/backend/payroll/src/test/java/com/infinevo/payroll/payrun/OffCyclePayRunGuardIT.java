@@ -72,7 +72,8 @@ class OffCyclePayRunGuardIT {
 
         mvc = MockMvcBuilders.standaloneSetup(
                         guarded(new OffCyclePayRunController(payRunService, permissionService)),
-                        guarded(new PayRunController(payRunService)))
+                        guarded(new PayRunController(
+                                payRunService, mock(com.infinevo.payroll.payrun.bankfile.BankFileService.class))))
                 .setControllerAdvice(new AuthzExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper()
                         .registerModule(new JavaTimeModule())

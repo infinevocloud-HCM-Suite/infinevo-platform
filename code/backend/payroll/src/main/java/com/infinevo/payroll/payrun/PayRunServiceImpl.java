@@ -9,6 +9,7 @@ import com.infinevo.core.notification.NotificationEvent;
 import com.infinevo.core.notification.NotificationService;
 import com.infinevo.core.payinput.PayInputCommand;
 import com.infinevo.core.payinput.PayInputKind;
+import com.infinevo.core.payinput.PayInputLockStage;
 import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.payslip.PayslipLinkService;
@@ -557,7 +558,29 @@ public class PayRunServiceImpl implements PayRunService {
     @Override
     @Transactional(readOnly = true)
     public PayRunResponse get(UUID id) {
-        return respond(require(id), null);
+        PayRun run = require(id);
+        PayRunResponse response = respond(run, null);
+        Long changed = inputsSinceCompute(run);
+        return changed == null ? response : response.withInputsSinceCompute(changed);
+    }
+
+    /**
+     * D-144: untagged entries for a regular run's month written after the run's last computation
+     * started - what approval would close the month without paying. Measured from the start of
+     * the last attempt, not its end: an entry written while the attempt ran may have been read
+     * before or after, and only a recompute settles it. Zero for an off-cycle run (its inputs are
+     * tagged and refused once it is locked) and for a run never computed, {@code null} - nothing to
+     * say, and the reply stays as it was before D-144.
+     */
+    private Long inputsSinceCompute(PayRun run) {
+        if (run.getRunType() != PayRunType.REGULAR) {
+            return null;
+        }
+        Instant since = run.getComputeStartedAt() != null ? run.getComputeStartedAt() : run.getComputedAt();
+        if (since == null) {
+            return null;
+        }
+        return payInputService.countChangesSince(run.getPeriod(), since);
     }
 
     /** Overrides the interface default so a call through the proxy is transactional too. */
@@ -630,7 +653,27 @@ public class PayRunServiceImpl implements PayRunService {
     @Transactional
     public PayRunResponse cancel(UUID id) {
         PayRun run = requireForUpdate(id);
+        PayRunStatus before = run.getStatus();
+        // A PAID run has no transition to CANCELLED (W-36.2 decision 9): this throws 409 before any lock moves.
         run.cancel(currentActor(), Instant.now().truncatedTo(ChronoUnit.MICROS));
+        if (run.getRunType() == PayRunType.REGULAR) {
+            // D-144, D-138: a cancelled run no longer holds its month, so entries for it post there
+            // again. An off-cycle run's own lock stays - nothing may be tagged to a cancelled run.
+            // D-151 (founder 2026-11-24): an APPROVED run's month is CLOSED; cancelling the run reopens
+            // it, so entries post there again and a new regular run can be created. The stage is read
+            // first and reopen never throws: an exception out of the transactional call would mark this
+            // transaction rollback-only even when caught (UnexpectedRollbackException at commit).
+            PayInputLockStage stage =
+                    payInputService.periodStage(run.getPeriod()).orElse(null);
+            if (stage == PayInputLockStage.LOCKED) {
+                payInputService.unlock(run.getPeriod());
+            } else if (stage == PayInputLockStage.CLOSED && before == PayRunStatus.APPROVED) {
+                payInputService.reopen(run.getPeriod());
+                log.info("Pay run {} cancelled after approval; period {} reopened", run.getId(), run.getPeriod());
+            } else {
+                log.info("Pay run {} cancelled; period {} has no LOCKED lock to remove", run.getId(), run.getPeriod());
+            }
+        }
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Cancelled pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
         return respond(saved, null);
@@ -807,7 +850,19 @@ public class PayRunServiceImpl implements PayRunService {
     @Transactional
     public PayRunResponse approve(UUID id) {
         PayRun run = requireForUpdate(id);
+        // D-144: refuse before approving when the month took entries after the compute read them.
+        // Checked only once the status allows approval, so a wrong-status call keeps its own 409.
+        run.getStatus().requireTransitionTo(PayRunStatus.APPROVED);
+        Long changed = inputsSinceCompute(run);
+        if (changed != null && changed > 0) {
+            throw new PayRunInputsChangedException(changed);
+        }
         run.approve(currentActor(), now());
+        if (run.getRunType() == PayRunType.REGULAR) {
+            // D-144 (founder 2026-11-23): a month is CLOSED once its run is approved - an entry for it
+            // is refused from now on, where until now it still posted and asked for a recompute.
+            payInputService.lock(run.getPeriod(), PayInputLockStage.CLOSED);
+        }
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Approved pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
         return respond(saved, null);

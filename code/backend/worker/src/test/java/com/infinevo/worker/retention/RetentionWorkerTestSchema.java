@@ -87,6 +87,14 @@ public final class RetentionWorkerTestSchema {
                         executeResource(conn, "db/migration/" + script);
                     }
                 }
+                // W-114.10: the W-114.3 chat tables (V200, which needs only tenant, employee, reference.action,
+                // role and role_action above) and the retention grants and indexes on them (V230).
+                if (!tableExists(conn, "core", "ai_session")) {
+                    for (String script :
+                            new String[] {"core/V200__ai_chat.sql", "core/V230__ai_chat_retention_grants.sql"}) {
+                        executeResource(conn, "db/migration/" + script);
+                    }
+                }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
             }
@@ -170,6 +178,74 @@ public final class RetentionWorkerTestSchema {
             ps.executeUpdate();
         }
         return id;
+    }
+
+    public static UUID insertAiSession(Connection conn, UUID tenantId, Instant createdAt, Instant lastMessageAt)
+            throws SQLException {
+        UUID id = UUID.randomUUID();
+        String sql = "INSERT INTO core.ai_session (id, tenant_id, user_id, title, created_at, last_message_at)"
+                + " VALUES (?, ?, ?, 'Test chat', ?, ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setObject(3, UUID.randomUUID());
+            ps.setTimestamp(4, Timestamp.from(createdAt));
+            ps.setTimestamp(5, lastMessageAt == null ? null : Timestamp.from(lastMessageAt));
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    public static UUID insertAiMessage(Connection conn, UUID tenantId, UUID sessionId, Instant createdAt)
+            throws SQLException {
+        UUID id = UUID.randomUUID();
+        String sql = "INSERT INTO core.ai_message (id, tenant_id, session_id, role, content, created_at)"
+                + " VALUES (?, ?, ?, 'USER', 'Hello', ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setObject(3, sessionId);
+            ps.setTimestamp(4, Timestamp.from(createdAt));
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    public static UUID insertAiActionIntent(Connection conn, UUID tenantId, UUID sessionId, Instant createdAt)
+            throws SQLException {
+        return insertAiActionIntent(conn, tenantId, sessionId, createdAt, null, "CONFIRMED");
+    }
+
+    /** An intent proposed by {@code messageId} (may be null), in the given status. */
+    public static UUID insertAiActionIntent(
+            Connection conn, UUID tenantId, UUID sessionId, Instant createdAt, UUID messageId, String status)
+            throws SQLException {
+        UUID id = UUID.randomUUID();
+        String sql = "INSERT INTO core.ai_action_intent (id, tenant_id, session_id, user_id, message_id, action_code,"
+                + " payload, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, 'hrms.leave.apply', '{}'::jsonb,"
+                + " ?, ?, ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setObject(3, sessionId);
+            ps.setObject(4, UUID.randomUUID());
+            ps.setObject(5, messageId);
+            ps.setString(6, status);
+            ps.setTimestamp(7, Timestamp.from(createdAt.plusSeconds(900)));
+            ps.setTimestamp(8, Timestamp.from(createdAt));
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    /** Whether a row with this id exists, read as the migration owner (which bypasses RLS). */
+    public static boolean rowExists(Connection conn, String table, UUID id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM " + table + " WHERE id = ?")) {
+            ps.setObject(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 
     private static boolean tableExists(Connection conn, String schema, String table) throws SQLException {

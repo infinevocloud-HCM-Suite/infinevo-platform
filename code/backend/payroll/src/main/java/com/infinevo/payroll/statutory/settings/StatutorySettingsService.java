@@ -36,6 +36,12 @@ public interface StatutorySettingsService {
     TdsSettingResponse tds(UUID tenantId);
 
     /**
+     * D-145: the company TDS switch with how many employees employed today TDS applies to, for the settings
+     * screen. The pay run reads {@link #tds(UUID)}, which does not count.
+     */
+    TdsSettingResponse tdsWithCounts(UUID tenantId);
+
+    /**
      * D-141: saves or updates the company TDS switch for the current tenant context.
      */
     TdsSettingResponse saveTds(TdsSettingRequest request);

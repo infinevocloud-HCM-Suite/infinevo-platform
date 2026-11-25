@@ -108,6 +108,19 @@ public class EmployeeDeductionController {
         return error(HttpStatus.CONFLICT, ApiError.CONFLICT, ex.getMessage());
     }
 
+    /** D-144: a CLOSED month is a {@code 409}, naming the failing line the way the {@code 400} below does. */
+    @ExceptionHandler(DeductionPeriodClosedException.class)
+    public ResponseEntity<ApiErrorResponse> handlePeriodClosed(DeductionPeriodClosedException ex) {
+        String traceId = MDC.get(MdcLoggingContext.CORRELATION_ID_KEY);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiErrorResponse(
+                        ApiError.CONFLICT.code(),
+                        ex.getMessage(),
+                        Map.of("line", String.valueOf(ex.line())),
+                        traceId != null ? traceId : UUID.randomUUID().toString(),
+                        Instant.now()));
+    }
+
     /** W-35.2 §4: the {@code 400} names the failing line — its zero-based index, under {@code fieldErrors.line}. */
     @ExceptionHandler(EmployeeDeductionValidationException.class)
     public ResponseEntity<ApiErrorResponse> handleLineValidation(EmployeeDeductionValidationException ex) {

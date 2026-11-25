@@ -1,10 +1,13 @@
 package com.infinevo.payroll.statutory.settings;
 
 import static com.infinevo.payroll.PayrollTestSchema.TENANT_A;
+import static com.infinevo.payroll.PayrollTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
+import com.infinevo.payroll.salary.EmployeeStatutoryProfileService;
+import com.infinevo.payroll.salary.StatutoryProfileRequest;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
@@ -13,6 +16,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -39,6 +43,9 @@ class StatutorySettingsIT extends AbstractIntegrationTest {
 
     @Autowired
     private StatutorySettingsService settingsService;
+
+    @Autowired
+    private EmployeeStatutoryProfileService profileService;
 
     @BeforeAll
     static void initSchema() throws Exception {
@@ -259,6 +266,31 @@ class StatutorySettingsIT extends AbstractIntegrationTest {
         assertThat(on.id()).isEqualTo(off.id());
         assertThat(on.enabled()).isTrue();
         assertThat(rawRowCount("tds_setting")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("D-145: the settings read counts employees TDS applies to; no profile counts as applicable")
+    void tdsCountsApplicableEmployees() throws Exception {
+        LocalDate joined = LocalDate.of(2020, 1, 1);
+        PayrollTestSchema.insertEmployee(TENANT_A, "EMP-TDS-C1", joined);
+        UUID notApplicable = PayrollTestSchema.insertEmployee(TENANT_A, "EMP-TDS-C2", joined);
+        UUID applicable = PayrollTestSchema.insertEmployee(TENANT_A, "EMP-TDS-C3", joined);
+        PayrollTestSchema.insertEmployee(TENANT_B, "EMP-TDS-B1", joined);
+        TenantContext.set(TENANT_A);
+        profileService.upsert(
+                notApplicable,
+                new StatutoryProfileRequest(false, false, false, false, false, false, false, null, null, null, false));
+        profileService.upsert(
+                applicable,
+                new StatutoryProfileRequest(false, false, false, false, false, false, false, null, null, null, true));
+
+        TdsSettingResponse counted = settingsService.tdsWithCounts(TENANT_A);
+        assertThat(counted.enabled()).isTrue();
+        assertThat(counted.employeeCount()).isEqualTo(3);
+        assertThat(counted.applicableCount()).isEqualTo(2);
+
+        // The pay run's read does not count.
+        assertThat(settingsService.tds(TENANT_A).employeeCount()).isNull();
     }
 
     private static int rawRowCount(String table) throws SQLException {

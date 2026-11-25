@@ -120,6 +120,18 @@ No new action codes. The officer `POST` runs synchronously and returns the row.
 
 None. `W-47.3b` shows the history and the recalculate button.
 
+**D-151 (founder, 2026-11-24).** The failures D-147 records in `payroll.tax_recalc_failure` have a screen:
+**Payroll → Tax recalculation failures** (`/payroll/tax/recalc-failures`, menu item
+`payroll.tax_recalc_failures`, `payroll.tax_declaration.read`). It lists each open failure with the
+employee's name (`employee_name` in `GET /api/v1/payroll/tax-recalc-failures`), the year, the trigger,
+the reason, the attempts and when it failed, filtered by year or all years. **Retry**
+(`payroll.tax_declaration.verify`) calls `POST …/{id}/retry`; a success says so and drops the row, a
+repeat failure shows the error and the row stays with the new reason.
+
+**D-151: an officer's figure is not replaced.** When the employee's active TDS row was set by an officer,
+the `EmployeeTdsService.record` call above leaves that figure active and stores the result as its
+suggestion (`W-36.1` § 4). The `tax_computation` row is written as always.
+
 ## 6. Database changes
 
 > Flyway only. Never `ddl-auto`. Every statement names its schema (`code/backend/migration/README.md`).

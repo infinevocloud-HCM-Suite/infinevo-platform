@@ -92,6 +92,20 @@ public final class PayRunTestSchema {
                 }
             }
             PayrollTestSchema.executeResource(conn, "db/migration/payroll/V104__tax_computation.sql");
+            // D-147: a successful recalculation closes open failures, so the table must exist with tax_computation.
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "tax_recalc_failure")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V222__tax_recalc_failure.sql");
+            }
+            // D-151: the officer TDS suggestion columns, and the policy that lets a cancelled approved run's
+            // CLOSED month be reopened. Needs employee_tds (V102) and the V220 lock policies, both applied above.
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_tds", "suggested_at")) {
+                PayrollTestSchema.executeResource(
+                        conn, "db/migration/payroll/V223__tds_suggestion_and_reopen_month.sql");
+            }
+            // W-88.2: bank file templates and the files made from them; bank_file_export references payroll.payrun.
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "bank_file_template")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V224__bank_file_templates.sql");
+            }
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DROP TABLE payroll.tax_deductor CASCADE");
@@ -120,6 +134,13 @@ public final class PayRunTestSchema {
      */
     public static void clean() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
+            // W-88.2: bank file exports reference payroll.payrun, so they go before the runs do.
+            if (PayrollTestSchema.tableExists(conn, "payroll", "bank_file_export")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.bank_file_export");
+                    st.execute("DELETE FROM payroll.bank_file_template");
+                }
+            }
             // W-73.6: references core.employee ON DELETE RESTRICT, so it goes before the employees do.
             if (PayrollTestSchema.tableExists(conn, "payroll", "scheduled_earning")) {
                 try (Statement st = conn.createStatement()) {
@@ -139,6 +160,11 @@ public final class PayRunTestSchema {
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_computation")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DELETE FROM payroll.tax_computation");
+                }
+            }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "tax_recalc_failure")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.tax_recalc_failure");
                 }
             }
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {

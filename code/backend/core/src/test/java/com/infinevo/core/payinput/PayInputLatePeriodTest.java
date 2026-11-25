@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.YearMonth;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,8 +18,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit test for the late-input rule (W-19 §7, {@code 12-core-contracts.md} §6 decision 3): a write
- * to a locked period is never lost, it is posted to the next open one, and the response says so.
+ * Unit test for the late-input rule (W-19 §7, {@code 12-core-contracts.md} §6 decision 3) as D-144
+ * narrows it: only a CLOSED month moves a write on to the next month that is not CLOSED, and the
+ * response says so. A LOCKED month (run locked or computed) takes the write itself.
  */
 class PayInputLatePeriodTest {
 
@@ -34,6 +36,7 @@ class PayInputLatePeriodTest {
         locks = mock(PayInputPeriodLockRepository.class);
         service = new PayInputServiceImpl(payInputs, locks);
         TenantContext.set(TENANT);
+        when(locks.findPeriodStage(any(), any())).thenReturn(Optional.empty());
         when(payInputs.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -43,12 +46,11 @@ class PayInputLatePeriodTest {
     }
 
     @Test
-    @DisplayName("record for a locked period posts to the next open period and the response says so")
-    void recordForALockedPeriodIsRedirected() {
+    @DisplayName("record for a CLOSED period posts to the next open period and the response says so")
+    void recordForAClosedPeriodIsRedirected() {
         YearMonth requested = YearMonth.of(2026, 4);
         YearMonth nextOpen = YearMonth.of(2026, 5);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, requested)).thenReturn(true);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, nextOpen)).thenReturn(false);
+        when(locks.findPeriodStage(TENANT, requested)).thenReturn(Optional.of(PayInputLockStage.CLOSED));
 
         PayInputResponse response = service.record(new PayInputCommand(
                 UUID.randomUUID(), requested, PayInputKind.LOP_DAYS, BigDecimal.ONE, null, "hrms", "lop:late-1"));
@@ -58,14 +60,27 @@ class PayInputLatePeriodTest {
     }
 
     @Test
-    @DisplayName("Two consecutive locked periods are both skipped")
-    void twoConsecutiveLockedPeriodsAreBothSkipped() {
+    @DisplayName("record for a LOCKED period posts to that period - no move (D-144)")
+    void recordForALockedPeriodStaysThere() {
+        YearMonth requested = YearMonth.of(2026, 4);
+        when(locks.findPeriodStage(TENANT, requested)).thenReturn(Optional.of(PayInputLockStage.LOCKED));
+
+        PayInputResponse response = service.record(new PayInputCommand(
+                UUID.randomUUID(), requested, PayInputKind.LOP_DAYS, BigDecimal.ONE, null, "hrms", "lop:locked"));
+
+        assertThat(response.postedPeriod()).isEqualTo(requested);
+        verify(payInputs).saveAndFlush(argThatPeriodIs(requested));
+    }
+
+    @Test
+    @DisplayName("Two consecutive CLOSED periods are both skipped; a LOCKED one after them is not")
+    void twoConsecutiveClosedPeriodsAreBothSkipped() {
         YearMonth requested = YearMonth.of(2026, 4);
         YearMonth firstNext = YearMonth.of(2026, 5);
         YearMonth secondNext = YearMonth.of(2026, 6);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, requested)).thenReturn(true);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, firstNext)).thenReturn(true);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, secondNext)).thenReturn(false);
+        when(locks.findPeriodStage(TENANT, requested)).thenReturn(Optional.of(PayInputLockStage.CLOSED));
+        when(locks.findPeriodStage(TENANT, firstNext)).thenReturn(Optional.of(PayInputLockStage.CLOSED));
+        when(locks.findPeriodStage(TENANT, secondNext)).thenReturn(Optional.of(PayInputLockStage.LOCKED));
 
         PayInputResponse response = service.record(new PayInputCommand(
                 UUID.randomUUID(), requested, PayInputKind.LOP_DAYS, BigDecimal.ONE, null, "hrms", "lop:late-2"));
@@ -77,7 +92,6 @@ class PayInputLatePeriodTest {
     @DisplayName("An open period is never redirected")
     void anOpenPeriodIsNotRedirected() {
         YearMonth period = YearMonth.of(2026, 4);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, period)).thenReturn(false);
 
         PayInputResponse response = service.record(new PayInputCommand(
                 UUID.randomUUID(), period, PayInputKind.LOP_DAYS, BigDecimal.ONE, null, "hrms", "lop:open"));
@@ -86,8 +100,8 @@ class PayInputLatePeriodTest {
     }
 
     @Test
-    @DisplayName("A reversal of a row in a locked period is redirected exactly like any other late input")
-    void reversalOfALockedPeriodIsRedirected() {
+    @DisplayName("A reversal of a row in a CLOSED period is redirected exactly like any other late input")
+    void reversalOfAClosedPeriodIsRedirected() {
         YearMonth requested = YearMonth.of(2026, 4);
         YearMonth nextOpen = YearMonth.of(2026, 5);
         UUID originalId = UUID.randomUUID();
@@ -102,11 +116,10 @@ class PayInputLatePeriodTest {
                 "ded:late",
                 null,
                 "admin");
-        when(payInputs.findByIdAndTenantId(eq(originalId), eq(TENANT))).thenReturn(java.util.Optional.of(original));
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, requested)).thenReturn(true);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, nextOpen)).thenReturn(false);
+        when(payInputs.findByIdAndTenantId(eq(originalId), eq(TENANT))).thenReturn(Optional.of(original));
+        when(locks.findPeriodStage(TENANT, requested)).thenReturn(Optional.of(PayInputLockStage.CLOSED));
 
-        PayInputResponse reversal = service.reverse(originalId, "correction after lock");
+        PayInputResponse reversal = service.reverse(originalId, "correction after close");
 
         assertThat(reversal.postedPeriod()).isEqualTo(nextOpen);
     }

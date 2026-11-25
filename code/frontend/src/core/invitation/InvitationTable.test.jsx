@@ -8,7 +8,8 @@ describe('InvitationTable component', () => {
       id: 'inv-1',
       email: 'pending@example.com',
       status: 'PENDING',
-      expiresAt: '2026-10-15T12:00:00Z',
+      // Far ahead on purpose: a pending row past its expiry offers Delete instead (D-22).
+      expiresAt: '2099-10-15T12:00:00Z',
       createdAt: '2026-10-01T12:00:00Z',
     },
     {
@@ -80,6 +81,33 @@ describe('InvitationTable component', () => {
     await waitFor(() => {
       expect(handleRevoke).toHaveBeenCalledWith('inv-1', mockInvitations[0]);
     });
+  });
+
+  it('D-22: offers Delete on revoked rows only, and only when onDelete is given', async () => {
+    const { rerender } = render(<InvitationTable data={mockInvitations} />);
+    expect(document.getElementById('btn-delete-inv-3')).toBeNull();
+
+    const handleDelete = vi.fn();
+    rerender(<InvitationTable data={mockInvitations} onDelete={handleDelete} />);
+    expect(document.getElementById('btn-delete-inv-1')).toBeNull(); // pending: revoke first
+    expect(document.getElementById('btn-delete-inv-2')).toBeNull(); // accepted: the account's record
+    const deleteBtn = document.getElementById('btn-delete-inv-3');
+    expect(deleteBtn).not.toBeNull();
+
+    fireEvent.click(deleteBtn);
+    expect(screen.getByText('Remove this invitation from the list? This cannot be undone.')).toBeDefined();
+    expect(handleDelete).not.toHaveBeenCalled();
+    fireEvent.click(document.getElementById('btn-confirm-delete-inv-3') || screen.getByText('Yes, delete'));
+    await waitFor(() => {
+      expect(handleDelete).toHaveBeenCalledWith('inv-3', mockInvitations[2]);
+    });
+  });
+
+  it('D-22: a pending row whose expiry has passed offers Delete instead of Resend/Revoke', () => {
+    const stale = { id: 'inv-4', email: 'late@example.com', status: 'PENDING', expiresAt: '2020-01-01T00:00:00Z' };
+    render(<InvitationTable data={[stale]} onDelete={vi.fn()} onRevoke={vi.fn()} />);
+    expect(document.getElementById('btn-delete-inv-4')).not.toBeNull();
+    expect(document.getElementById('btn-revoke-inv-4')).toBeNull();
   });
 
   it('W-73.4: shows a Kind column only when asked', () => {

@@ -13,6 +13,7 @@ import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +41,7 @@ class PayInputRunTagTest {
         locks = mock(PayInputPeriodLockRepository.class);
         service = new PayInputServiceImpl(payInputs, locks);
         TenantContext.set(TENANT);
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(any(), any())).thenReturn(false);
+        when(locks.findPeriodStage(any(), any())).thenReturn(Optional.empty());
         when(locks.existsByTenantIdAndRunRef(any(), any())).thenReturn(false);
         when(payInputs.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -69,15 +70,15 @@ class PayInputRunTagTest {
 
         verify(payInputs, never()).saveAndFlush(any());
         // The period lock is never consulted for a tagged row (spec §3): no redirect search happens.
-        verify(locks, never()).existsByTenantIdAndPeriodAndRunRefIsNull(any(), any());
+        verify(locks, never()).findPeriodStage(any(), any());
     }
 
     @Test
     @DisplayName("record with runRef on a locked PERIOD still succeeds: the run's own lock applies, not the period's")
     void recordOnALockedPeriodStillSucceedsWhenTagged() {
         UUID runRef = UUID.randomUUID();
-        // The whole period is locked...
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, PERIOD)).thenReturn(true);
+        // The whole period is closed...
+        when(locks.findPeriodStage(TENANT, PERIOD)).thenReturn(Optional.of(PayInputLockStage.CLOSED));
         // ...but the run itself is not.
         when(locks.existsByTenantIdAndRunRef(TENANT, runRef)).thenReturn(false);
 
@@ -221,7 +222,7 @@ class PayInputRunTagTest {
         when(payInputs.findByIdAndTenantId(eq(originalId), eq(TENANT))).thenReturn(java.util.Optional.of(original));
         when(locks.existsByTenantIdAndRunRef(TENANT, runRef)).thenReturn(true);
         // The calendar period itself is open, so the untagged fallback lands in the same period.
-        when(locks.existsByTenantIdAndPeriodAndRunRefIsNull(TENANT, PERIOD)).thenReturn(false);
+        when(locks.findPeriodStage(TENANT, PERIOD)).thenReturn(Optional.empty());
 
         PayInputResponse reversal = service.reverse(originalId, "correction after run locked");
 

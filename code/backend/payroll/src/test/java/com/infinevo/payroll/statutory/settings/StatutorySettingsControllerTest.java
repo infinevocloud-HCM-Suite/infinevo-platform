@@ -193,16 +193,19 @@ class StatutorySettingsControllerTest {
     }
 
     @Test
-    @DisplayName("D-141: GET /api/v1/payroll/settings/tds returns the default, enabled")
+    @DisplayName("D-141, D-145: GET /api/v1/payroll/settings/tds returns the default, enabled, with the counts")
     void getTdsSuccess() throws Exception {
-        when(settingsService.tds(TENANT_ID)).thenReturn(TdsSettingResponse.defaultSettings(TENANT_ID));
+        when(settingsService.tdsWithCounts(TENANT_ID))
+                .thenReturn(TdsSettingResponse.defaultSettings(TENANT_ID).withCounts(7, 9));
 
         mvc.perform(get("/api/v1/payroll/settings/tds"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("TDS settings retrieved successfully"))
                 .andExpect(jsonPath("$.data.tenantId").value(TENANT_ID.toString()))
                 .andExpect(jsonPath("$.data.enabled").value(true))
-                .andExpect(jsonPath("$.data.source").value("DEFAULT"));
+                .andExpect(jsonPath("$.data.source").value("DEFAULT"))
+                .andExpect(jsonPath("$.data.applicableCount").value(7))
+                .andExpect(jsonPath("$.data.employeeCount").value(9));
     }
 
     @Test

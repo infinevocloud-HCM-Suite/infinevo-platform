@@ -2,8 +2,9 @@ package com.infinevo.payroll.deduction;
 
 import static com.infinevo.payroll.deduction.DeductionTestSchema.TENANT_A;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.infinevo.core.payinput.PayInputResponse;
+import com.infinevo.core.payinput.PayInputLockStage;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.shared.tenant.TenantContext;
@@ -25,9 +26,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
- * W-35.2 §7 — a locked period is the ledger's to handle (§3): a line for it posts to the next open
- * period and {@code posted_period} says so; reversing a deduction whose period has since been locked
- * posts the reversal to the next open period, so the money comes back on the next payslip.
+ * W-35.2 §7 as D-144 changes it: a line for a LOCKED month (run locked or computed) posts to that
+ * month; a line for a CLOSED month (run approved) is refused with a 409 naming the month to use, and
+ * nothing of the batch is written; reversing a deduction whose month has since been closed posts the
+ * reversal to the next open month, so the money comes back on the next payslip.
  */
 @SpringBootTest(classes = PayrollTestApp.class)
 @EnabledIfDockerAvailable
@@ -67,26 +69,37 @@ class EmployeeDeductionLockedPeriodIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("A line for a locked period posts to the next period; posted_period says so, period keeps the ask")
-    void lockedPeriodRedirects() {
+    @DisplayName("A line for a LOCKED month posts to that month (D-144)")
+    void lockedPeriodPostsThere() {
         payInputService.lock(THIS_MONTH);
 
         EmployeeDeductionResponse row =
                 deductionService.enter(List.of(line())).rows().get(0);
 
         assertThat(row.period()).isEqualTo(THIS_MONTH.toString());
-        assertThat(row.postedPeriod()).isEqualTo(THIS_MONTH.plusMonths(1).toString());
-        assertThat(payInputService.forPeriod(THIS_MONTH.plusMonths(1)).rows())
-                .extracting(PayInputResponse::id)
-                .containsExactly(row.payInputId());
+        assertThat(row.postedPeriod()).isEqualTo(THIS_MONTH.toString());
     }
 
     @Test
-    @DisplayName("Reversing a deduction whose period has been locked posts the reversal to the next open period")
+    @DisplayName("A line for a CLOSED month is refused, naming its line and the month to use; nothing is written")
+    void closedPeriodIsRefused() {
+        payInputService.lock(THIS_MONTH, PayInputLockStage.CLOSED);
+
+        assertThatThrownBy(() -> deductionService.enter(List.of(line())))
+                .isInstanceOf(DeductionPeriodClosedException.class)
+                .hasMessageContaining("is closed (run approved). Enter this for")
+                .satisfies(e ->
+                        assertThat(((DeductionPeriodClosedException) e).line()).isZero());
+        assertThat(payInputService.forPeriod(THIS_MONTH).rows()).isEmpty();
+        assertThat(payInputService.forPeriod(THIS_MONTH.plusMonths(1)).rows()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Reversing a deduction whose month has been closed posts the reversal to the next open month")
     void reversalOfLockedPeriodRedirects() {
         EmployeeDeductionResponse row =
                 deductionService.enter(List.of(line())).rows().get(0);
-        payInputService.lock(THIS_MONTH);
+        payInputService.lock(THIS_MONTH, PayInputLockStage.CLOSED);
 
         EmployeeDeductionResponse reversed = deductionService.reverse(row.id(), "recovered in cash");
 

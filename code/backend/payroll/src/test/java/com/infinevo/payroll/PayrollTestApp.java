@@ -277,9 +277,14 @@ public class PayrollTestApp {
     public EmployeePersonalService employeePersonalService(DataSource dataSource) {
         return new EmployeePersonalService() {
             @Override
+            public Optional<LocalDate> dateOfBirth(UUID employeeId) {
+                return find(employeeId).map(EmployeePersonalResponse::dateOfBirth);
+            }
+
+            @Override
             public Optional<EmployeePersonalResponse> find(UUID employeeId) {
                 try {
-                    return Optional.of(get(employeeId));
+                    return Optional.of(read(employeeId));
                 } catch (EmployeeDetailService.NotFoundException e) {
                     return Optional.empty();
                 }
@@ -287,6 +292,12 @@ public class PayrollTestApp {
 
             @Override
             public EmployeePersonalResponse get(UUID employeeId) {
+                return read(employeeId);
+            }
+
+            // D-154: find and dateOfBirth read here, not through get, as core's do: a test that makes get
+            // refuse (core's caller check) must not refuse the system read with it.
+            private EmployeePersonalResponse read(UUID employeeId) {
                 UUID tenantId = TenantContext.require();
                 try (Connection conn = dataSource.getConnection()) {
                     conn.setAutoCommit(false);
@@ -364,7 +375,7 @@ public class PayrollTestApp {
                         ps.setBoolean(9, Boolean.TRUE.equals(request.eligibleForFullTaxExemption()));
                         ps.executeUpdate();
                         conn.commit();
-                        return get(employeeId);
+                        return read(employeeId);
                     } catch (SQLException | RuntimeException e) {
                         try {
                             conn.rollback();
@@ -950,6 +961,85 @@ public class PayrollTestApp {
             @Override
             public void delete(UUID id) {
                 throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    /**
+     * The real clock over {@code core.tenant.timezone}: W-114.7's {@code PayrollAiToolProvider} is a component in the
+     * scanned {@code com.infinevo.payroll} package and takes it; the tests hand the provider a mock instead.
+     */
+    @Bean
+    public com.infinevo.core.tenant.TenantClock tenantClock(DataSource dataSource) {
+        return new com.infinevo.core.tenant.TenantClock(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
+    }
+
+    /** The tenant's name from {@code core.tenant}, which Form 16 prints as the deductor (D-149). */
+    @Bean
+    public com.infinevo.core.tenant.TenantProfileService tenantProfileService() {
+        return new com.infinevo.core.tenant.TenantProfileService() {
+            @Override
+            public com.infinevo.core.tenant.TenantProfileResponse current() {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public com.infinevo.core.tenant.TenantProfileResponse update(
+                    com.infinevo.core.tenant.TenantProfileRequest request) {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public Optional<com.infinevo.core.tenant.TenantBranding> branding() {
+                Optional<UUID> tenantId = TenantContext.current();
+                if (tenantId.isEmpty()) {
+                    return Optional.empty();
+                }
+                try (Connection conn = PayrollTestSchema.migrationConnection();
+                        PreparedStatement ps =
+                                conn.prepareStatement("SELECT name FROM core.tenant WHERE tenant_id = ?")) {
+                    ps.setObject(1, tenantId.get());
+                    try (ResultSet rs = ps.executeQuery()) {
+                        return rs.next()
+                                ? Optional.of(new com.infinevo.core.tenant.TenantBranding(
+                                        rs.getString("name"), null, null, null, null))
+                                : Optional.empty();
+                    }
+                } catch (SQLException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        };
+    }
+
+    /** No designation exists in the payroll test schema's employees: every lookup is a 404 (D-149). */
+    @Bean
+    public com.infinevo.core.org.DesignationService designationService() {
+        return new com.infinevo.core.org.DesignationService() {
+            @Override
+            public com.infinevo.core.org.DesignationResponse create(com.infinevo.core.org.DesignationRequest request) {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public java.util.List<com.infinevo.core.org.DesignationResponse> list(boolean activeOnly) {
+                return java.util.List.of();
+            }
+
+            @Override
+            public com.infinevo.core.org.DesignationResponse get(UUID id) {
+                throw new com.infinevo.core.org.OrgMasterService.NotFoundException("designation", id);
+            }
+
+            @Override
+            public com.infinevo.core.org.DesignationResponse update(
+                    UUID id, com.infinevo.core.org.DesignationRequest request) {
+                throw new UnsupportedOperationException("not used by payroll tests");
+            }
+
+            @Override
+            public void delete(UUID id) {
+                throw new UnsupportedOperationException("not used by payroll tests");
             }
         };
     }

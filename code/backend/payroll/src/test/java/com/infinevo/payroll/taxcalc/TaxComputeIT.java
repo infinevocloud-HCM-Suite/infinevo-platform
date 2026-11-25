@@ -20,7 +20,10 @@ import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationWindowRequest;
+import com.infinevo.payroll.taxdeclaration.summary.OtherIncomeKind;
+import com.infinevo.payroll.taxdeclaration.summary.OtherIncomeService;
 import com.infinevo.payroll.taxdeclaration.summary.TaxSummaryService;
+import com.infinevo.payroll.taxdeclaration.summary.dto.OtherIncomeRequest;
 import com.infinevo.payroll.taxdeclaration.summary.dto.TaxSummaryResponse;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
@@ -51,6 +54,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *   <li>Second POST cleanly overwrites</li>
  *   <li>GET .../tax?regime=OLD -> computed under the old regime (no longer 409 since W-33.2)</li>
  *   <li>Year with no rules -> 422 TAX_RULES_MISSING</li>
+ *   <li>D-148: declared interest is taxed under the new regime and reaches the summary row</li>
  * </ul>
  */
 @SpringBootTest(classes = PayrollTestApp.class)
@@ -64,6 +68,9 @@ class TaxComputeIT extends AbstractIntegrationTest {
 
     @Autowired
     private TaxSummaryService taxSummaryService;
+
+    @Autowired
+    private OtherIncomeService otherIncomeService;
 
     @Autowired
     private TaxDeclarationWindowService windowService;
@@ -198,5 +205,37 @@ class TaxComputeIT extends AbstractIntegrationTest {
 
         assertThatThrownBy(() -> taxCalculationService.compute(employeeId, futureFy, TaxRegime.NEW))
                 .isInstanceOf(TaxRulesMissingException.class);
+    }
+
+    @Test
+    @DisplayName("D-148: declared interest 75,000 is taxed under the new regime -> annual tax 1,20,900")
+    void newRegimeCountsDeclaredInterest() {
+        // salary 15,75,000 + savings interest 50,000 + FD interest 25,000 = GTI 16,50,000
+        // taxable = 16,50,000 - 75,000 = 15,75,000
+        // slab tax = 20,000 + 40,000 + 15% x 3,75,000 = 1,16,250; no rebate; cess 4,650 -> 1,20,900
+        otherIncomeService.replace(
+                employeeId,
+                currentFy,
+                List.of(
+                        new OtherIncomeRequest(OtherIncomeKind.SAVINGS_INTEREST, null, new BigDecimal("50000.0000")),
+                        new OtherIncomeRequest(OtherIncomeKind.FD_INTEREST, null, new BigDecimal("25000.0000"))));
+
+        TaxComputation preview = taxCalculationService.compute(employeeId, fy2025_2026, TaxRegime.NEW);
+        assertThat(preview.otherIncome().raw()).isEqualByComparingTo(new BigDecimal("75000"));
+        assertThat(preview.interestDeduction().raw()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(preview.grossTotalIncome().raw()).isEqualByComparingTo(new BigDecimal("1650000"));
+        assertThat(preview.taxableIncome().raw()).isEqualByComparingTo(new BigDecimal("1575000"));
+        assertThat(preview.taxBeforeRebate().raw()).isEqualByComparingTo(new BigDecimal("116250"));
+        assertThat(preview.cess().raw()).isEqualByComparingTo(new BigDecimal("4650"));
+        assertThat(preview.annualTax().raw()).isEqualByComparingTo(new BigDecimal("120900"));
+
+        taxCalculationService.computeAndRecord(employeeId, fy2025_2026);
+
+        TaxSummaryResponse summary = taxSummaryService.summaryOwn(currentFy);
+        assertThat(summary.computed()).isNotNull();
+        assertThat(summary.computed().taxableIncome()).isEqualByComparingTo(new BigDecimal("1650000"));
+        assertThat(summary.computed().netTaxableIncome()).isEqualByComparingTo(new BigDecimal("1575000"));
+        assertThat(summary.computed().otherSourcesIncome()).isEqualByComparingTo(new BigDecimal("75000"));
+        assertThat(summary.computed().taxToBePaid()).isEqualByComparingTo(new BigDecimal("120900"));
     }
 }

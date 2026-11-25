@@ -5,6 +5,8 @@ import { EditOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { statutoryProfileService } from './statutoryProfileService.js';
 import { errorMsg } from '@shared/ui/msgHelper.js';
+import { useCompanyTdsOff } from './companyTds.js';
+import { TDS_COMPANY_OFF_NOTE, TDS_NEW_EMPLOYEE_HELP } from './statutoryProfileForm.js';
 
 const { Title, Text } = Typography;
 
@@ -27,6 +29,7 @@ export function StatutoryProfileCard({ employeeId, canManage: canEdit = false, o
   const canManage = useCan('payroll.salary.manage');
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const companyTdsOff = useCompanyTdsOff(Boolean(employeeId));
 
   useEffect(() => {
     if (!employeeId) return undefined;
@@ -83,7 +86,21 @@ export function StatutoryProfileCard({ employeeId, canManage: canEdit = false, o
           <Descriptions.Item label="Labour Welfare Fund (LWF)">{yesNo(p.eligibleForLwf)}</Descriptions.Item>
           <Descriptions.Item label="Director">{yesNo(p.director)}</Descriptions.Item>
           <Descriptions.Item label="TDS applicable">
-            <span data-testid="statutory-tds-applicable">{yesNo(p.tdsApplicable !== false)}</span>
+            <Text type={companyTdsOff ? 'secondary' : undefined} data-testid="statutory-tds-applicable">
+              {yesNo(p.tdsApplicable !== false)}
+            </Text>
+            {companyTdsOff && (
+              <div>
+                <Text type="warning" data-testid="tds-company-off-note">
+                  {TDS_COMPANY_OFF_NOTE}
+                </Text>
+              </div>
+            )}
+            <div>
+              <Text type="secondary" data-testid="tds-new-employee-help">
+                {TDS_NEW_EMPLOYEE_HELP}
+              </Text>
+            </div>
           </Descriptions.Item>
           <Descriptions.Item label="PF account number">{text(p.pfAccountNumber)}</Descriptions.Item>
           <Descriptions.Item label="UAN">{text(p.uan)}</Descriptions.Item>

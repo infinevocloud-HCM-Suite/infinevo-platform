@@ -1,5 +1,7 @@
 package com.infinevo.shared.money;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Objects;
@@ -22,6 +24,11 @@ import java.util.Objects;
  * </ul>
  *
  * <p>Persist with {@code @Column(precision = 19, scale = 4)}.
+ *
+ * <p><strong>JSON.</strong> Written as its plain decimal amount at calculation scale ({@code 1250.5000}),
+ * read back from a JSON number or a numeric string (D-153). Without this, Jackson treated it as a bean
+ * and wrote only {@code isZero}/{@code isPositive}/{@code isNegative}, losing the amount. An API that
+ * shows money to a user still rounds with {@link #toAmount()} at its own boundary.
  */
 public final class Money implements Comparable<Money> {
 
@@ -92,6 +99,18 @@ public final class Money implements Comparable<Money> {
 
     public boolean isNegative() {
         return value.compareTo(BigDecimal.ZERO) < 0;
+    }
+
+    /** The JSON form: the value at calculation scale, so a stored working keeps what the engine had. */
+    @JsonValue
+    BigDecimal json() {
+        return value;
+    }
+
+    /** Reads the JSON form: a number or a numeric string ({@code "1250.50"}). */
+    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+    static Money fromJson(BigDecimal value) {
+        return of(value);
     }
 
     /** The value at calculation scale. Use inside a calculation, not for storage. */

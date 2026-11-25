@@ -2,7 +2,6 @@ package com.infinevo.payroll.salary;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
-import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
@@ -551,10 +550,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         LocalDate dob = null;
         if (employeePersonalService != null) {
             try {
-                dob = employeePersonalService
-                        .find(employeeId)
-                        .map(EmployeePersonalResponse::dateOfBirth)
-                        .orElse(null);
+                dob = employeePersonalService.dateOfBirth(employeeId).orElse(null);
             } catch (Exception e) {
                 dob = null;
             }

@@ -15,6 +15,7 @@ import { ShellBoundary } from './ShellBoundary.jsx';
 import { NotFound, NoModules } from './screens/index.js';
 import { Welcome } from './screens/Welcome.jsx';
 import { useMe } from './auth/useMe.js';
+import { AssistantLauncher } from './assistant/AssistantLauncher.jsx';
 import { theme } from '../shared/theme.js';
 import './phone.css';
 
@@ -332,6 +333,8 @@ export function AppShell() {
             </div>
           </Content>
         </Layout>
+        {/* W-114.5: the AI helper's button and drawer; renders nothing while the helper is off */}
+        <AssistantLauncher phone={phone} />
       </Layout>
     </ShellBoundary>
   );

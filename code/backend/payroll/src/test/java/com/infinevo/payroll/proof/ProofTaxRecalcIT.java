@@ -206,7 +206,11 @@ class ProofTaxRecalcIT extends ProofIntegrationTestBase {
     private static void awaitRecalcIdle() {
         ThreadPoolExecutor executor = pool.getThreadPoolExecutor();
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-        while (executor.getCompletedTaskCount() < executor.getTaskCount()) {
+        // The pool must look idle for ten checks in a row: a task just handed to a new worker is, for a
+        // moment, neither queued nor running, and one idle reading would let the test look too early.
+        int idleChecks = 0;
+        while (idleChecks < 10) {
+            idleChecks = executor.getCompletedTaskCount() < executor.getTaskCount() ? 0 : idleChecks + 1;
             if (System.nanoTime() > deadline) {
                 throw new AssertionError("tax recalculation still running after 30 seconds");
             }
@@ -278,7 +282,8 @@ class ProofTaxRecalcIT extends ProofIntegrationTestBase {
     private static void clearRecalcRows() throws SQLException {
         try (Connection conn = TaxDeclarationTestSchema.migrationConnection();
                 Statement st = conn.createStatement()) {
-            for (String table : List.of("payroll.employee_tds", "payroll.tax_computation")) {
+            for (String table :
+                    List.of("payroll.employee_tds", "payroll.tax_computation", "payroll.tax_recalc_failure")) {
                 st.execute("DELETE FROM " + table + " WHERE tenant_id IN ('" + TENANT_A + "', '" + TENANT_B + "')");
             }
         }

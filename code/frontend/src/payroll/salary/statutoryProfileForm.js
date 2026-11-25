@@ -71,3 +71,9 @@ export function profilePayload(statutory = {}) {
     tdsApplicable: statutory.tdsApplicable !== false,
   };
 }
+
+/** D-145: under the TDS tick while the company switch is off; the tick is greyed out. */
+export const TDS_COMPANY_OFF_NOTE = 'Company TDS is off. This setting takes effect when it is turned on';
+
+/** D-145: an employee with no saved profile is TDS applicable (D-141); the card says so. */
+export const TDS_NEW_EMPLOYEE_HELP = 'New employees start as TDS applicable';

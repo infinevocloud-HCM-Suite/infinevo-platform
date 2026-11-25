@@ -15,6 +15,8 @@ import java.util.UUID;
  *
  * <p>{@code employee_name} is the employee's display name (D-79), so the officer's view never shows the bare id;
  * null when the name cannot be read.
+ *
+ * <p>{@code updated_at} is the header's audit column, shown as "Last updated" on the officer's view (D-147).
  */
 public record TaxDeclarationResponse(
         UUID id,
@@ -29,6 +31,7 @@ public record TaxDeclarationResponse(
         @JsonProperty("is_locked") boolean isLocked,
         @JsonProperty("submitted_at") Instant submittedAt,
         @JsonProperty("locked_at") Instant lockedAt,
+        @JsonProperty("updated_at") Instant updatedAt,
         @JsonProperty("window_open") boolean windowOpen,
         boolean editable,
         @JsonProperty("pan_required_for_rent_over_threshold") boolean panRequiredForRentOverThreshold,

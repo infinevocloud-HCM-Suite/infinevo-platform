@@ -45,6 +45,7 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
     private final EmployeeService employeeService;
     private final ObjectMapper objectMapper;
     private final EmployeeTdsService employeeTdsService;
+    private final TaxRecalcFailureRepository failureRepository;
 
     public TaxRecalculationServiceImpl(
             TaxComputationRepository taxComputationRepository,
@@ -55,7 +56,33 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
             TaxSummaryFiguresMapper taxSummaryFiguresMapper,
             EmployeeService employeeService,
             ObjectMapper objectMapper,
-            @Autowired(required = false) EmployeeTdsService employeeTdsService) {
+            EmployeeTdsService employeeTdsService) {
+        this(
+                taxComputationRepository,
+                declarationRepository,
+                windowService,
+                taxCalculationService,
+                taxSummaryService,
+                taxSummaryFiguresMapper,
+                employeeService,
+                objectMapper,
+                employeeTdsService,
+                null);
+    }
+
+    /** The constructor Spring uses: the failure repository closes an open failure on success (D-147). */
+    @Autowired
+    public TaxRecalculationServiceImpl(
+            TaxComputationRepository taxComputationRepository,
+            EmployeeInvestmentDeclarationRepository declarationRepository,
+            TaxDeclarationWindowService windowService,
+            TaxCalculationService taxCalculationService,
+            TaxSummaryService taxSummaryService,
+            TaxSummaryFiguresMapper taxSummaryFiguresMapper,
+            EmployeeService employeeService,
+            ObjectMapper objectMapper,
+            @Autowired(required = false) EmployeeTdsService employeeTdsService,
+            @Autowired(required = false) TaxRecalcFailureRepository failureRepository) {
         this.taxComputationRepository =
                 Objects.requireNonNull(taxComputationRepository, "taxComputationRepository must not be null");
         this.declarationRepository =
@@ -69,6 +96,7 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.employeeTdsService = employeeTdsService;
+        this.failureRepository = failureRepository;
     }
 
     @Override
@@ -147,32 +175,33 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
 
         record = taxComputationRepository.save(record);
 
+        // D-147: no try/catch here. Both writes below join this transaction, so a failure in either marks it
+        // rollback-only; catching it only hid the loss of the tax_computation row as well. The failure now
+        // propagates, the whole recalculation rolls back, and TaxRecalculationListener records it in
+        // payroll.tax_recalc_failure for the officer to see and retry.
+
         // Update tax summary record if declaration header exists (W-32.4)
         if (declarationId != null) {
-            try {
-                TaxSummaryFigures figures = taxSummaryFiguresMapper.toFigures(result, fy);
-                taxSummaryService.record(declarationId, regime.name(), figures);
-            } catch (Exception e) {
-                log.error("Failed to record tax summary for declaration {}: {}", declarationId, e.getMessage(), e);
-            }
+            TaxSummaryFigures figures = taxSummaryFiguresMapper.toFigures(result, fy);
+            taxSummaryService.record(declarationId, regime.name(), figures);
         }
 
         // Publish to EmployeeTdsService if bean is present (W-36.1 hook)
         if (employeeTdsService != null) {
-            try {
-                // Rounded here, once: employee_tds is a stored amount and refuses a scale above 2. A refusal is
-                // not just logged - it marks this transaction rollback-only and the tax_computation row is lost.
-                EmployeeTdsService.TdsFigures tdsFigures = new EmployeeTdsService.TdsFigures(
-                        regime.name(),
-                        result.grossTotalIncome().toAmount(),
-                        result.taxableIncome().toAmount(),
-                        result.annualTax().toAmount(),
-                        declarationId,
-                        effectiveTrigger.name() + " " + record.getId());
-                employeeTdsService.record(employeeId, fy.label(), tdsFigures);
-            } catch (Exception e) {
-                log.error("Failed to record employee TDS for employee {}: {}", employeeId, e.getMessage(), e);
-            }
+            // Rounded here, once: employee_tds is a stored amount and refuses a scale above 2.
+            EmployeeTdsService.TdsFigures tdsFigures = new EmployeeTdsService.TdsFigures(
+                    regime.name(),
+                    result.grossTotalIncome().toAmount(),
+                    result.taxableIncome().toAmount(),
+                    result.annualTax().toAmount(),
+                    declarationId,
+                    effectiveTrigger.name() + " " + record.getId());
+            employeeTdsService.record(employeeId, fy.label(), tdsFigures);
+        }
+
+        // D-147: a recalculation that succeeds closes any failure still open for this employee and year.
+        if (failureRepository != null) {
+            failureRepository.resolveOpen(tenantId, employeeId, fy.label(), Instant.now());
         }
 
         return record;
@@ -203,12 +232,7 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
     }
 
     private TaxComputationRecordResponse toResponse(TaxComputationRecord r) {
-        Object workingObj;
-        try {
-            workingObj = objectMapper.readTree(r.getWorking());
-        } catch (Exception e) {
-            workingObj = r.getWorking();
-        }
+        Object workingObj = TaxWorkingJson.read(objectMapper, r.getWorking());
 
         return new TaxComputationRecordResponse(
                 r.getId(),

@@ -17,4 +17,10 @@ public interface EmployeeStatutoryProfileService {
      * can ask per employee within its query budget.
      */
     boolean isTdsApplicable(UUID employeeId);
+
+    /**
+     * D-145: how many employees employed today in the current tenant TDS applies to, for the company TDS
+     * screen. An employee with no saved profile counts as applicable. Two statements, whatever the headcount.
+     */
+    TdsApplicableCount tdsApplicableCount();
 }

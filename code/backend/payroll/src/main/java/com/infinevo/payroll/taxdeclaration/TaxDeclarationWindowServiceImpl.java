@@ -115,7 +115,8 @@ public class TaxDeclarationWindowServiceImpl implements TaxDeclarationWindowServ
             window.setPoiCommentMandatory(request.poiCommentMandatory());
         }
 
-        window = windowRepository.save(window);
+        // Flushed so the response's updated_at is the one just written (D-147).
+        window = windowRepository.saveAndFlush(window);
         return toResponse(window, true);
     }
 
@@ -166,7 +167,8 @@ public class TaxDeclarationWindowServiceImpl implements TaxDeclarationWindowServ
                 w.isPoiLocked(),
                 w.isPoiAttachmentMandatory(),
                 w.isPoiCommentMandatory(),
-                w.isProofOpenOn(TaxDeclarationRules.today(TaxDeclarationRules.defaultClock())));
+                w.isProofOpenOn(TaxDeclarationRules.today(TaxDeclarationRules.defaultClock())),
+                exists ? w.getUpdatedAt() : null);
     }
 
     private TaxDeclarationWindowResponse defaultResponse(FinancialYear fy) {

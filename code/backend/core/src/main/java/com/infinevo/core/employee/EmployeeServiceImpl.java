@@ -360,6 +360,20 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional(readOnly = true)
+    public Map<UUID, EmployeeResponse> findByIdInIncludingDeleted(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        UUID tenantId = TenantContext.require();
+        Map<UUID, EmployeeResponse> result = new LinkedHashMap<>();
+        for (Employee employee : employeeRepository.findByTenantIdAndIdIn(tenantId, ids)) {
+            result.put(employee.getId(), EmployeeResponse.from(employee));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<EmployeeResponse> listEmployedBetween(LocalDate start, LocalDate end) {
         Objects.requireNonNull(start, "start must not be null");
         Objects.requireNonNull(end, "end must not be null");

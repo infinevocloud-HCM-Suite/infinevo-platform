@@ -54,6 +54,7 @@ export function Form16Page() {
   const [certificates, setCertificates] = useState([]);
   const [certificatesLoading, setCertificatesLoading] = useState(false);
   const [downloadingDocId, setDownloadingDocId] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
 
   // Load statement
   const handleGenerateStatement = async () => {
@@ -78,8 +79,9 @@ export function Form16Page() {
       } else if (status === 404 || apiCode === 'NOT_FOUND') {
         setStatementError({
           type: '404',
-          message: 'No Active TDS Record Found',
-          description: `No active tax or TDS records were found for this employee in Financial Year ${selectedFy}.`,
+          message: 'Employee Not Found',
+          // D-150: no TDS record is a nil statement now; 404 means the employee is not in this company
+          description: 'This employee could not be found in this company.',
         });
       } else {
         setStatementError({
@@ -157,14 +159,25 @@ export function Form16Page() {
   // Download certificate
   const handleDownloadDoc = async (documentId) => {
     setDownloadingDocId(documentId);
+    setDownloadError(null);
     try {
       const res = await form16Service.getDocumentDownloadLink(documentId);
       const url = res?.url || res?.link;
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        setDownloadError('The certificate could not be opened. Please try again.');
       }
-    } catch {
-      // error handling
+    } catch (err) {
+      // D-149: a failed download says so.
+      const status = err?.status || err?.response?.status;
+      setDownloadError(
+        status === 403
+          ? 'You do not have permission to open this certificate.'
+          : status === 404
+            ? 'This certificate is no longer on file.'
+            : 'The certificate could not be opened. Please try again.'
+      );
     } finally {
       setDownloadingDocId(null);
     }
@@ -172,16 +185,22 @@ export function Form16Page() {
 
   const certificateColumns = [
     {
-      title: 'Employee ID',
-      dataIndex: 'employee_id',
-      key: 'employee_id',
-      render: (id) => <Text code>{id ? String(id).slice(0, 8) + '...' : '-'}</Text>,
+      // D-149: the employee by name; the id only when the name cannot be read.
+      title: 'Employee',
+      dataIndex: 'employee_name',
+      key: 'employee_name',
+      render: (name, record) =>
+        name ? (
+          <Text strong>{name}</Text>
+        ) : (
+          <Text code>{record.employee_id ? String(record.employee_id).slice(0, 8) + '...' : '-'}</Text>
+        ),
     },
     {
       title: 'Source File Name',
       dataIndex: 'source_file_name',
       key: 'source_file_name',
-      render: (name) => <Text strong>{name}</Text>,
+      render: (name) => <Text>{name}</Text>,
     },
     {
       title: 'Uploaded At',
@@ -392,6 +411,17 @@ export function Form16Page() {
                   title={`Uploaded Part A Certificates — FY ${selectedFy}`}
                   style={{ borderRadius: token.borderRadiusLG }}
                 >
+                  {downloadError && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      closable
+                      message={downloadError}
+                      onClose={() => setDownloadError(null)}
+                      style={{ marginBottom: token.marginMD }}
+                      data-testid="part-a-download-error"
+                    />
+                  )}
                   <Table
                     className="saas-table"
                     columns={certificateColumns}

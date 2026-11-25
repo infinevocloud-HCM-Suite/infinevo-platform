@@ -211,8 +211,8 @@ public class PayRun {
     }
 
     /**
-     * {@code DRAFT}, {@code LOCKED} or {@code APPROVED → CANCELLED}. A period lock is never undone
-     * (W-19 §6). A {@code PAID} run is never cancelled (W-36.2 §10, founder 2026-10-01): the money moved,
+     * {@code DRAFT}, {@code LOCKED} or {@code APPROVED → CANCELLED}. The service removes a LOCKED period
+     * lock and keeps a CLOSED one (D-144). A {@code PAID} run is never cancelled (W-36.2 §10, founder 2026-10-01): the money moved,
      * and cancelling would free the month for a second paid run.
      */
     public void cancel(String actor, Instant at) {

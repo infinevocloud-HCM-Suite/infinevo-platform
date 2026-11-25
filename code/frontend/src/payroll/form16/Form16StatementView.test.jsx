@@ -32,7 +32,9 @@ describe('Form16StatementView', () => {
       { quarter: 'Q4', amountDeducted: 0.0 },
     ],
     breakdown: {
-      grossTotalIncome: 82720.0,
+      grossSalary: 82720.0,
+      incomeFromSalary: 7520.0,
+      grossTotalIncome: 7520.0,
       hraExemption: 0.0,
       standardDeduction: 75000.0,
       professionalTax: 200.0,
@@ -64,14 +66,15 @@ describe('Form16StatementView', () => {
     expect(screen.getByText('AY 2027-2028')).toBeTruthy();
   });
 
-  it('renders employer and employee details with masked PAN', () => {
+  it('renders employer and employee details with the full PAN (D-149)', () => {
     render(<Form16StatementView statement={sampleStatement} />);
 
     expect(screen.getByText('Infinevo Test Co')).toBeTruthy();
     expect(screen.getByText('BLRI12345E')).toBeTruthy();
     expect(screen.getByText('Sahmad Khan')).toBeTruthy();
-    // Masked PAN check: ABCDE1234F -> ABCDE****F
-    expect(screen.getByText('ABCDE****F')).toBeTruthy();
+    // A Form 16 carries the full PAN; masking is for logs only.
+    expect(screen.getByText('ABCDE1234F')).toBeTruthy();
+    expect(screen.queryByText('ABCDE****F')).toBeNull();
     expect(screen.getByText('Senior Software Engineer')).toBeTruthy();
   });
 
@@ -86,14 +89,16 @@ describe('Form16StatementView', () => {
     expect(screen.getByText('Q4')).toBeTruthy();
   });
 
-  it('renders 14 statutory breakdown lines', () => {
+  it('renders a working whose lines follow from each other (D-149)', () => {
     render(<Form16StatementView statement={sampleStatement} />);
 
-    expect(screen.getByText('1. Gross Total Income')).toBeTruthy();
+    expect(screen.getByText('1. Gross Salary')).toBeTruthy();
+    expect(screen.getByText('5. Income from Salary (1 - 2 - 3 - 4)')).toBeTruthy();
+    expect(screen.getByText('8. Gross Total Income (5 + 6 + 7)')).toBeTruthy();
     expect(screen.getByText('3. Less: Standard Deduction (u/s 16(ia))')).toBeTruthy();
     expect(screen.getByText('4. Less: Professional Tax (u/s 16(iii))')).toBeTruthy();
-    expect(screen.getByText('8. Total Taxable Income')).toBeTruthy();
-    expect(screen.getByText('14. Total Annual Tax Payable')).toBeTruthy();
+    expect(screen.getByText('10. Total Taxable Income (8 - 9, rounded)')).toBeTruthy();
+    expect(screen.getByText('16. Total Annual Tax Payable')).toBeTruthy();
   });
 
   it('renders officer override alert when breakdownNote is OFFICER_OVERRIDE', () => {
@@ -106,6 +111,27 @@ describe('Form16StatementView', () => {
     expect(screen.getByText('Officer Adjustment')).toBeTruthy();
   });
 
+  it('says there is no computation, not that an officer adjusted it (D-149)', () => {
+    render(
+      <Form16StatementView
+        statement={{ ...sampleStatement, breakdown: null, breakdownNote: 'NO_COMPUTATION' }}
+      />
+    );
+
+    expect(screen.getByText('No Tax Computation Yet')).toBeTruthy();
+    expect(screen.queryByText('Officer Adjustment')).toBeNull();
+  });
+
+  it('prints a house property loss as (-), not with a bare minus sign (D-149)', () => {
+    render(
+      <Form16StatementView
+        statement={{ ...sampleStatement, breakdown: { ...sampleStatement.breakdown, housePropertyIncome: -7600 } }}
+      />
+    );
+
+    expect(screen.getByText('(-) ₹7,600.00')).toBeTruthy();
+  });
+
   it('invokes window.print when print button is clicked', () => {
     const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
     render(<Form16StatementView statement={sampleStatement} />);
@@ -115,5 +141,66 @@ describe('Form16StatementView', () => {
 
     expect(printSpy).toHaveBeenCalled();
     printSpy.mockRestore();
+  });
+
+  it('shows the no TDS record note and no working (D-150)', () => {
+    render(
+      <Form16StatementView
+        statement={{
+          ...sampleStatement,
+          regime: null,
+          annualTax: 0,
+          balance: -2000,
+          totalDeducted: 2000,
+          breakdown: null,
+          breakdownNote: 'NO_TDS_RECORD',
+          statementNote: 'NO_TDS_RECORD',
+        }}
+      />
+    );
+    expect(screen.getByTestId('form16-no-tds-record')).toBeTruthy();
+    expect(screen.getByText('No TDS record for this year')).toBeTruthy();
+    expect(screen.getByText(/no TDS record for this year\./i)).toBeTruthy();
+    expect(screen.queryByText(/REGIME$/)).toBeNull();
+    expect(screen.queryByText(/Detailed calculation breakdown is not available/)).toBeNull();
+  });
+
+  it('shows approved, not yet paid on its own line and not in the total (D-150)', () => {
+    render(<Form16StatementView statement={{ ...sampleStatement, approvedNotPaid: 1320 }} />);
+    const row = screen.getByTestId('form16-approved-not-paid');
+    expect(row.textContent).toMatch(/Approved, not yet paid/);
+    expect(row.textContent).toMatch(/1,320/);
+    expect(screen.getByText('Total Tax Deducted')).toBeTruthy();
+  });
+
+  it('hides the approved line when nothing is waiting (D-150)', () => {
+    render(<Form16StatementView statement={{ ...sampleStatement, approvedNotPaid: 0 }} />);
+    expect(screen.queryByTestId('form16-approved-not-paid')).toBeNull();
+  });
+
+  it('says gross total income cannot be below zero when it was floored (D-150)', () => {
+    render(
+      <Form16StatementView
+        statement={{
+          ...sampleStatement,
+          regime: 'OLD',
+          breakdown: {
+            ...sampleStatement.breakdown,
+            grossSalary: 150000,
+            standardDeduction: 50000,
+            professionalTax: 0,
+            incomeFromSalary: 100000,
+            housePropertyIncome: -200000,
+            grossTotalIncome: 0,
+            grossTotalIncomeFloored: true,
+            taxableIncome: 0,
+          },
+        }}
+      />
+    );
+    expect(screen.getByText('8. Gross Total Income (5 + 6 + 7, not below zero)')).toBeTruthy();
+    const note = screen.getByTestId('form16-gti-floored');
+    expect(note.textContent).toMatch(/cannot be below zero/);
+    expect(note.textContent).toMatch(/1,00,000|100,000/);
   });
 });

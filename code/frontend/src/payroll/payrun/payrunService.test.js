@@ -217,4 +217,42 @@ describe('payrunService (W-47.2 §7)', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/v1/employees', { params: { q: 'John' } });
     expect(res).toHaveLength(1);
   });
+
+  it('hits downloadEsiReturn with XLSX or CSV format', async () => {
+    const fakeBlob = new Blob(['esi-content']);
+    apiClient.get.mockResolvedValueOnce({ data: fakeBlob });
+
+    const res = await payrunService.downloadEsiReturn('run-1', 'XLSX');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/payroll/payruns/run-1/reports/esi', {
+      params: { format: 'XLSX' },
+      responseType: 'blob',
+    });
+    expect(res).toBe(fakeBlob);
+  });
+
+  it('hits downloadPtReturn with format and optional state', async () => {
+    const fakeBlob = new Blob(['pt-content']);
+    apiClient.get.mockResolvedValueOnce({ data: fakeBlob });
+
+    const res = await payrunService.downloadPtReturn('run-1', 'CSV', 'KA');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/payroll/payruns/run-1/reports/pt', {
+      params: { format: 'CSV', state: 'KA' },
+      responseType: 'blob',
+    });
+    expect(res).toBe(fakeBlob);
+  });
+
+  it('hits exportBankFile endpoint with responseType blob and returns raw data (W-88)', async () => {
+    const mockBlob = new Blob(['mock csv content'], { type: 'text/csv' });
+    apiClient.get.mockResolvedValueOnce({ data: mockBlob });
+
+    const res = await payrunService.exportBankFile('run-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/payroll/payruns/run-1/bank-file', {
+      responseType: 'blob',
+    });
+    expect(res).toBe(mockBlob);
+  });
 });

@@ -29,13 +29,15 @@ code change.
 |---|---|---|
 | 2026-11-23 | founder | How-to answers come **only** from articles we write and ship with the product, plus the user's real permissions. The helper does not describe a screen or a step that is not in an article |
 | 2026-11-23 | founder | The articles are drafted by Claude in this ticket, from the feature specs and the real screens. The founder reviews them after they ship; a correction is a file edit |
+| 2026-11-23 | founder | (Research review) The model finds an article from a **catalogue in the system prompt** — id, title and one-line summary of each article the caller may see — and reads it by id. The keyword search stays as a fallback. The whole library is not put in the prompt. No embeddings |
+| 2026-11-23 | founder | (Research review) The tool that reads an article is named `core.read_help_article` (it was `core.get_help_article` in the first draft) |
 
 Decided in this spec, for the founder to overrule:
 
 | Point | Choice | Why |
 |---|---|---|
 | Where articles live | Markdown files in the `core` jar, `src/main/resources/help/articles/` | Versioned with the code they describe; no table, no migration, no admin screen |
-| How they are searched | A keyword score over the loaded articles, in memory | About 30 short articles. A vector store or a search service is not worth its upkeep at this size |
+| How they are searched | A keyword score over the loaded articles, in memory. **Changed 2026-11-23: this is now the fallback; the catalogue comes first — see "How an article is found"** | About 30 short articles. A vector store or a search service is not worth its upkeep at this size |
 | Who may see an article | Whoever may open the article's screen: the screen must be in the caller's navigation feed | The feed already applies the customer's modules and the user's actions, so an article can never describe a screen the user cannot reach |
 | Front matter | Plain `key: value` lines, parsed by hand | No YAML library is declared in `core/pom.xml` |
 | Customer-written notes | Not in this ticket | Founder chose "articles we write and ship" |
@@ -53,8 +55,8 @@ Decided in this spec, for the founder to overrule:
 **In scope**
 
 - The article file format and a loader that reads every article at startup.
-- Two tools, `core.search_help` and `core.get_help_article`.
-- One new rule in the system prompt.
+- Two tools, `core.read_help_article` and the fallback `core.search_help`.
+- The catalogue block and one new rule in the system prompt (changed 2026-11-23).
 - The first 30 articles.
 - A test that fails when an article points at a screen that is not in the menu.
 
@@ -69,14 +71,18 @@ Decided in this spec, for the founder to overrule:
 ```
 startup --> HelpLibrary loads help/articles/*.md --> broken file: the application does not start
 
+every message (changed 2026-11-23):
+  --> AiSystemPrompt adds the catalogue: one line per article the caller may see  (id | title | summary)
+
 user: "how do I add a leave type?"
-  --> model calls core.search_help { query }
-        --> keep articles whose screen is in the caller's navigation feed
-        --> score, return the top 5 (id, title, summary)
-  --> model calls core.get_help_article { id } --> body + screen path
+  --> model picks `leave-types` from the catalogue
+  --> model calls core.read_help_article { id } --> access checked again --> body + screen path
   --> answer: the steps from the article, with [Leave types](app:/leave/types)
 
-nothing scores above 0 --> the model says "I do not have a guide for that."
+fallback, when no catalogue line fits the user's words:
+  --> model calls core.search_help { query } --> top 5 of the same visible articles (id, title, summary)
+
+no catalogue line fits and search returns nothing --> "I do not have a guide for that."
 ```
 
 ## The article format
@@ -119,10 +125,37 @@ screen that is not `screen` or `route`.
 | 1 | The article's `screen` is the path of an item in the caller's navigation feed | `NavigationService.navigation()` (`NavigationService.java:157`). The feed has already dropped items whose module the customer does not hold and items whose action the caller lacks |
 | 2 | If `action` is set, the caller holds it | `PermissionService.holds` (`code/backend/shared/src/main/java/com/infinevo/shared/authz/PermissionService.java:102`) |
 
-An article that fails either check is not returned by search, and `core.get_help_article`
+An article that fails either check is not returned by search, and `core.read_help_article`
 answers "not found" for it — the same answer as for an id that does not exist.
 
+## How an article is found (Changed 2026-11-23, research review)
+
+| Step | Rule |
+|---|---|
+| 1. The catalogue | `HelpLibrary.catalogueFor(caller)` returns the articles the caller may see (the two checks above), sorted by `id`. `AiSystemPrompt` adds them under the heading "Help articles you can read", one line each: `id \| title \| summary` |
+| 2. Size | A line is at most about 250 characters (`id`, an 80-character title, a 160-character summary), near 50 tokens. Thirty lines are about 1,500 tokens. A caller sees fewer: an employee sees about 8 |
+| 3. Reading | The model calls `core.read_help_article { id }`. Access is **checked again** there; an id that is not in the caller's catalogue answers "not found" |
+| 4. Fallback | `core.search_help` stays, for a question whose words match no title or summary. It searches the same visible articles, bodies and keywords included |
+| 5. Nothing fits | The model says "I do not have a guide for that." |
+| 6. A cap | If the visible catalogue passes 60 articles, only the 60 that best fit the caller's roles are listed (the `roles` field), and the prompt says "more articles exist — use `core.search_help`". Not reached at 30 |
+
+**What the catalogue never holds:** an article the caller may not see, an article body, or
+anything typed by a user. Titles and summaries are our own shipped text.
+
+**Why the whole library is not put in the prompt**
+
+| Option | Tokens added to every question | Result |
+|---|---|---|
+| Catalogue (chosen) | about 1,500, plus one article of at most 1,500 when a how-to is asked | Small and steady |
+| Every article body | 20,000 to 40,000 (30 articles of up to 6,000 characters) | The deployment allows 100,000 tokens a minute for all customers together (`W-114.2`). That is 2 to 5 questions a minute in total. It would also multiply the cost of every question, including "how many leave days do I have", by ten or more |
+
+**Embeddings stay out.** One more line for later: if customers upload their own documents,
+the path is `pgvector` in our own PostgreSQL — a table with `tenant_id` and row-level
+security, exact search — in a future ticket. Not a separate vector store, not now.
+
 ## The search rule
+
+The fallback of step 4.
 
 | Step | Rule |
 |---|---|
@@ -147,11 +180,11 @@ All under `code/backend/core/src/main/java/com/infinevo/core/ai/help/` unless a 
 | Layer | File | Change |
 |---|---|---|
 | Record | `HelpArticle.java` | **New.** `id`, `title`, `summary`, `roles`, `screen`, `route`, `action`, `keywords`, `body` |
-| Loader | `HelpLibrary.java` | **New.** Reads `classpath*:help/articles/*.md` and `help/sub-routes.json` once at startup, runs the startup checks, keeps the articles in an unmodifiable map. Also `Optional<String> articleIdForScreen(String path)`: the article for a navigation item, used by `W-114.13` for its "Help article" line. It returns the article whose `screen` is that path and that the caller may see (`HelpAccess`); when several match, the one with no `route` and no `action` first, then the lowest `id`; none → empty. The caller passes the item's path; `W-114.13`'s `AiScreenResolver` turns a menu key into its path first |
+| Loader | `HelpLibrary.java` | **New.** Reads `classpath*:help/articles/*.md` and `help/sub-routes.json` once at startup, runs the startup checks, keeps the articles in an unmodifiable map. **(Added 2026-11-23)** `List<CatalogueLine> catalogueFor(caller)`: `id`, `title`, `summary` of each article `HelpAccess` lets the caller see, sorted by `id`, with the 60-article cap. Also `Optional<String> articleIdForScreen(String path)`: the article for a navigation item, used by `W-114.13` for its "Help article" line. It returns the article whose `screen` is that path and that the caller may see (`HelpAccess`); when several match, the one with no `route` and no `action` first, then the lowest `id`; none → empty. The caller passes the item's path; `W-114.13`'s `AiScreenResolver` turns a menu key into its path first |
 | Search | `HelpSearch.java` | **New.** The scoring rule above. Pure function of (query, articles, caller roles) |
 | Access | `HelpAccess.java` | **New.** `visibleTo(caller)`: the two checks above. Collects every `path` in `NavigationService.navigation()` including children (`NavigationItemResponse`, `code/backend/core/src/main/java/com/infinevo/core/navigation/NavigationItemResponse.java:13`) |
 | Tools | `HelpAiToolProvider.java` | **New.** `implements AiToolProvider`; the two tools below |
-| Prompt | `ai/AiSystemPrompt.java` (`W-114.4`) | One more fixed rule: "For a question about how to do something in the product, call `core.search_help` first and answer only from the article you read. If no article fits, say you do not have a guide for that. When an article gives a screen, link it as `[name](app:/path)`." |
+| Prompt | `ai/AiSystemPrompt.java` (`W-114.4`) | **Changed 2026-11-23.** The catalogue block, built per request from `HelpLibrary.catalogueFor(caller)`, and one fixed rule: "For a question about how to do something in the product, pick the article from 'Help articles you can read' and call `core.read_help_article` with its id. If no line fits, call `core.search_help`. Answer only from the article you read. If no article fits, say you do not have a guide for that. When an article gives a screen, link it as `[name](app:/path)`." |
 | Content | `code/backend/core/src/main/resources/help/articles/*.md` | **New.** The 30 articles |
 | Content | `code/backend/core/src/main/resources/help/sub-routes.json` | **New.** `[{ "path", "parent" }]`, the six `route` values of the list below, each with its `screen` as parent: `/employees/new`, `/employees/import`, `/me/leave`, `/me/wfh`, `/me/payslips`, `/me/taxDeclaration`. `W-114.13` owns the rule that reads it and `W-114.16` adds four entries |
 
@@ -160,7 +193,7 @@ All under `code/backend/core/src/main/java/com/infinevo/core/ai/help/` unless a 
 | Tool | Input | Returns | `requiredAction` |
 |---|---|---|---|
 | `core.search_help` | `query` (string, at most 200 characters) | up to 5 of `{ id, title, summary }` | `core.ai.use` |
-| `core.get_help_article` | `id` | `{ id, title, body, screen, route }`, or `ok = false`, "not found" | `core.ai.use` |
+| `core.read_help_article` | `id` | `{ id, title, body, screen, route }`, or `ok = false`, "not found" | `core.ai.use` |
 
 No endpoint is added. Both tools run through `POST /api/v1/ai/sessions/{id}/messages`.
 
@@ -233,7 +266,9 @@ None. **Routes added:** none. Links in answers show as plain text until `W-114.1
 | Unit | `core/src/test/.../ai/help/HelpSearchTest.java` | Keyword beats title beats body; role bonus; stop words; nothing above 0 returns an empty list; at most 5; ties by id |
 | Unit | `core/src/test/.../ai/help/HelpAccessTest.java` | An article whose screen is not in the caller's feed is not found by search and "not found" by id; `action` is honoured |
 | Unit | `core/src/test/.../ai/help/HelpAiToolProviderTest.java` | Tool shapes; `get_help_article` for a hidden article answers the same as for an unknown id |
-| Unit | `core/src/test/.../ai/AiChatServiceImplTest.java` (extend, `W-114.4`) | Stub scripted to search, read, answer: the answer carries the article's steps |
+| Unit | `core/src/test/.../ai/AiChatServiceImplTest.java` (extend, `W-114.4`) | **Changed 2026-11-23.** Stub scripted to read `leave-types` by id straight from the catalogue, then answer: the answer carries the article's steps and `core.search_help` was not called. A second script uses search, then read: same answer |
+| Unit | `core/src/test/.../ai/help/HelpCatalogueTest.java` (added 2026-11-23) | HR's catalogue holds `leave-types`; an employee's does not; a customer without Payroll has no `run-payroll` line; lines are sorted by `id` and hold only id, title and summary; the full catalogue of the 30 shipped articles is under 8,000 characters; 61 visible fixture articles give 60 lines and the "more articles exist" sentence |
+| Unit | `core/src/test/.../ai/AiSystemPromptTest.java` (extend, added 2026-11-23) | The prompt sent to the model for an employee contains the id `apply-leave` and not the id `leave-types`; it contains no article body |
 | Test | `app/src/test/.../help/HelpArticlesMatchTheMenuTest.java` | Every shipped article's `screen` is a path in `NavigationCatalogue.withContributed(List.of(new HrmsNavigation(), new PayrollNavigation()))`; every `action` is declared by a menu item or a portal panel provider |
 
 **Break the guard once:** change one article's `screen` to `/no/such/screen` and see
@@ -252,10 +287,13 @@ git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/      # expect nothing
 | A fixture article with no `title` | Startup fails naming the file and the field | not run |
 | `core.search_help { "query": "add leave type" }` as HR | `leave-types` first | not run |
 | Same as an employee (no `/leave/types` in the feed) | `leave-types` absent | not run |
-| `core.get_help_article { "id": "leave-types" }` as an employee | `ok = false`, "not found" | not run |
+| `core.read_help_article { "id": "leave-types" }` as an employee | `ok = false`, "not found" | not run |
 | `core.search_help` for a customer without Payroll, query "run payroll" | `run-payroll` absent | not run |
 | `core.search_help { "query": "zzzz" }` | Empty list; the stubbed answer is "I do not have a guide for that." | not run |
 | An article edited to `screen: /no/such/screen` | `HelpArticlesMatchTheMenuTest` fails | not run |
+| The system prompt for HR (added 2026-11-23) | Holds a "Help articles you can read" block with `leave-types \| Create a leave type \| …`; about 30 lines | not run |
+| The system prompt for an employee (added 2026-11-23) | The block has no `leave-types` line | not run |
+| `core.read_help_article` with an id the employee's catalogue does not list (added 2026-11-23) | `ok = false`, "not found" | not run |
 
 ## Risks
 
@@ -263,7 +301,9 @@ git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/      # expect nothing
 |---|---|---|
 | An article goes stale when its screen changes | Medium | The path test catches a removed screen. A changed button name is not caught: the spec of the ticket that changes a screen names the article to update |
 | The model answers a how-to from general knowledge instead of the article | Medium | The prompt rule; the stub test; a founder check on the test company before real customers (the helper stays off until `W-114.10`) |
-| Keyword search misses a differently worded question | Medium | `keywords` are written from how users ask; `W-114.22` starters show phrasing that works |
+| Keyword search misses a differently worded question | Medium | Changed 2026-11-23: the model now picks from titles and summaries by meaning, so wording matters less; search is only the fallback. `W-114.23` measures how often the right article is picked |
+| The catalogue adds about 1,500 tokens to every question, how-to or not (added 2026-11-23) | Certain | Accepted: about one-twentieth of putting the library in. `W-114.24` shows the real token use |
+| The navigation feed is worked out on every message to build the catalogue (added 2026-11-23) | Low | It is the call the menu already makes on each page load; if it shows in timings, cache the visible ids for the length of one request only |
 | A user learns a screen exists that they cannot open | Low | Access is checked on search and on read; the hidden and the unknown answers are identical |
 | A `route` deeper than the menu path is wrong | Low | Used in 6 articles, each named in the table; the founder review covers them |
 

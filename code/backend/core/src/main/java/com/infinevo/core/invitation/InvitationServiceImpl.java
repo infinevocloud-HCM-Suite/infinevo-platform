@@ -240,6 +240,41 @@ public class InvitationServiceImpl implements InvitationService {
     }
 
     @Override
+    public void deleteUserInvitation(UUID invitationId, UUID actorUserId) {
+        requireActor(actorUserId);
+        UUID tenantId = requireCurrentTenant();
+        Objects.requireNonNull(invitationId, "invitationId");
+
+        UserInvitation existing = userInvitationRepository
+                .findByIdAndTenantId(invitationId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Invitation not found: " + invitationId));
+        requireDeletable(existing.getStatus(), existing.getExpiresAt());
+
+        // A resend links the old row to this one (superseded_by_id); unlink before the row goes.
+        for (UserInvitation older : userInvitationRepository.findByTenantIdAndSupersededById(tenantId, invitationId)) {
+            older.setSupersededById(null);
+            userInvitationRepository.save(older);
+        }
+        userInvitationRoleRepository.deleteByTenantIdAndInvitationId(tenantId, invitationId);
+        userInvitationRepository.delete(existing);
+    }
+
+    /**
+     * D-22: only a finished invitation may be deleted — the two live states keep their row. A {@code PENDING} row
+     * whose expiry has passed counts as finished: the status flips to {@code EXPIRED} only when its link is opened
+     * ({@code markExpired}), so a never-opened one would otherwise need a revoke first.
+     */
+    private static void requireDeletable(InvitationStatus status, Instant expiresAt) {
+        if (status == InvitationStatus.PENDING && (expiresAt == null || expiresAt.isAfter(Instant.now()))) {
+            throw new IllegalStateException("Revoke a pending invitation before deleting it");
+        }
+        if (status == InvitationStatus.ACCEPTED) {
+            throw new IllegalStateException(
+                    "An accepted invitation is the record of the account and cannot be deleted");
+        }
+    }
+
+    @Override
     public EmployeeInvitationResponse createEmployeeInvitation(EmployeeInvitationRequest request, UUID actorUserId) {
         requireActor(actorUserId);
         UUID tenantId = requireCurrentTenant();
@@ -391,6 +426,25 @@ public class InvitationServiceImpl implements InvitationService {
         existing.setUpdatedAt(Instant.now());
         existing.setUpdatedBy(actorUserId.toString());
         employeeInvitationRepository.save(existing);
+    }
+
+    @Override
+    public void deleteEmployeeInvitation(UUID invitationId, UUID actorUserId) {
+        requireActor(actorUserId);
+        UUID tenantId = requireCurrentTenant();
+        Objects.requireNonNull(invitationId, "invitationId");
+
+        EmployeeInvitation existing = employeeInvitationRepository
+                .findByIdAndTenantId(invitationId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Invitation not found: " + invitationId));
+        requireDeletable(existing.getStatus(), existing.getExpiresAt());
+
+        for (EmployeeInvitation older :
+                employeeInvitationRepository.findByTenantIdAndSupersededById(tenantId, invitationId)) {
+            older.setSupersededById(null);
+            employeeInvitationRepository.save(older);
+        }
+        employeeInvitationRepository.delete(existing);
     }
 
     @Override

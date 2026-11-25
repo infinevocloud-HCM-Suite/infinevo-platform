@@ -8,8 +8,10 @@ import com.infinevo.payroll.component.EarningController;
 import com.infinevo.payroll.dashboard.PayrollDashboardController;
 import com.infinevo.payroll.deduction.EmployeeDeductionController;
 import com.infinevo.payroll.payrun.PayRunController;
+import com.infinevo.payroll.proof.ProofChaseController;
 import com.infinevo.payroll.reimbursement.ReimbursementClaimController;
 import com.infinevo.payroll.schedule.PayScheduleController;
+import com.infinevo.payroll.taxcalc.recalc.TaxRecalcFailureController;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.lang.reflect.Method;
@@ -71,6 +73,8 @@ class PayrollNavigationTest {
                         PayrollNavigation.PRIOR_PAYROLL,
                         PayrollNavigation.CLAIMS,
                         PayrollNavigation.DEDUCTIONS,
+                        PayrollNavigation.PROOFS,
+                        PayrollNavigation.TAX_RECALC_FAILURES,
                         PayrollNavigation.SETTINGS,
                         PayrollNavigation.COMPONENTS);
         assertThat(group.path()).isEqualTo(PayrollNavigation.DASHBOARD.path());
@@ -117,6 +121,48 @@ class PayrollNavigationTest {
         assertThat(item.path()).isEqualTo("/payroll/deductions");
         assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
         assertResolvesToGet(EmployeeDeductionController.class, item);
+    }
+
+    @Test
+    @DisplayName("D-152: payroll.proofs targets ProofChaseController's list GET, behind payroll.proof.read")
+    void proofsItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.PROOFS;
+        assertThat(item.key()).isEqualTo("payroll.proofs");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.proofs");
+        assertThat(item.path()).isEqualTo("/payroll/proof-of-investment");
+        assertThat(item.requiredAction()).isEqualTo("payroll.proof.read");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        Method list = Arrays.stream(ProofChaseController.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && m.getAnnotation(GetMapping.class).value().length == 0)
+                .findFirst()
+                .orElseThrow();
+        assertThat(ProofChaseController.class
+                        .getAnnotation(RequestMapping.class)
+                        .value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(list.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
+    }
+
+    @Test
+    @DisplayName(
+            "D-151: payroll.tax_recalc_failures targets TaxRecalcFailureController's list GET, behind the same action")
+    void taxRecalcFailuresItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.TAX_RECALC_FAILURES;
+        assertThat(item.key()).isEqualTo("payroll.tax_recalc_failures");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.tax_recalc_failures");
+        assertThat(item.path()).isEqualTo("/payroll/tax/recalc-failures");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        Method list = Arrays.stream(TaxRecalcFailureController.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && m.getAnnotation(GetMapping.class).value().length == 0)
+                .findFirst()
+                .orElseThrow();
+        assertThat(TaxRecalcFailureController.class
+                        .getAnnotation(RequestMapping.class)
+                        .value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(list.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
     }
 
     @Test

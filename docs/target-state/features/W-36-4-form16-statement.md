@@ -62,13 +62,25 @@ gives `PAY-15` no table. The statement is **rendered, not stored**, as the paysl
 [employee] GET /api/v1/me/form16/{fy}                               payroll.payslip.read_own
    --> Form16Service.render(employeeId, fy)
        deductor    = TaxDeductorService.current()                 none → 409 DEDUCTOR_NOT_SET
-       tds         = EmployeeTdsService.active(employeeId, fy)     none → 404
+       tds         = EmployeeTdsService.active(employeeId, fy)     none → nil tax, statement_note =
+                     "NO_TDS_RECORD", breakdown null with the same note, regime from the
+                     computation or null (D-150; was 404)
        computation = latest payroll.tax_computation for (employee, fy)   may be absent
        quarters    = Σ TAX line amount per quarter over PAID runs in fy   (one grouped query)
        deducted    = Σ quarters
+       approved_not_paid = Σ TAX line amount over APPROVED regular runs in fy, not yet PAID;
+                     printed as its own line "Approved, not yet paid", never added to deducted (D-150)
        balance     = tds.annual_tax − deducted                     > 0 still owed, < 0 excess
        breakdown   = computation, when computation.annual_tax = tds.annual_tax
                      else null, with breakdown_note = "OFFICER_OVERRIDE"
+                     no computation at all: null, with breakdown_note = "NO_COMPUTATION" (D-149)
+                     the breakdown carries grossSalary and incomeFromSalary worked back from the
+                     stored total, so each printed line follows from the one above (D-149)
+                     old regime, total floored at zero by a house-property loss: the engine's own
+                     income from salary is used (from the working when it holds a number, else the
+                     engine run again read-only and used only if it reproduces the stored row);
+                     gross total income prints 0 with grossTotalIncomeFloored = true and the page
+                     says "gross total income cannot be below zero" (D-150)
        final       = a PAID run exists for every period April..March of fy
    --> 200 Form16Statement
 ```
@@ -84,9 +96,9 @@ All new, under `code/backend/payroll/src/main/java/com/infinevo/payroll/form16/`
 
 | Layer | File | Change |
 |---|---|---|
-| Record | `Form16Statement.java` | `financialYear`, `assessmentYear` (the next FY label), `final`, `deductor` (name = tenant name, `tan`, `pan`, `tdsCircle`, signatory name, parent name, designation), `employee` (name, `pan`, designation), `regime`, `quarters[4]` (`quarter`, `amountDeducted`), `totalDeducted`, `annualTax`, `balance`, `breakdown?` (the fourteen `tax_computation` money columns), `breakdownNote?`, `generatedAt`; all money is `BigDecimal` scale 2, rounded `HALF_UP` for print |
+| Record | `Form16Statement.java` | `financialYear`, `assessmentYear` (the next FY label), `final`, `deductor` (name = tenant name, `tan`, `pan`, `tdsCircle`, signatory name, parent name, designation), `employee` (name, `pan`, designation), `regime`, `quarters[4]` (`quarter`, `amountDeducted`), `totalDeducted`, `annualTax`, `balance`, `approvedNotPaid` (D-150), `breakdown?` (the fourteen `tax_computation` money columns, plus `grossTotalIncomeFloored`, D-150), `breakdownNote?`, `statementNote?` (`NO_TDS_RECORD`, D-150), `generatedAt`; `regime` is null when there is no TDS record and no computation; all money is `BigDecimal` scale 2, rounded `HALF_UP` for print |
 | Service / ServiceImpl | `Form16Service`, `Form16ServiceImpl` | `render(employeeId, fy)`, `renderOwn(fy)` — `renderOwn` resolves the caller through `EmployeeService.currentEmployee()` (`W-13.4`) |
-| Repository (change) | `payrun/EmployeePayRunLineRepository.java` (`W-29.2`) | one query, `sumTaxLinesByPeriod(tenantId, employeeId, periodFrom, periodTo)`, grouped by `payrun.period`, filtered to `payrun.status = 'PAID'` |
+| Repository (change) | `payrun/EmployeePayRunLineRepository.java` (`W-29.2`) | one query, `sumTaxLinesByPeriod(tenantId, employeeId, periodFrom, periodTo)`, grouped by `payrun.period`, filtered to `payrun.status = 'PAID'`; and `sumApprovedUnpaidTaxLinesByPeriod`, the same grouped by period over `APPROVED` `REGULAR` runs (D-150) |
 | Repository (use) | `TaxComputationRepository` (`W-33.3`) | `findFirstByTenantIdAndEmployeeIdAndFinancialYearOrderByComputedAtDesc` — add it when `W-33.3` lacks it |
 | Controller | `Form16Controller.java` | the two endpoints |
 | DTO | `Form16Response` | the record in the `status` / `message` / `data` envelope |
@@ -99,17 +111,20 @@ PAN is masked as `ABCDE****F` in the officer read's logs and never logged at all
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| GET | `/api/v1/payroll/employees/{employeeId}/form16/{fy}` | — | `200` statement · `404` no TDS record · `409` `DEDUCTOR_NOT_SET` | `payroll.statutory_report.read` |
+| GET | `/api/v1/payroll/employees/{employeeId}/form16/{fy}` | — | `200` statement (also with no TDS record: nil tax and `statementNote = NO_TDS_RECORD`, D-150) · `404` unknown employee · `409` `DEDUCTOR_NOT_SET` | `payroll.statutory_report.read` |
 | GET | `/api/v1/me/form16/{fy}` | — | the same response for the caller's own employee | `payroll.payslip.read_own` |
 
 There are no new action codes. `V020__action.sql:121`, `:132` defines them. They are granted to
 `payroll-officer`, `finance` and `employee` (`V025__catalogue_correction.sql:204`, `:215`, `:229`).
 
 **Quarters.** Q1 is April–June, Q2 July–September, Q3 October–December, and Q4 January–March of `fy`.
-A month with no `PAID` run adds nothing.
+A month with no `PAID` run adds nothing. Tax on an `APPROVED` regular run not yet paid is the separate
+`approvedNotPaid` figure, printed as "Approved, not yet paid" and never part of the quarters (D-150).
 
 **Validation.** `fy` must be a valid `FinancialYear` label (`W-32.1`), or the call returns `400`. An
-employee outside the tenant returns `404`, as does a `/me` login linked to no employee.
+employee outside the tenant returns `404`, as does a `/me` login linked to no employee. An employee with
+no TDS record for the year is not an error: the statement prints nil tax with the note "No TDS record for
+this year" (D-150).
 
 ## 5. Frontend changes
 
@@ -129,7 +144,7 @@ None. `02-data-model.md:353` gives `PAY-15` no table, and nothing is stored.
 | Type | File | Covers |
 |---|---|---|
 | Unit | `payroll/.../form16/Form16AssemblerTest.java` | **the hand calculation**: annual tax 120,000, `PAID` TAX lines of 10,000 for April–December ⇒ Q1 30,000, Q2 30,000, Q3 30,000, Q4 0, deducted 90,000, balance 30,000, `final = false`; add January–March ⇒ Q4 30,000, balance 0, `final = true`; computation annual tax 118,000 against a record of 120,000 ⇒ `breakdown` null and note `OFFICER_OVERRIDE`; FY `2026-2027` ⇒ assessment year `2027-2028`; 1,234.565 prints 1,234.57 |
-| Integration | `payroll/.../form16/Form16IT.java` | **the acceptance test**: deductor set, record written, twelve runs computed; nine paid, one `COMPUTED`, one `CANCELLED` ⇒ only the nine count; `GET /me/form16` for employee A's login returns A and never B; no deductor ⇒ `409`; no TDS record ⇒ `404`; without `payroll.statutory_report.read` the call is `403` |
+| Integration | `payroll/.../form16/Form16IT.java` | **the acceptance test**: deductor set, record written, twelve runs computed; nine paid, one `COMPUTED`, one `CANCELLED` ⇒ only the nine count; `GET /me/form16` for employee A's login returns A and never B; no deductor ⇒ `409`; no TDS record ⇒ `200` with nil tax and `NO_TDS_RECORD` (D-150); an `APPROVED` run's tax is `approvedNotPaid`, not deducted (D-150); another tenant's employee ⇒ `404`; without `payroll.statutory_report.read` the call is `403` |
 | Integration | `payroll/.../form16/Form16RlsIT.java` | as `app_user` bound to tenant A, reading tenant B's employee returns `404`. Tenant B's `PAID` lines are never summed into tenant A's quarters |
 
 ## 8. Verification
@@ -188,6 +203,8 @@ Nothing is stored, so there is nothing to roll back. A wrong figure is corrected
 | 1 | Store or render? | **Render**, as the payslip does. `PAY-15` has no table |
 | 2 | JSON or PDF? | **JSON** plus the printed page. A PDF is a later ticket with a real library decision |
 | 3 | Which figure is "tax payable"? | **`employee_tds.annual_tax`**. The breakdown comes from `tax_computation` only when the two match |
-| 4 | What counts as deducted? | **`TAX` lines of `PAID` runs** only |
+| 4 | What counts as deducted? | **`TAX` lines of `PAID` runs** only. Founder, 2026-11-24 (D-150): `APPROVED` regular runs not yet paid are shown on their own line, "Approved, not yet paid", and are not deducted |
 | 5 | Before March is paid? | **Readable, with `final = false`**, so an employee can check it mid-year |
 | 6 | Which action for the employee? | **`payroll.payslip.read_own`**. `PAY-15` is "payslips and annual statements", and the employee role already holds it |
+| 7 | No TDS record for the year? | Founder, 2026-11-24 (D-150): **a statement with nil tax** and the note "No TDS record for this year", the paid figures as they are; `404` only for an unknown employee |
+| 8 | Old-regime total floored at zero? | Founder, 2026-11-24 (D-150): Part B prints the **true** gross salary and income from salary, the loss line as it is, and gross total income 0 with the note "gross total income cannot be below zero". The tax calculation is unchanged |

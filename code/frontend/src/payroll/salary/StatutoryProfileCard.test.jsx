@@ -2,12 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
 import { statutoryProfileService } from './statutoryProfileService.js';
+import { statutoryService } from '../settings/statutoryService.js';
 import * as useCanModule from '@shell/screens';
 
 vi.mock('./statutoryProfileService.js', () => ({
   statutoryProfileService: {
     get: vi.fn(),
     save: vi.fn(),
+  },
+}));
+
+vi.mock('../settings/statutoryService.js', () => ({
+  statutoryService: {
+    get: vi.fn().mockResolvedValue({ enabled: true, source: 'PERSISTED' }),
   },
 }));
 
@@ -56,7 +63,7 @@ describe('StatutoryProfileCard - read view (W-76.2)', () => {
 
     await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
     expect(screen.getByTestId('statutory-tds-applicable').textContent).toBe('Yes');
-    expect(value('TDS applicable')).toBe('Yes');
+    expect(value('TDS applicable')).toContain('Yes');
   });
 
   it('D-141: shows TDS applicable No when the flag is false', async () => {
@@ -122,5 +129,29 @@ describe('StatutoryProfileCard - read view (W-76.2)', () => {
     fireEvent.click(screen.getByTestId('statutory-edit'));
     expect(onEdit).toHaveBeenCalledWith(PROFILE);
     expect(statutoryProfileService.save).not.toHaveBeenCalled();
+  });
+
+  it('D-145: says new employees start as TDS applicable, and no company note while TDS is on', async () => {
+    statutoryProfileService.get.mockResolvedValueOnce(PROFILE);
+
+    render(<StatutoryProfileCard employeeId="emp-1" />);
+
+    await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
+    expect(statutoryService.get).toHaveBeenCalledWith('tds');
+    expect(screen.getByTestId('tds-new-employee-help').textContent).toBe('New employees start as TDS applicable');
+    expect(screen.queryByTestId('tds-company-off-note')).toBeNull();
+  });
+
+  it('D-145: with company TDS off the TDS row says the setting waits for it', async () => {
+    statutoryService.get.mockResolvedValueOnce({ enabled: false, source: 'PERSISTED' });
+    statutoryProfileService.get.mockResolvedValueOnce({ ...PROFILE, tdsApplicable: true });
+
+    render(<StatutoryProfileCard employeeId="emp-1" />);
+
+    await waitFor(() => expect(screen.getByTestId('tds-company-off-note')).toBeDefined());
+    expect(screen.getByTestId('tds-company-off-note').textContent).toBe(
+      'Company TDS is off. This setting takes effect when it is turned on'
+    );
+    expect(screen.getByTestId('statutory-tds-applicable').textContent).toBe('Yes');
   });
 });

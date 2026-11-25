@@ -20,9 +20,11 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -75,9 +77,9 @@ public class EmployeeTdsController {
 
         EmployeeTds saved = tdsService.record(employeeId, financialYear, figures);
         BigDecimal ytd = tdsService.yearToDate(employeeId, financialYear);
-        BigDecimal remaining = calculateRemaining(saved.getAnnualTax(), ytd);
+        TdsSpread spread = tdsService.spread(saved, ytd);
 
-        return ApiResponse.ok("TDS record saved successfully", EmployeeTdsResponse.from(saved, ytd, remaining));
+        return ApiResponse.ok("TDS record saved successfully", EmployeeTdsResponse.from(saved, spread));
     }
 
     @GetMapping("/api/v1/payroll/employees/{employeeId}/tds/{fy}")
@@ -89,9 +91,9 @@ public class EmployeeTdsController {
                 .active(employeeId, financialYear)
                 .orElseThrow(() -> new EmployeeTdsNotFoundException(employeeId, financialYear));
         BigDecimal ytd = tdsService.yearToDate(employeeId, financialYear);
-        BigDecimal remaining = calculateRemaining(active.getAnnualTax(), ytd);
+        TdsSpread spread = tdsService.spread(active, ytd);
 
-        return ApiResponse.ok("TDS record retrieved successfully", EmployeeTdsResponse.from(active, ytd, remaining));
+        return ApiResponse.ok("TDS record retrieved successfully", EmployeeTdsResponse.from(active, spread));
     }
 
     @GetMapping("/api/v1/payroll/employees/{employeeId}/tds/{fy}/history")
@@ -101,7 +103,7 @@ public class EmployeeTdsController {
         List<EmployeeTds> history = tdsService.history(employeeId, financialYear);
         BigDecimal ytd = tdsService.yearToDate(employeeId, financialYear);
         List<EmployeeTdsResponse> responses = history.stream()
-                .map(record -> EmployeeTdsResponse.from(record, ytd, calculateRemaining(record.getAnnualTax(), ytd)))
+                .map(record -> EmployeeTdsResponse.from(record, tdsService.spread(record, ytd)))
                 .toList();
 
         return ApiResponse.ok("TDS record history retrieved successfully", responses);
@@ -118,14 +120,33 @@ public class EmployeeTdsController {
                 .active(current.id(), financialYear)
                 .orElseThrow(() -> new EmployeeTdsNotFoundException(current.id(), financialYear));
         BigDecimal ytd = tdsService.yearToDate(current.id(), financialYear);
-        BigDecimal remaining = calculateRemaining(active.getAnnualTax(), ytd);
+        TdsSpread spread = tdsService.spread(active, ytd);
 
-        return ApiResponse.ok("TDS record retrieved successfully", EmployeeTdsResponse.from(active, ytd, remaining));
+        return ApiResponse.ok(
+                "TDS record retrieved successfully",
+                EmployeeTdsResponse.from(active, spread).withoutSuggestion());
     }
 
-    private static BigDecimal calculateRemaining(BigDecimal annualTax, BigDecimal ytd) {
-        BigDecimal remaining = annualTax.subtract(ytd);
-        return remaining.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO.setScale(4) : remaining;
+    /** D-151: the suggested figure replaces the officer's; the new active row comes back. */
+    @PostMapping("/api/v1/payroll/employees/{employeeId}/tds/{fy}/suggestion/apply")
+    @RequiresAction("payroll.tax_declaration.verify")
+    public ApiResponse<EmployeeTdsResponse> applySuggestion(
+            @PathVariable("employeeId") UUID employeeId, @PathVariable("fy") String financialYear) {
+        EmployeeTds saved = tdsService.applySuggestion(employeeId, financialYear);
+        BigDecimal ytd = tdsService.yearToDate(employeeId, financialYear);
+        return ApiResponse.ok(
+                "Suggested TDS figure applied", EmployeeTdsResponse.from(saved, tdsService.spread(saved, ytd)));
+    }
+
+    /** D-151: the suggestion is cleared and the officer's figure stays. */
+    @DeleteMapping("/api/v1/payroll/employees/{employeeId}/tds/{fy}/suggestion")
+    @RequiresAction("payroll.tax_declaration.verify")
+    public ApiResponse<EmployeeTdsResponse> clearSuggestion(
+            @PathVariable("employeeId") UUID employeeId, @PathVariable("fy") String financialYear) {
+        EmployeeTds active = tdsService.clearSuggestion(employeeId, financialYear);
+        BigDecimal ytd = tdsService.yearToDate(employeeId, financialYear);
+        return ApiResponse.ok(
+                "Suggested TDS figure cleared", EmployeeTdsResponse.from(active, tdsService.spread(active, ytd)));
     }
 
     @ExceptionHandler(EmployeeTdsNotFoundException.class)

@@ -18,10 +18,14 @@ import com.infinevo.payroll.taxcalc.reader.model.Section87aRebateRule;
 import com.infinevo.payroll.taxcalc.reader.model.StandardDeductionRule;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.deductions.PrevEmploymentKind;
+import com.infinevo.payroll.taxdeclaration.housing.EmployeeInvLetOutProperty;
+import com.infinevo.payroll.taxdeclaration.summary.EmployeeInvOtherIncome;
+import com.infinevo.payroll.taxdeclaration.summary.OtherIncomeKind;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +40,7 @@ class NewRegimeCalculatorTest {
     private static final FinancialYear FY_2025_2026 = FinancialYear.parse("2025-2026");
     private static final UUID EMPLOYEE_ID = UUID.randomUUID();
     private static final UUID DECLARATION_ID = UUID.randomUUID();
+    private static final UUID TENANT_ID = UUID.randomUUID();
 
     private TaxRuleReader ruleReader;
     private NewRegimeCalculator calculator;
@@ -217,6 +222,137 @@ class NewRegimeCalculatorTest {
         assertThat(computation.standardDeduction()).isEqualTo(Money.of("50000"));
         assertThat(computation.taxableIncome()).isEqualTo(Money.ZERO);
         assertThat(computation.annualTax()).isEqualTo(Money.ZERO);
+    }
+
+    private TaxInput createInputWithDeclaredIncome(
+            Money annualSalary,
+            List<EmployeeInvOtherIncome> otherIncome,
+            boolean hasLetOutProperty,
+            List<EmployeeInvLetOutProperty> letOutProperties) {
+        SalaryProjectionResult salaryResult =
+                new SalaryProjectionResult(annualSalary, List.of(), List.of("Assumption"));
+        return new TaxInput(
+                EMPLOYEE_ID,
+                DECLARATION_ID,
+                salaryResult,
+                Map.of(),
+                AgeCategory.GENERAL,
+                false,
+                false,
+                hasLetOutProperty,
+                List.of(),
+                List.of(),
+                letOutProperties,
+                List.of(),
+                Map.of(),
+                otherIncome,
+                Optional.empty(),
+                Optional.empty(),
+                List.of());
+    }
+
+    private static EmployeeInvOtherIncome otherIncome(OtherIncomeKind kind, String amount) {
+        return new EmployeeInvOtherIncome(TENANT_ID, DECLARATION_ID, kind, kind.name(), new BigDecimal(amount));
+    }
+
+    private static EmployeeInvLetOutProperty letOut(String netIncomeLoss) {
+        return new EmployeeInvLetOutProperty(TENANT_ID, DECLARATION_ID, "Flat", "Pune", new BigDecimal(netIncomeLoss));
+    }
+
+    @Test
+    @DisplayName(
+            "D-148: declared interest counted, no 80TTA: salary 15,00,000 + interest 75,000 -> annual tax 1,09,200")
+    void otherIncomeOnly() {
+        // GTI = 15,00,000 + 50,000 + 25,000 = 15,75,000; taxable = 15,75,000 - 75,000 = 15,00,000
+        // slab tax 1,05,000, no rebate, cess 4,200 -> 1,09,200 (savings interest gets no 80TTA here)
+        TaxInput input = createInputWithDeclaredIncome(
+                Money.of("1500000"),
+                List.of(
+                        otherIncome(OtherIncomeKind.SAVINGS_INTEREST, "50000"),
+                        otherIncome(OtherIncomeKind.FD_INTEREST, "25000")),
+                false,
+                List.of());
+
+        TaxComputation computation = calculator.compute(input, FY_2025_2026);
+
+        assertThat(computation.incomeFromSalary()).isEqualTo(Money.of("1500000"));
+        assertThat(computation.otherIncome()).isEqualTo(Money.of("75000"));
+        assertThat(computation.interestDeduction()).isEqualTo(Money.ZERO);
+        assertThat(computation.chapterViaDeductions()).isEqualTo(Money.ZERO);
+        assertThat(computation.houseProperty().housePropertyIncome()).isEqualTo(Money.ZERO);
+        assertThat(computation.grossTotalIncome()).isEqualTo(Money.of("1575000"));
+        assertThat(computation.standardDeduction()).isEqualTo(Money.of("75000"));
+        assertThat(computation.taxableIncome()).isEqualTo(Money.of("1500000"));
+        assertThat(computation.annualTax()).isEqualTo(Money.of("109200"));
+    }
+
+    @Test
+    @DisplayName("D-148: net let-out income counted: salary 13,75,000 + let-out 2,00,000 -> annual tax 1,09,200")
+    void letOutIncomeOnly() {
+        TaxInput input = createInputWithDeclaredIncome(
+                Money.of("1375000"), List.of(), true, List.of(letOut("120000"), letOut("80000")));
+
+        TaxComputation computation = calculator.compute(input, FY_2025_2026);
+
+        assertThat(computation.houseProperty().letOutNet()).isEqualTo(Money.of("200000"));
+        assertThat(computation.houseProperty().housePropertyIncome()).isEqualTo(Money.of("200000"));
+        assertThat(computation.houseProperty().selfOccupiedInterest()).isEqualTo(Money.ZERO);
+        assertThat(computation.houseProperty().lossCapApplied()).isFalse();
+        assertThat(computation.otherIncome()).isEqualTo(Money.ZERO);
+        assertThat(computation.grossTotalIncome()).isEqualTo(Money.of("1575000"));
+        assertThat(computation.taxableIncome()).isEqualTo(Money.of("1500000"));
+        assertThat(computation.annualTax()).isEqualTo(Money.of("109200"));
+    }
+
+    @Test
+    @DisplayName("D-148: other income and let-out income push salary 12,75,000 past the 87A threshold -> 1,09,200")
+    void otherIncomeAndLetOutIncome() {
+        // Salary alone: taxable 12,00,000 -> full 87A rebate -> 0. With 1,00,000 interest and
+        // 2,00,000 let-out: GTI 15,75,000 -> taxable 15,00,000 -> 1,09,200.
+        TaxInput input = createInputWithDeclaredIncome(
+                Money.of("1275000"),
+                List.of(otherIncome(OtherIncomeKind.NSC_INTEREST, "100000")),
+                true,
+                List.of(letOut("200000")));
+
+        TaxComputation computation = calculator.compute(input, FY_2025_2026);
+
+        assertThat(computation.otherIncome()).isEqualTo(Money.of("100000"));
+        assertThat(computation.houseProperty().housePropertyIncome()).isEqualTo(Money.of("200000"));
+        assertThat(computation.grossTotalIncome()).isEqualTo(Money.of("1575000"));
+        assertThat(computation.taxableIncome()).isEqualTo(Money.of("1500000"));
+        assertThat(computation.rebate()).isEqualTo(Money.ZERO);
+        assertThat(computation.annualTax()).isEqualTo(Money.of("109200"));
+    }
+
+    @Test
+    @DisplayName("D-148: a net let-out loss is not set off against salary under the new regime")
+    void letOutLossNotSetOff() {
+        TaxInput input = createInputWithDeclaredIncome(
+                Money.of("1575000"), List.of(), true, List.of(letOut("50000"), letOut("-200000")));
+
+        TaxComputation computation = calculator.compute(input, FY_2025_2026);
+
+        assertThat(computation.houseProperty().letOutNet()).isEqualTo(Money.of("-150000"));
+        assertThat(computation.houseProperty().housePropertyIncome()).isEqualTo(Money.ZERO);
+        assertThat(computation.houseProperty().lossCapApplied()).isTrue();
+        assertThat(computation.grossTotalIncome()).isEqualTo(Money.of("1575000"));
+        assertThat(computation.taxableIncome()).isEqualTo(Money.of("1500000"));
+        assertThat(computation.annualTax()).isEqualTo(Money.of("109200"));
+        assertThat(computation.assumptions()).anyMatch(a -> a.contains("115BAC"));
+    }
+
+    @Test
+    @DisplayName("D-148: let-out rows are ignored when the declaration says there is no let-out property")
+    void letOutRowsIgnoredWithoutFlag() {
+        TaxInput input =
+                createInputWithDeclaredIncome(Money.of("1575000"), List.of(), false, List.of(letOut("200000")));
+
+        TaxComputation computation = calculator.compute(input, FY_2025_2026);
+
+        assertThat(computation.houseProperty().housePropertyIncome()).isEqualTo(Money.ZERO);
+        assertThat(computation.grossTotalIncome()).isEqualTo(Money.of("1575000"));
+        assertThat(computation.annualTax()).isEqualTo(Money.of("109200"));
     }
 
     @Test

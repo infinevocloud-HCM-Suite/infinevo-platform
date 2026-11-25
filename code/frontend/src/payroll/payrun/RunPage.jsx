@@ -19,8 +19,12 @@ import {
   Modal,
   DatePicker,
   Form,
+  Dropdown,
   theme,
 } from 'antd';
+import { successMsg } from '@shared/ui/msgHelper.js';
+import { BankFileDrawer } from './BankFileDrawer.jsx';
+import { BankFileHistory } from './BankFileHistory.jsx';
 import {
   LockOutlined,
   PlayCircleOutlined,
@@ -29,7 +33,10 @@ import {
   CheckCircleOutlined,
   DollarOutlined,
   DownloadOutlined,
+  DownOutlined,
   ScheduleOutlined,
+  ExclamationCircleOutlined,
+  BankOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
@@ -79,6 +86,16 @@ export function failureReasonOf(run) {
   return run?.failure_reason || run?.failureReason || null;
 }
 
+// D-144: entries for the month written after the run was computed (`inputs_since_compute`, run
+// detail only). A locked or computed month still takes entries; the run must be computed again,
+// and the server refuses approval until it is. Same words as that 409.
+export function inputsSinceComputeNotice(run) {
+  if (!run || ['APPROVED', 'PAID', 'CANCELLED'].includes(run.status)) return null;
+  const n = Number(run.inputs_since_compute ?? run.inputsSinceCompute ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `${n} new pay input${n === 1 ? '' : 's'} since this run was computed. Compute again before approving.`;
+}
+
 // Who approved: the name the reply carries. Never the raw login id (D-79).
 function approverOf(run) {
   return run?.approved_by_name || run?.approvedByName || null;
@@ -93,6 +110,8 @@ export function RunPage() {
   const canExecute = useCan('payroll.run.execute');
   const canApproveAction = useCan('payroll.run.approve');
   const canPayAction = useCan('payroll.payslip.publish');
+  const canReadStatutory = useCan('payroll.statutory_report.read');
+  const canExportBankFile = useCan('payroll.bank_file.export');
 
   const runFromStore = useSelector((state) => state.payrun?.byId?.[id]);
   const [localRun, setLocalRun] = useState(null);
@@ -104,6 +123,10 @@ export function RunPage() {
   const [paidOn, setPaidOn] = useState(null);
   const [payNotice, setPayNotice] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [statutoryLoading, setStatutoryLoading] = useState(false);
+  const [downloadingBankFile, setDownloadingBankFile] = useState(false);
+  const [bankDrawerOpen, setBankDrawerOpen] = useState(false);
+  const [bankFilesMade, setBankFilesMade] = useState(0);
   // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
   const [loadError, setLoadError] = useState(null);
 
@@ -180,6 +203,53 @@ export function RunPage() {
     }
   };
 
+  const handleStatutoryDownload = async (type, format) => {
+    try {
+      setStatutoryLoading(true);
+      const isEsi = type === 'ESI';
+      const blob = isEsi
+        ? await payrunService.downloadEsiReturn(id, format)
+        : await payrunService.downloadPtReturn(id, format);
+      const ext = format.toLowerCase();
+      const filename = `${isEsi ? 'esi' : 'pt'}-return-${run?.period || 'monthly'}.${ext}`;
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError(err?.message || 'Failed to download statutory return');
+    } finally {
+      setStatutoryLoading(false);
+    }
+  };
+
+  const statutoryMenuItems = [
+    {
+      key: 'esi-xlsx',
+      label: 'ESI Monthly Return (.xlsx)',
+      onClick: () => handleStatutoryDownload('ESI', 'XLSX'),
+    },
+    {
+      key: 'esi-csv',
+      label: 'ESI Monthly Return (.csv)',
+      onClick: () => handleStatutoryDownload('ESI', 'CSV'),
+    },
+    {
+      key: 'pt-xlsx',
+      label: 'Professional Tax Return (.xlsx)',
+      onClick: () => handleStatutoryDownload('PT', 'XLSX'),
+    },
+    {
+      key: 'pt-csv',
+      label: 'Professional Tax Return (.csv)',
+      onClick: () => handleStatutoryDownload('PT', 'CSV'),
+    },
+  ];
+
   const handleCompute = () => runAction(() => payrunService.compute(id), 'Compute failed');
   // W-73.6 follow-up: a schedule added after the run was created, or dated into this month, lands
   // on the ledger only through this; the first compute then reads it.
@@ -214,6 +284,75 @@ export function RunPage() {
     const paid = await runAction(() => payrunService.pay(id, paidOn.format('YYYY-MM-DD')), 'Pay failed');
     if (paid) {
       setPayNotice(`Paid on ${paid.paid_on}. ${paid.notified ?? 0} payslip notification(s) sent.`);
+    }
+  };
+
+  const triggerBankFileDownload = (blob) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bank_salary_file_${run.period}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadBankFile = async () => {
+    setDownloadingBankFile(true);
+    setActionError(null);
+    try {
+      const blob = await payrunService.exportBankFile(id);
+      const omitted = blob?.omittedEmployees || 0;
+      const fileTotal = blob?.fileTotal != null ? Number(blob.fileTotal) : null;
+      const runNetPay = blob?.runNetPay != null ? Number(blob.runNetPay) : null;
+      const isShortfall = fileTotal != null && runNetPay != null && fileTotal < runNetPay;
+
+      if (omitted > 0 || isShortfall) {
+        Modal.confirm({
+          title: 'Bank File Payout Shortfall Warning',
+          icon: <ExclamationCircleOutlined style={{ color: token.colorWarning }} />,
+          content: (
+            <div>
+              <p>
+                {omitted > 0
+                  ? `${omitted} employee(s) are not in the bank file: no bank details, paid by cash or cheque, a blank account number or IFSC, or no net pay.`
+                  : 'The total payout in the bank file is less than the pay run net pay.'}
+              </p>
+              {blob?.omittedEmployeeNumbers?.length > 0 && (
+                <p data-testid="bank-file-omitted-numbers">
+                  <strong>Left out:</strong> {blob.omittedEmployeeNumbers.join(', ')}
+                </p>
+              )}
+              {fileTotal != null && runNetPay != null && (
+                <p>
+                  <strong>File Total:</strong> ₹{fileTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <br />
+                  <strong>Run Net Pay:</strong> ₹{runNetPay.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <br />
+                  <span style={{ color: token.colorError }}>
+                    Shortfall: ₹{(runNetPay - fileTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </p>
+              )}
+              <p>Do you want to proceed with downloading this bank file?</p>
+            </div>
+          ),
+          okText: 'Download Anyway',
+          okType: 'primary',
+          cancelText: 'Cancel',
+          onOk() {
+            triggerBankFileDownload(blob);
+          },
+        });
+      } else {
+        triggerBankFileDownload(blob);
+        successMsg('Downloaded', 'Bank salary payment file downloaded.');
+      }
+    } catch (err) {
+      setActionError(err?.message || 'Failed to download bank file');
+    } finally {
+      setDownloadingBankFile(false);
     }
   };
 
@@ -277,6 +416,7 @@ export function RunPage() {
   const canCancel = canExecute && (status === 'DRAFT' || status === 'LOCKED' || status === 'APPROVED');
   const canApprove = canApproveAction && status === 'COMPUTED';
   const canPay = canPayAction && status === 'APPROVED';
+  const canDownloadBankFile = canExportBankFile && (status === 'APPROVED' || status === 'PAID');
 
   const progressDone = run.progress_done !== undefined ? run.progress_done : run.progressDone || 0;
   const progressTotal = run.progress_total !== undefined ? run.progress_total : run.progressTotal || 0;
@@ -287,6 +427,7 @@ export function RunPage() {
   const totalDeductions = run.total_deductions !== undefined ? run.total_deductions : run.totalDeductions;
   const totalNet = run.total_net_pay !== undefined ? run.total_net_pay : run.totalNetPay;
   const isComputed = status === 'COMPUTED' || status === 'APPROVED' || status === 'PAID';
+  const canDownloadStatutory = canReadStatutory && isComputed && isRegular;
   const failureReason = status === 'FAILED' ? failureReasonOf(run) : null;
   const approver = approverOf(run);
 
@@ -394,6 +535,22 @@ export function RunPage() {
               Pay
             </Button>
 
+            {canDownloadBankFile && (
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleDownloadBankFile}
+                loading={downloadingBankFile}
+                data-testid="download-bank-file-btn"
+              >
+                Download Bank File
+              </Button>
+            )}
+            {canDownloadBankFile && (
+              <Button icon={<BankOutlined />} onClick={() => setBankDrawerOpen(true)} data-testid="open-bank-file-drawer">
+                Bank file…
+              </Button>
+            )}
+
             <Popconfirm
               title="Cancel this pay run?"
               description="Are you sure you want to cancel this pay run? This action cannot be undone."
@@ -421,6 +578,21 @@ export function RunPage() {
             >
               Export to Excel
             </Button>
+
+            <Dropdown
+              menu={{ items: statutoryMenuItems }}
+              disabled={!canDownloadStatutory}
+              trigger={['click']}
+            >
+              <Button
+                icon={<DownloadOutlined />}
+                loading={statutoryLoading}
+                disabled={!canDownloadStatutory}
+                data-testid="statutory-returns-dropdown"
+              >
+                Statutory Returns <DownOutlined />
+              </Button>
+            </Dropdown>
           </Space>
         }
       />
@@ -431,6 +603,16 @@ export function RunPage() {
           description={failureReason || 'The server did not record a reason.'}
           type="error"
           showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {inputsSinceComputeNotice(run) && (
+        <Alert
+          message={inputsSinceComputeNotice(run)}
+          type="warning"
+          showIcon
+          data-testid="inputs-since-compute"
           style={{ marginBottom: 16 }}
         />
       )}
@@ -581,7 +763,18 @@ export function RunPage() {
         )}
       </Card>
 
+      {canDownloadBankFile && <BankFileHistory payrunId={id} refreshKey={bankFilesMade} />}
+
       <RunEmployees payrunId={id} />
+
+      {canDownloadBankFile && (
+        <BankFileDrawer
+          open={bankDrawerOpen}
+          payrunId={id}
+          onClose={() => setBankDrawerOpen(false)}
+          onGenerated={() => setBankFilesMade((n) => n + 1)}
+        />
+      )}
     </div>
   );
 }

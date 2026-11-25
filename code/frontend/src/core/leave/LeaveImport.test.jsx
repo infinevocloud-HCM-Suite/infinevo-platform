@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { LeaveImport } from './LeaveImport.jsx';
+import dayjs from 'dayjs';
+import {
+  LeaveImport,
+  currentLeaveYearStart,
+  leaveYearLabel,
+  leaveYearValue,
+} from './LeaveImport.jsx';
 import { leaveImportService } from './leaveImportService.js';
 import { documentService } from '../document/documentService.js';
+import { companyProfileService } from '../settings/companyProfileService.js';
 import * as useCanModule from '@shell/screens';
 
 vi.mock('./leaveImportService.js', () => ({
@@ -17,7 +24,12 @@ vi.mock('./leaveImportService.js', () => ({
 vi.mock('../document/documentService.js', () => ({
   documentService: {
     upload: vi.fn(),
+    link: vi.fn(),
   },
+}));
+
+vi.mock('../settings/companyProfileService.js', () => ({
+  companyProfileService: { get: vi.fn() },
 }));
 
 vi.mock('@shared/ui/msgHelper.js', () => ({
@@ -29,6 +41,7 @@ describe('LeaveImport component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    companyProfileService.get.mockResolvedValue({ leaveYearStartMonth: 4 });
     leaveImportService.history.mockResolvedValue({
       content: [
         {
@@ -95,14 +108,59 @@ describe('LeaveImport component', () => {
     await waitFor(() => {
       expect(leaveImportService.start).toHaveBeenCalledWith({
         documentId: 'doc-999',
-        leaveYear: expect.any(String),
+        // D-49: an April-cycle company sends the YYYY-YY form the server requires, never a bare year.
+        leaveYear: leaveYearValue(currentLeaveYearStart(dayjs(), 4), 4),
         dryRun: true,
       });
       expect(screen.getByText('Import Run Results')).toBeDefined();
       expect(screen.getByText('Completed with Errors')).toBeDefined();
       expect(screen.getByText('Errors Encountered')).toBeDefined();
-      expect(screen.getByText(/Download error report document: err-doc-123/i)).toBeDefined();
     });
+
+    // D-51: the report is a button that opens the stored document, not an id printed as text.
+    expect(screen.queryByText(/err-doc-123/)).toBeNull();
+    documentService.link.mockResolvedValueOnce({ url: 'https://files.test/err-doc-123' });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    fireEvent.click(screen.getByRole('button', { name: /Download error report/i }));
+    await waitFor(() => {
+      expect(documentService.link).toHaveBeenCalledWith('err-doc-123');
+      expect(openSpy).toHaveBeenCalledWith('https://files.test/err-doc-123', '_blank', 'noopener');
+    });
+    openSpy.mockRestore();
+  });
+
+  it('sends a bare year for a company whose leave year starts in January (D-49)', async () => {
+    companyProfileService.get.mockResolvedValue({ leaveYearStartMonth: 1 });
+    documentService.upload.mockResolvedValueOnce({ id: 'doc-jan' });
+    leaveImportService.start.mockResolvedValueOnce({ id: 'imp-jan', status: 'COMPLETED', rowsFailed: 0 });
+
+    const { container } = render(<LeaveImport />);
+    await waitFor(() => expect(companyProfileService.get).toHaveBeenCalled());
+
+    const fileInput = container.querySelector('input[type="file"]');
+    fireEvent.change(fileInput, { target: { files: [new File(['a'], 'l.csv', { type: 'text/csv' })] } });
+    await waitFor(() => expect(documentService.upload).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: /Start Dry Run/i }));
+    await waitFor(() => {
+      expect(leaveImportService.start).toHaveBeenCalledWith({
+        documentId: 'doc-jan',
+        leaveYear: String(dayjs().year()),
+        dryRun: true,
+      });
+    });
+  });
+
+  it('formats the leave year the way the server stores it (D-49)', () => {
+    expect(leaveYearValue(2026, 4)).toBe('2026-27');
+    expect(leaveYearValue(2099, 4)).toBe('2099-00');
+    expect(leaveYearValue(2026, 1)).toBe('2026');
+    expect(leaveYearLabel(2026, 4)).toBe('2026-27 (Apr 2026 to Mar 2027)');
+    expect(leaveYearLabel(2026, 1)).toBe('2026 (Jan 2026 to Dec 2026)');
+    // February 2027 still belongs to the leave year that began in April 2026.
+    expect(currentLeaveYearStart(dayjs('2027-02-15'), 4)).toBe(2026);
+    expect(currentLeaveYearStart(dayjs('2027-04-01'), 4)).toBe(2027);
+    expect(currentLeaveYearStart(dayjs('2027-02-15'), 1)).toBe(2027);
   });
 
   it('stops polling when import reaches a terminal status', async () => {

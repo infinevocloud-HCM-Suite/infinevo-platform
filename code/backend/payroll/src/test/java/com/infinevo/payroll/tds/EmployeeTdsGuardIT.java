@@ -7,7 +7,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,6 +19,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.taxcalc.TaxRegime;
+import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.tds.exception.EmployeeTdsConflictException;
 import com.infinevo.shared.authz.AuthzExceptionHandler;
 import com.infinevo.shared.authz.PermissionDeniedException;
@@ -24,6 +27,7 @@ import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresActionAspect;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,6 +65,16 @@ class EmployeeTdsGuardIT {
         service = mock(EmployeeTdsService.class);
         employeeService = mock(EmployeeService.class);
         permissionService = mock(PermissionService.class);
+        // D-145: the controller asks the service for the spread; answer it as the service does for April 2026.
+        given(service.spread(any(), any())).willAnswer(invocation -> {
+            EmployeeTds record = invocation.getArgument(0);
+            return TdsSpread.of(
+                    record.getAnnualTax(),
+                    invocation.getArgument(1),
+                    YearMonth.parse(record.getEffectiveFromPeriod()),
+                    YearMonth.of(2026, 4),
+                    FinancialYear.parse(record.getFinancialYear()));
+        });
         doAnswer(invocation -> {
                     String action = invocation.getArgument(0);
                     if (!permissionService.holds(action)) {
@@ -99,6 +113,9 @@ class EmployeeTdsGuardIT {
                 .andExpect(jsonPath("$.data.annual_tax").value(120000.0))
                 .andExpect(jsonPath("$.data.year_to_date").value(20000.0))
                 .andExpect(jsonPath("$.data.remaining").value(100000.0))
+                .andExpect(jsonPath("$.data.deducted_so_far").value(20000.0))
+                .andExpect(jsonPath("$.data.months_left").value(12))
+                .andExpect(jsonPath("$.data.monthly_share").value(8333.33))
                 .andExpect(jsonPath("$.data.effective_from_period").value("2026-04"));
 
         verify(service, never()).record(any(), any(), any());
@@ -148,6 +165,62 @@ class EmployeeTdsGuardIT {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/payroll/employees/{id}/tds/{fy}/history", employeeId, FY))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName(
+            "D-151: read alone cannot apply or clear a suggestion; GET shows the suggestion beside the officer's figure")
+    void suggestionNeedsVerify() throws Exception {
+        given(permissionService.holds(READ)).willReturn(true);
+        UUID employeeId = UUID.randomUUID();
+        EmployeeTds record = sample(employeeId);
+        record.suggest(
+                TaxRegime.NEW,
+                null,
+                new BigDecimal("1300000.00"),
+                new BigDecimal("1100000.00"),
+                new BigDecimal("90000.00"),
+                "SALARY_REVISION x",
+                Instant.parse("2026-11-24T05:00:00Z"),
+                "system");
+        given(service.active(employeeId, FY)).willReturn(Optional.of(record));
+        given(service.yearToDate(employeeId, FY)).willReturn(BigDecimal.ZERO);
+
+        mvc.perform(post("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion/apply", employeeId, FY))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion", employeeId, FY))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/payroll/employees/{id}/tds/{fy}", employeeId, FY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.annual_tax").value(120000.0))
+                .andExpect(jsonPath("$.data.source").value("OFFICER"))
+                .andExpect(jsonPath("$.data.suggestion.annual_tax").value(90000.0))
+                .andExpect(jsonPath("$.data.suggestion.note").value("SALARY_REVISION x"));
+
+        verify(service, never()).applySuggestion(any(), any());
+        verify(service, never()).clearSuggestion(any(), any());
+    }
+
+    @Test
+    @DisplayName("D-151: verify applies and clears a suggestion; no suggestion to apply is 404")
+    void verifyAppliesAndClears() throws Exception {
+        given(permissionService.holds(VERIFY)).willReturn(true);
+        UUID employeeId = UUID.randomUUID();
+        UUID none = UUID.randomUUID();
+        given(service.applySuggestion(employeeId, FY)).willReturn(sample(employeeId));
+        given(service.clearSuggestion(employeeId, FY)).willReturn(sample(employeeId));
+        given(service.yearToDate(employeeId, FY)).willReturn(BigDecimal.ZERO);
+        given(service.applySuggestion(none, FY))
+                .willThrow(new com.infinevo.payroll.tds.exception.EmployeeTdsNotFoundException("no suggestion"));
+
+        mvc.perform(post("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion/apply", employeeId, FY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.employee_id").value(employeeId.toString()));
+        mvc.perform(delete("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion", employeeId, FY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.suggestion").doesNotExist());
+        mvc.perform(post("/api/v1/payroll/employees/{id}/tds/{fy}/suggestion/apply", none, FY))
+                .andExpect(status().isNotFound());
     }
 
     private static EmployeeTds sample(UUID employeeId) {

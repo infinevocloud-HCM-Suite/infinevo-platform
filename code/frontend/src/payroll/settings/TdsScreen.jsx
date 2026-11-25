@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, Button, Switch, Alert, Spin, Space, Typography, message, theme } from 'antd';
 import { AuditOutlined, SaveOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
@@ -6,9 +7,18 @@ import { statutoryService } from './statutoryService.js';
 
 const { Text } = Typography;
 
+/** D-145: what off means, under the switch. */
+const TDS_PAUSE_NOTE =
+  'Off pauses TDS for everyone. Employee settings are kept and apply again when it is turned on.';
+
+function count(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 /**
  * The company TDS switch (D-141). Off: the pay run writes no TDS line for any employee of the
- * company; employee TDS records and declarations are left as they are.
+ * company; employee TDS records and declarations are left as they are. D-145: the screen says how many
+ * employees TDS applies to, and that off is a pause that keeps each employee's setting.
  */
 export function TdsScreen() {
   const { token } = theme.useToken();
@@ -18,6 +28,7 @@ export function TdsScreen() {
   const [saving, setSaving] = useState(false);
   const [source, setSource] = useState(null);
   const [enabled, setEnabled] = useState(true);
+  const [counts, setCounts] = useState({ applicable: null, employees: null });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -26,6 +37,7 @@ export function TdsScreen() {
       if (data) {
         setSource(data.source || null);
         setEnabled(data.enabled !== false);
+        setCounts({ applicable: count(data.applicable_count), employees: count(data.employee_count) });
       }
     } catch (err) {
       message.error(err?.response?.data?.message || err?.message || 'Failed to load TDS settings');
@@ -92,11 +104,17 @@ export function TdsScreen() {
         <label htmlFor="switch-tds-enabled">Deduct TDS in pay runs</label>
       </Space>
       <div>
-        <Text type="secondary">
-          Off: no TDS line is written in any pay run for this company. Employee TDS records and declarations stay as
-          they are.
+        <Text type="secondary" data-testid="tds-pause-note">
+          {TDS_PAUSE_NOTE}
         </Text>
       </div>
+      {counts.employees !== null && counts.applicable !== null && (
+        <div style={{ marginTop: 12 }}>
+          <Link to="/employees" id="link-tds-applicable-count" data-testid="tds-applicable-count">
+            TDS applicable for {counts.applicable} of {counts.employees} employees
+          </Link>
+        </div>
+      )}
 
       {canManage && (
         <Button

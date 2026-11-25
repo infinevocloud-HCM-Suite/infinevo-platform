@@ -27,4 +27,8 @@ export const employeeInvitationService = {
     const res = await apiClient.post(`/v1/employee-invitations/${id}/revoke`);
     return res?.data !== undefined ? res.data : res;
   },
+  /** D-22: removes a revoked, declined or expired invitation from the list. */
+  async delete(id) {
+    await apiClient.delete(`/v1/employee-invitations/${id}`);
+  },
 };

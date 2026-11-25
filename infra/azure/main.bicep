@@ -151,7 +151,7 @@ param aiDeploymentSku string = 'Standard'
 
 @description('Deployment capacity in thousands of tokens per minute. Must fit the subscription quota for the model, type and region')
 @minValue(1)
-param aiCapacity int = 10
+param aiCapacity int = 100
 
 @description('Monthly budget for the AI account in whole units of the billing currency; mail at 80 and 100 percent to alertEmail')
 @minValue(1)

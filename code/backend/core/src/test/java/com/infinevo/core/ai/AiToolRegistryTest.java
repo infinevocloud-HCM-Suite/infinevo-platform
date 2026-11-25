@@ -9,10 +9,17 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.infinevo.core.ai.action.AiActionService;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -23,6 +30,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AssignableTypeFilter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -203,6 +213,122 @@ class AiToolRegistryTest {
                 .isTrue();
     }
 
+    @Test
+    @DisplayName("W-114.4: a name holding __ fails startup, since the model client sends the dot as __")
+    void doubleUnderscore_failsStartup() {
+        assertThatThrownBy(() -> registry(() -> List.of(new FakeTool("core.my__leave", "core.leave.read_own"))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("core.my__leave")
+                .hasMessageContaining("__");
+    }
+
+    @Test
+    @DisplayName("W-114.4: a name longer than 64 once the dot is __ fails startup; exactly 64 starts")
+    void tooLongWireName_failsStartup() {
+        String ok = "core." + "a".repeat(64 - "core__".length());
+        String tooLong = ok + "b";
+        assertThat(names(registry(() -> List.of(new FakeTool(ok, "core.x.y"))).toolsFor(caller)))
+                .isEmpty(); // starts; not offered only because the caller holds nothing
+        assertThatThrownBy(() -> registry(() -> List.of(new FakeTool(tooLong, "core.x.y"))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("64");
+    }
+
+    @Test
+    @DisplayName("W-114.4 rule 4: no employee record hides the own-data tools and refuses running them")
+    void noEmployee_hidesAndRefusesOwnDataTools() {
+        EmployeeFakeTool balances = new EmployeeFakeTool("core.my_leave_balances", "core.leave.read_own");
+        FakeTool holidays = new FakeTool("core.holidays", "core.holiday.read");
+        AiToolRegistry registry = registry(() -> List.of(balances, holidays));
+        granted.add("core.leave.read_own");
+        granted.add("core.holiday.read");
+
+        assertThat(names(registry.toolsFor(caller))).containsExactly("core.holidays");
+        AiToolResult refused = registry.execute("core.my_leave_balances", caller, null);
+        assertThat(refused.ok()).isFalse();
+        assertThat(balances.runs.get()).isZero();
+
+        AiToolContext withEmployee = new AiToolContext(tenantId, userId, UUID.randomUUID());
+        assertThat(names(registry.toolsFor(withEmployee))).containsExactly("core.my_leave_balances", "core.holidays");
+        assertThat(registry.execute("core.my_leave_balances", withEmployee, null)
+                        .ok())
+                .isTrue();
+        assertThat(balances.runs.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("C11 (W-114.8): no registered tool is named confirm or cancel_action, and none depends on confirm")
+    void noToolReachesConfirm() throws Exception {
+        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AssignableTypeFilter(AiToolProvider.class));
+        List<AiToolProvider> providers = new ArrayList<>();
+        List<Class<?>> providerClasses = new ArrayList<>();
+        for (BeanDefinition candidate : scanner.findCandidateComponents("com.infinevo")) {
+            Class<?> type = Class.forName(candidate.getBeanClassName());
+            if (type.isInterface()
+                    || Modifier.isAbstract(type.getModifiers())
+                    || type.getProtectionDomain()
+                            .getCodeSource()
+                            .getLocation()
+                            .toString()
+                            .contains("test-classes")) {
+                continue;
+            }
+            providerClasses.add(type);
+            providers.add((AiToolProvider) instantiateWithMocks(type));
+        }
+        assertThat(providerClasses)
+                .extracting(Class::getSimpleName)
+                .contains("CoreAiToolProvider", "LeaveActionToolProvider");
+
+        for (PlatformModule module : PlatformModule.values()) {
+            licensed.add(module);
+        }
+        AiToolRegistry registry = registry(providers.toArray(AiToolProvider[]::new));
+        when(permissionService.holds(anyString())).thenReturn(true);
+        List<String> names = names(registry.toolsFor(new AiToolContext(tenantId, userId, UUID.randomUUID())));
+        assertThat(names).contains("core.propose_leave_request");
+        assertThat(names).allSatisfy(name -> assertThat(name)
+                .doesNotContainIgnoringCase("confirm")
+                .doesNotContainIgnoringCase("cancel_action"));
+
+        for (Class<?> type : providerClasses) {
+            for (Class<?> c : withNested(type)) {
+                for (Field field : c.getDeclaredFields()) {
+                    assertThat(field.getType())
+                            .as("%s.%s", c.getName(), field.getName())
+                            .isNotEqualTo(AiActionService.class);
+                    assertThat(Arrays.stream(field.getType().getMethods()).map(Method::getName))
+                            .as("%s.%s may reach confirm", c.getName(), field.getName())
+                            .doesNotContain("confirm");
+                }
+                for (Constructor<?> ctor : c.getDeclaredConstructors()) {
+                    assertThat(ctor.getParameterTypes()).doesNotContain(AiActionService.class);
+                }
+            }
+        }
+    }
+
+    private static List<Class<?>> withNested(Class<?> type) {
+        List<Class<?>> all = new ArrayList<>();
+        all.add(type);
+        for (Class<?> nested : type.getDeclaredClasses()) {
+            all.addAll(withNested(nested));
+        }
+        return all;
+    }
+
+    /** The widest public constructor, called with a Mockito mock for every parameter. */
+    private static Object instantiateWithMocks(Class<?> type) throws Exception {
+        Constructor<?> widest = Arrays.stream(type.getConstructors())
+                .max(java.util.Comparator.comparingInt(Constructor::getParameterCount))
+                .orElseThrow();
+        Object[] args = Arrays.stream(widest.getParameterTypes())
+                .map(p -> (Object) mock(p))
+                .toArray();
+        return widest.newInstance(args);
+    }
+
     private static List<String> names(List<AiToolDescriptor> tools) {
         return tools.stream().map(AiToolDescriptor::name).toList();
     }
@@ -256,6 +382,17 @@ class AiToolRegistryTest {
         public AiToolResult execute(AiToolContext ctx, JsonNode input) {
             runs.incrementAndGet();
             return AiToolResult.success(JsonNodeFactory.instance.objectNode().put("ran", true));
+        }
+    }
+
+    private static class EmployeeFakeTool extends FakeTool {
+        EmployeeFakeTool(String name, String requiredAction) {
+            super(name, requiredAction);
+        }
+
+        @Override
+        public boolean needsEmployee() {
+            return true;
         }
     }
 

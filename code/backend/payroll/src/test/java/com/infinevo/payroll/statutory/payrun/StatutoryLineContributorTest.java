@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmploymentStatus;
-import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.core.lop.LopRounding;
 import com.infinevo.core.lop.WorkingDayBasisResponse;
@@ -936,7 +935,7 @@ class StatutoryLineContributorTest {
         assertThat(map).doesNotContainKey("EPS_EMPLOYER");
         assertThat(map.get("EPF_EMPLOYER").amount()).isEqualTo(Money.of("1800.0000"));
         // the date of birth is only read when the EPS tick could apply
-        verify(personal, never()).find(employeeId);
+        verify(personal, never()).dateOfBirth(employeeId);
     }
 
     @Test
@@ -983,7 +982,7 @@ class StatutoryLineContributorTest {
                 List.of());
         assertThat(unknown.get("EPS_EMPLOYER").amount()).isEqualTo(Money.of("1250.0000"));
 
-        when(personal.find(employeeId)).thenThrow(new IllegalStateException("personal section unavailable"));
+        when(personal.dateOfBirth(employeeId)).thenThrow(new IllegalStateException("personal section unavailable"));
         Map<String, PayLine> failing = run(
                 defaultEpf(false),
                 defaultEsi(),
@@ -1133,20 +1132,7 @@ class StatutoryLineContributorTest {
 
     private EmployeePersonalService withDateOfBirth(LocalDate dateOfBirth) {
         EmployeePersonalService personal = mock(EmployeePersonalService.class);
-        when(personal.find(employeeId))
-                .thenReturn(Optional.of(new EmployeePersonalResponse(
-                        UUID.randomUUID(),
-                        tenantId,
-                        employeeId,
-                        dateOfBirth,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        false,
-                        Instant.now(),
-                        Instant.now())));
+        when(personal.dateOfBirth(employeeId)).thenReturn(Optional.ofNullable(dateOfBirth));
         contributor = new StatutoryLineContributor(
                 statutorySettingsService,
                 professionalTaxService,

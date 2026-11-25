@@ -9,7 +9,8 @@ export const itemRoutes = {
   OVERTIME: (id) => (id ? `/hrms/overtime-requests/${id}` : null),
   // The inbox passes subjectId, which for a claim is the claim id (W-47.4 §5, W-35.1 §3).
   REIMBURSEMENT: (id) => (id ? `/payroll/claims/${id}` : null),
-  PROOF_OF_INVESTMENT: null,
+  // The subject is the proof (ProofApprovalStarter: SubjectRef(employee_proof_of_investment, proofId)); D-152.
+  PROOF_OF_INVESTMENT: (id) => (id ? `/payroll/proof-of-investment/${id}` : null),
   PAY_RUN: null,
   // The approval subject is the project entry (W-48.3 §5, TimesheetSubmitService.java:16).
   TIMESHEET: (itemId) => (itemId ? `/hrms/timesheet-review/entries/${itemId}` : null),

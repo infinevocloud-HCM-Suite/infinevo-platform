@@ -470,6 +470,114 @@ class InvitationServiceTest {
 
     @Test
     @DisplayName(
+            "D-22: deleteUserInvitation removes a revoked row, its roles, and unlinks the row a resend pointed at it")
+    void deleteUserInvitationRemovesRevokedRow() {
+        UUID id = UUID.randomUUID();
+        UserInvitation inv = new UserInvitation(
+                tenantId,
+                "user@example.com",
+                "somehash",
+                Instant.now().plus(2, ChronoUnit.DAYS),
+                actorUserId,
+                "system");
+        setId(inv, id);
+        inv.setStatus(InvitationStatus.REVOKED);
+        UserInvitation older = new UserInvitation(
+                tenantId,
+                "user@example.com",
+                "oldhash",
+                Instant.now().minus(2, ChronoUnit.DAYS),
+                actorUserId,
+                "system");
+        setId(older, UUID.randomUUID());
+        older.setSupersededById(id);
+        when(userInvitationRepository.findByIdAndTenantId(id, tenantId)).thenReturn(Optional.of(inv));
+        when(userInvitationRepository.findByTenantIdAndSupersededById(tenantId, id))
+                .thenReturn(List.of(older));
+
+        invitationService.deleteUserInvitation(id, actorUserId);
+
+        assertThat(older.getSupersededById()).isNull();
+        verify(userInvitationRepository).save(older);
+        verify(userInvitationRoleRepository).deleteByTenantIdAndInvitationId(tenantId, id);
+        verify(userInvitationRepository).delete(inv);
+    }
+
+    @Test
+    @DisplayName("D-22: a pending or accepted user invitation is refused with a conflict and nothing is deleted")
+    void deleteUserInvitationRefusesLiveStates() {
+        for (InvitationStatus live : List.of(InvitationStatus.PENDING, InvitationStatus.ACCEPTED)) {
+            UUID id = UUID.randomUUID();
+            UserInvitation inv = new UserInvitation(
+                    tenantId, "user@example.com", "h", Instant.now().plus(2, ChronoUnit.DAYS), actorUserId, "system");
+            setId(inv, id);
+            inv.setStatus(live);
+            when(userInvitationRepository.findByIdAndTenantId(id, tenantId)).thenReturn(Optional.of(inv));
+
+            assertThatThrownBy(() -> invitationService.deleteUserInvitation(id, actorUserId))
+                    .isInstanceOf(IllegalStateException.class);
+            verify(userInvitationRepository, never()).delete(inv);
+        }
+    }
+
+    @Test
+    @DisplayName("D-22: a PENDING user invitation whose expiry has passed is deletable without a revoke")
+    void deleteUserInvitationAllowsTimeExpiredPending() {
+        UUID id = UUID.randomUUID();
+        UserInvitation inv = new UserInvitation(
+                tenantId, "late@example.com", "h", Instant.now().minus(1, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, id);
+        when(userInvitationRepository.findByIdAndTenantId(id, tenantId)).thenReturn(Optional.of(inv));
+        when(userInvitationRepository.findByTenantIdAndSupersededById(tenantId, id))
+                .thenReturn(List.of());
+
+        invitationService.deleteUserInvitation(id, actorUserId);
+
+        verify(userInvitationRepository).delete(inv);
+    }
+
+    @Test
+    @DisplayName("D-22: deleteEmployeeInvitation removes an expired row and refuses a pending one")
+    void deleteEmployeeInvitation() {
+        UUID expiredId = UUID.randomUUID();
+        EmployeeInvitation expired = new EmployeeInvitation(
+                tenantId,
+                UUID.randomUUID(),
+                "emp@example.com",
+                "h1",
+                Instant.now().minus(1, ChronoUnit.DAYS),
+                actorUserId,
+                "system");
+        setId(expired, expiredId);
+        expired.setStatus(InvitationStatus.EXPIRED);
+        when(employeeInvitationRepository.findByIdAndTenantId(expiredId, tenantId))
+                .thenReturn(Optional.of(expired));
+        when(employeeInvitationRepository.findByTenantIdAndSupersededById(tenantId, expiredId))
+                .thenReturn(List.of());
+
+        invitationService.deleteEmployeeInvitation(expiredId, actorUserId);
+        verify(employeeInvitationRepository).delete(expired);
+
+        UUID pendingId = UUID.randomUUID();
+        EmployeeInvitation pending = new EmployeeInvitation(
+                tenantId,
+                UUID.randomUUID(),
+                "emp2@example.com",
+                "h2",
+                Instant.now().plus(1, ChronoUnit.DAYS),
+                actorUserId,
+                "system");
+        setId(pending, pendingId);
+        when(employeeInvitationRepository.findByIdAndTenantId(pendingId, tenantId))
+                .thenReturn(Optional.of(pending));
+
+        assertThatThrownBy(() -> invitationService.deleteEmployeeInvitation(pendingId, actorUserId))
+                .isInstanceOf(IllegalStateException.class);
+        verify(employeeInvitationRepository, never()).delete(pending);
+    }
+
+    @Test
+    @DisplayName(
             "D-88: a password Keycloak refuses leaves the invitation PENDING, writes nothing and compensates nothing")
     void refusedPasswordLeavesInvitationPending() {
         String token = InvitationTokenUtils.generateToken();

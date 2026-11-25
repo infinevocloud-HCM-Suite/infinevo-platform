@@ -1,11 +1,18 @@
 package com.infinevo.payroll.salary;
 
+import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.payroll.taxdeclaration.TaxDeclarationRules;
 import com.infinevo.shared.tenant.TenantContext;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -28,12 +35,22 @@ public class EmployeeStatutoryProfileServiceImpl implements EmployeeStatutoryPro
 
     private final EmployeeStatutoryProfileRepository statutoryProfileRepository;
     private final EmployeeService employeeService;
+    private final Clock clock;
 
+    @Autowired
     public EmployeeStatutoryProfileServiceImpl(
             EmployeeStatutoryProfileRepository statutoryProfileRepository, EmployeeService employeeService) {
+        this(statutoryProfileRepository, employeeService, TaxDeclarationRules.defaultClock());
+    }
+
+    EmployeeStatutoryProfileServiceImpl(
+            EmployeeStatutoryProfileRepository statutoryProfileRepository,
+            EmployeeService employeeService,
+            Clock clock) {
         this.statutoryProfileRepository =
                 Objects.requireNonNull(statutoryProfileRepository, "statutoryProfileRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -95,6 +112,24 @@ public class EmployeeStatutoryProfileServiceImpl implements EmployeeStatutoryPro
                 .findByTenantIdAndEmployeeId(tenantId, employeeId)
                 .map(EmployeeStatutoryProfile::isTdsApplicable)
                 .orElse(true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TdsApplicableCount tdsApplicableCount() {
+        UUID tenantId = TenantContext.require();
+        LocalDate today = TaxDeclarationRules.today(clock);
+        // Employed today, as the payroll dashboard counts its headcount (PayrollDashboardServiceImpl).
+        Set<UUID> notApplicable = new HashSet<>(statutoryProfileRepository.findNotTdsApplicableEmployeeIds(tenantId));
+        int employees = 0;
+        int applicable = 0;
+        for (EmployeeResponse employee : employeeService.listEmployedBetween(today, today)) {
+            employees++;
+            if (!notApplicable.contains(employee.id())) {
+                applicable++;
+            }
+        }
+        return new TdsApplicableCount(applicable, employees);
     }
 
     /** Refuses a number longer than its column, so it is a field error and never a database failure (D-132). */

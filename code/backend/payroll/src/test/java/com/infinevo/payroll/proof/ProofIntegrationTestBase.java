@@ -10,6 +10,7 @@ import com.infinevo.payroll.taxdeclaration.TaxDeclarationRules;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationService;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
+import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationWindowRequest;
 import com.infinevo.payroll.taxdeclaration.housing.EmployeeInvHomeLoan;
 import com.infinevo.payroll.taxdeclaration.housing.EmployeeInvHomeLoanRepository;
@@ -164,7 +165,10 @@ abstract class ProofIntegrationTestBase extends AbstractIntegrationTest {
     protected UUID declare(UUID forEmployee) {
         UUID tenantId = TenantContext.require();
         FinancialYear year = FinancialYear.parse(fy);
-        UUID declarationId = taxDeclarationService.read(forEmployee, fy).id();
+        // D-147: the officer read no longer creates the draft; an empty officer save does.
+        UUID declarationId = taxDeclarationService
+                .save(forEmployee, fy, new TaxDeclarationRequest(null, null, null, null))
+                .id();
         houseRentRepository.save(new EmployeeInvHouseRent(
                 tenantId,
                 declarationId,

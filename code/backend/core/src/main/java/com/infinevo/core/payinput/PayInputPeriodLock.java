@@ -2,6 +2,8 @@ package com.infinevo.core.payinput;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -17,8 +19,10 @@ import java.util.UUID;
  * into {@code core.pay_input}; nothing in Java re-implements that rule; the trigger is the
  * enforcement and this entity is only how the service reads and writes the row that drives it.
  *
- * <p>No setters, the same reason as {@link PayInput}: {@code app_user} holds no {@code UPDATE} or
- * {@code DELETE} here either. A lock is never undone by the application (spec §6).
+ * <p>No setters. Since D-144 ({@code V220}) a period lock has a {@link PayInputLockStage}, and two
+ * changes are allowed - {@code LOCKED -> CLOSED} when the run is approved, and removing a
+ * {@code LOCKED} row when the run is cancelled - but both are single native statements in
+ * {@link PayInputPeriodLockRepository}, guarded by restrictive policies, never an entity update.
  */
 @Entity
 @Table(name = "pay_input_period_lock", schema = "core")
@@ -40,6 +44,11 @@ public class PayInputPeriodLock {
     /** The run this lock applies to, or {@code null} for a whole-period lock (W-30.1). */
     @Column(name = "run_ref", updatable = false)
     private UUID runRef;
+
+    /** D-144 ({@code V220}). Written by the native statements only; the database default is LOCKED. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stage", nullable = false, length = 16, insertable = false, updatable = false)
+    private PayInputLockStage stage;
 
     @Column(name = "locked_at", nullable = false, updatable = false)
     private Instant lockedAt;
@@ -98,6 +107,11 @@ public class PayInputPeriodLock {
     /** The run this lock applies to, or {@code null} for a whole-period lock (W-30.1). */
     public UUID getRunRef() {
         return runRef;
+    }
+
+    /** D-144: LOCKED or CLOSED. {@code null} only on an instance not yet read back from the database. */
+    public PayInputLockStage getStage() {
+        return stage;
     }
 
     public Instant getLockedAt() {

@@ -164,6 +164,8 @@ class Form16PartAIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].employee_id").exists())
+                // D-149: the list names the employee.
+                .andExpect(jsonPath("$.data[0].employee_name").isNotEmpty())
                 .andExpect(jsonPath("$.data[0].document_id").exists())
                 .andExpect(jsonPath("$.data[0].uploaded_at").exists());
 

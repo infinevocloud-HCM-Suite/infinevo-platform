@@ -22,6 +22,13 @@ public interface InvitationService {
 
     void revokeUserInvitation(UUID invitationId, UUID actorUserId);
 
+    /**
+     * Removes a finished user invitation — {@code REVOKED}, {@code DECLINED} or {@code EXPIRED} — from the list
+     * (D-22). A {@code PENDING} or {@code ACCEPTED} one is refused with {@link IllegalStateException}: revoke the
+     * first, and the second is the record that an account was created.
+     */
+    void deleteUserInvitation(UUID invitationId, UUID actorUserId);
+
     EmployeeInvitationResponse createEmployeeInvitation(EmployeeInvitationRequest request, UUID actorUserId);
 
     List<EmployeeInvitationResponse> listEmployeeInvitations(InvitationStatus status, UUID employeeId);
@@ -29,6 +36,9 @@ public interface InvitationService {
     EmployeeInvitationResponse resendEmployeeInvitation(UUID invitationId, UUID actorUserId);
 
     void revokeEmployeeInvitation(UUID invitationId, UUID actorUserId);
+
+    /** As {@link #deleteUserInvitation} for an employee invitation (D-22). */
+    void deleteEmployeeInvitation(UUID invitationId, UUID actorUserId);
 
     /**
      * The employee's portal access (W-73.3 §4): {@code ACTIVE} when linked to an account, with its roles;

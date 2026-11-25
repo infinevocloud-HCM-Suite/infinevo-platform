@@ -2,12 +2,14 @@ package com.infinevo.core.payinput;
 
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.YearMonth;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,27 @@ public class PayInputServiceImpl implements PayInputService {
     @Override
     @Transactional
     public PayInputResponse record(PayInputCommand command) {
+        return record(command, false);
+    }
+
+    @Override
+    @Transactional
+    public PayInputResponse recordEntry(PayInputCommand command) {
+        return record(command, true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PayInputPosting posting(YearMonth period) {
+        Objects.requireNonNull(period, "period must not be null");
+        return resolvePosting(TenantContext.require(), period);
+    }
+
+    /**
+     * {@code refuseClosed}: a hand entry ({@link #recordEntry}) is refused for a CLOSED month; any
+     * other write is moved on to the first month that is not CLOSED, as the ledger always did.
+     */
+    private PayInputResponse record(PayInputCommand command, boolean refuseClosed) {
         Objects.requireNonNull(command, "command must not be null");
         UUID tenantId = TenantContext.require();
         validate(command);
@@ -62,7 +85,11 @@ public class PayInputServiceImpl implements PayInputService {
             }
             postedPeriod = command.period();
         } else {
-            postedPeriod = nextOpenPeriod(tenantId, command.period());
+            PayInputPosting posting = resolvePosting(tenantId, command.period());
+            if (refuseClosed && posting.state() == PayInputPostingState.CLOSED) {
+                throw PeriodClosedException.forEntry(command.period(), posting.postedPeriod());
+            }
+            postedPeriod = posting.postedPeriod();
         }
         BigDecimal amount = command.amount() != null ? command.amount().toAmount() : null;
 
@@ -118,17 +145,74 @@ public class PayInputServiceImpl implements PayInputService {
         return toRunResponse(payInputs.findByTenantIdAndRunRef(tenantId, runRef));
     }
 
+    /** Overridden only so the call runs in the proxy's transaction, not as a self-call from the interface default. */
     @Override
     @Transactional
     public void lock(YearMonth period) {
+        lock(period, PayInputLockStage.LOCKED);
+    }
+
+    @Override
+    @Transactional
+    public void lock(YearMonth period, PayInputLockStage stage) {
+        Objects.requireNonNull(period, "period must not be null");
+        Objects.requireNonNull(stage, "stage must not be null");
+        UUID tenantId = TenantContext.require();
+        String actor = currentActor();
+        int inserted = locks.insertIfAbsent(tenantId, period.toString(), stage.name(), actor);
+        if (inserted == 1) {
+            log.info("Locked pay input period {} in tenant {} at {}", period, tenantId, stage);
+            return;
+        }
+        // A row was already there. Only ever raised, never lowered: a CLOSED month stays CLOSED.
+        if (stage == PayInputLockStage.CLOSED && locks.closeIfLocked(tenantId, period.toString(), actor) == 1) {
+            log.info("Closed pay input period {} in tenant {} (was LOCKED)", period, tenantId);
+        } else {
+            log.info("Pay input period {} in tenant {} was already locked; leaving it as it was", period, tenantId);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countChangesSince(YearMonth period, Instant since) {
+        Objects.requireNonNull(period, "period must not be null");
+        Objects.requireNonNull(since, "since must not be null");
+        return payInputs.countUntaggedChangesSince(TenantContext.require(), period.toString(), since);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<PayInputLockStage> periodStage(YearMonth period) {
+        Objects.requireNonNull(period, "period must not be null");
+        return locks.findPeriodStage(TenantContext.require(), period);
+    }
+
+    @Override
+    @Transactional
+    public boolean unlock(YearMonth period) {
         Objects.requireNonNull(period, "period must not be null");
         UUID tenantId = TenantContext.require();
-        int inserted = locks.insertIfAbsent(tenantId, period.toString(), currentActor());
-        if (inserted == 0) {
-            log.info("Pay input period {} in tenant {} was already locked; leaving it as it was", period, tenantId);
-        } else {
-            log.info("Locked pay input period {} in tenant {}", period, tenantId);
+        Optional<PayInputLockStage> stage = locks.findPeriodStage(tenantId, period);
+        if (stage.isEmpty()) {
+            log.info("Pay input period {} in tenant {} has no lock to remove", period, tenantId);
+            return false;
         }
+        if (stage.get() == PayInputLockStage.CLOSED) {
+            throw PeriodClosedException.forUnlock(period);
+        }
+        boolean removed = locks.deleteIfLocked(tenantId, period.toString()) == 1;
+        log.info("Removed the LOCKED lock on pay input period {} in tenant {}: {}", period, tenantId, removed);
+        return removed;
+    }
+
+    @Override
+    @Transactional
+    public boolean reopen(YearMonth period) {
+        Objects.requireNonNull(period, "period must not be null");
+        UUID tenantId = TenantContext.require();
+        boolean removed = locks.deletePeriodLock(tenantId, period.toString()) == 1;
+        log.info("Reopened pay input period {} in tenant {} (lock removed: {})", period, tenantId, removed);
+        return removed;
     }
 
     @Override
@@ -233,21 +317,42 @@ public class PayInputServiceImpl implements PayInputService {
     }
 
     /**
-     * {@code period}, or the first later period with no lock — the late-input rule (spec §4,
-     * {@code 12-core-contracts.md} §6 decision 3). Two, or any number, of consecutive locked periods
-     * are all skipped in turn.
+     * The one posting rule (D-144) — {@link #record}, {@link #recordEntry}, {@link #posting} and
+     * {@link #reverse} all read it, so what a screen shows and what saving does cannot drift. No
+     * lock: OPEN, posts there. LOCKED: posts there, and the run must be recomputed. CLOSED: the
+     * entry belongs to the first later month that is not CLOSED (the late-input rule, spec §4,
+     * {@code 12-core-contracts.md} §6 decision 3); any number of consecutive CLOSED months are
+     * skipped in turn. A LOCKED month is never skipped.
      */
-    private YearMonth nextOpenPeriod(UUID tenantId, YearMonth period) {
-        YearMonth candidate = period;
-        int checked = 0;
-        while (locks.existsByTenantIdAndPeriodAndRunRefIsNull(tenantId, candidate)) {
+    private PayInputPosting resolvePosting(UUID tenantId, YearMonth period) {
+        Optional<PayInputLockStage> stage = locks.findPeriodStage(tenantId, period);
+        if (stage.isEmpty()) {
+            return new PayInputPosting(period, period, PayInputPostingState.OPEN);
+        }
+        if (stage.get() == PayInputLockStage.LOCKED) {
+            return new PayInputPosting(period, period, PayInputPostingState.LOCKED);
+        }
+        YearMonth candidate = period.plusMonths(1);
+        int checked = 1;
+        while (isClosed(tenantId, candidate)) {
             if (++checked > MAX_REDIRECT_MONTHS) {
                 throw new IllegalStateException("No open period found for tenant " + tenantId + " within "
                         + MAX_REDIRECT_MONTHS + " months of " + period);
             }
             candidate = candidate.plusMonths(1);
         }
-        return candidate;
+        return new PayInputPosting(period, candidate, PayInputPostingState.CLOSED);
+    }
+
+    private boolean isClosed(UUID tenantId, YearMonth period) {
+        return locks.findPeriodStage(tenantId, period)
+                .filter(PayInputLockStage.CLOSED::equals)
+                .isPresent();
+    }
+
+    /** Where a write for {@code period} lands: {@code period} itself unless it is CLOSED (D-144). */
+    private YearMonth nextOpenPeriod(UUID tenantId, YearMonth period) {
+        return resolvePosting(tenantId, period).postedPeriod();
     }
 
     private PayInputListResponse toListResponse(List<PayInput> rows) {
