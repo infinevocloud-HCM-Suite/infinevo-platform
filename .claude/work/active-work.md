@@ -6,7 +6,7 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
-## 2026-11-25 — W-88 bank salary file (branch `dev-claude-w88`): mohit's build, rebased and reviewed
+## 2026-11-25 — W-88 bank salary file on `main` (`6600fed2`): mohit's build, rebased and reviewed
 
 | Ticket | What | Where |
 |---|---|---|
@@ -15,6 +15,7 @@
 - Built by mohit on `dev-mohit` (2026-11-14 to 11-19), rebased onto `main` by Claude (three "keep both" conflicts with `W-95` in `RunPage.jsx` and its tests). No migration.
 - One independent read: approve with findings. Fixed on the branch: the omitted list named every employee (Claude's own find), the omitted numbers now reach the client (`X-BankFile-Omitted-Employee-Numbers`), the dialog names all omission reasons and lists the numbers, a success message when nothing is omitted, one pass over the run instead of two, the WARN log carries the net pay not in the file, the spec describes the confirm-before-save flow.
 - **Left:** `BankFileExportEndpointIT` boots without the permission aspect, so it does not exercise the guard (`PayRunGuardIT` does); no unit test for CSV escaping (`CsvWriter` does it); a 409 or 403 on the blob download shows a generic error, same as the existing export.
+- **Plan changes (founder 2026-11-25):** `W-107`, `W-108` out; `D-155` moves to the end; no CA wait for `W-87`, `W-89`, `W-90`, `W-91`, `W-92` — built to the public formats, the CA checks the first real file; `W-87` and `W-89` stay code done until a portal upload succeeds.
 - **Next (`W-88.2`):** the founder's template builder — named columns from a field catalogue or fixed values, saved templates per bank, pick all/filtered/ticked employees, file stored on the run. `V224`–`V226`.
 
 ## 2026-11-25 — D-22 and D-30 on `main` (`d13e4062`): invitations can be deleted; terminated list shows the last working day
