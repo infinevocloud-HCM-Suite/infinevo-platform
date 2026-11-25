@@ -6,6 +6,15 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-25 — W-114.7 AI helper Payroll tools on `main`
+
+- Four read-only tools on the caller's own data: paid payslips list, one payslip by month, tax declaration, tax summary. No employee or run id taken; the login must be the context's employee. `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/`.
+- Amounts are `BigDecimal` written as two-decimal text with `"currency": "INR"`; no `double` or `float`. Results carry no database id.
+- A month with a REGULAR and an OFF_CYCLE run answers the REGULAR payslip and lists the others under `otherPayslipsThisMonth`.
+- The tax tools look the declaration up first and answer a plain sentence when there is none, so a question never creates a draft.
+- Built by Claude; one independent read (one High fixed: off-cycle months; one Low recorded below).
+- **Known, left:** the mapper drops the payslip's employee block (PAN, UAN, bank) instead of leaving it for the `W-114.4` mask, as rule 6 said. Safer, and matches rule 5's field list. The licence gate and the IT follow the `.6` pattern (registry by `payroll.` prefix; IT in `payroll`). `PayrollTestApp` gained a `TenantClock` bean.
+- **Next:** `W-114.8` apply leave with confirm.
 ## 2026-11-25 — W-114.9 AI helper Confirm and Cancel cards on `main`
 
 - `ActionCard` under a helper message that carries `proposedAction.intentId`: Confirm, Cancel, a countdown, and every end state (Done with link, Cancelled, Expired, Failed with reason, permission gone, helper off, action gone). `code/frontend/src/shell/assistant/`.

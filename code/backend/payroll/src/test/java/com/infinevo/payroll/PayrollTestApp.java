@@ -965,6 +965,15 @@ public class PayrollTestApp {
         };
     }
 
+    /**
+     * The real clock over {@code core.tenant.timezone}: W-114.7's {@code PayrollAiToolProvider} is a component in the
+     * scanned {@code com.infinevo.payroll} package and takes it; the tests hand the provider a mock instead.
+     */
+    @Bean
+    public com.infinevo.core.tenant.TenantClock tenantClock(DataSource dataSource) {
+        return new com.infinevo.core.tenant.TenantClock(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
+    }
+
     /** The tenant's name from {@code core.tenant}, which Form 16 prints as the deductor (D-149). */
     @Bean
     public com.infinevo.core.tenant.TenantProfileService tenantProfileService() {
