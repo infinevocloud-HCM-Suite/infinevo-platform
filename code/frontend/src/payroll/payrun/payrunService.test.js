@@ -243,4 +243,16 @@ describe('payrunService (W-47.2 §7)', () => {
     });
     expect(res).toBe(fakeBlob);
   });
+
+  it('hits exportBankFile endpoint with responseType blob and returns raw data (W-88)', async () => {
+    const mockBlob = new Blob(['mock csv content'], { type: 'text/csv' });
+    apiClient.get.mockResolvedValueOnce({ data: mockBlob });
+
+    const res = await payrunService.exportBankFile('run-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/payroll/payruns/run-1/bank-file', {
+      responseType: 'blob',
+    });
+    expect(res).toBe(mockBlob);
+  });
 });

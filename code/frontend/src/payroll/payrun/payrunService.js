@@ -220,4 +220,27 @@ export const payrunService = {
     const data = res?.data !== undefined ? res.data : res;
     return data?.content || (Array.isArray(data) ? data : []);
   },
+
+  /**
+   * Download bank salary payment file for an approved or paid pay run as Blob (W-88).
+   * @param {string} id Payrun ID
+   * @returns {Promise<Blob>}
+   */
+  async exportBankFile(id) {
+    const res = await apiClient.get(`${BASE_PATH}/${id}/bank-file`, {
+      responseType: 'blob',
+    });
+    const blob = res.data;
+    if (blob && typeof blob === 'object') {
+      const getHeader = (name) => res.headers?.[name.toLowerCase()] ?? res.headers?.[name];
+      blob.totalEmployees = Number(getHeader('X-BankFile-Total-Employees') || 0);
+      blob.exportedEmployees = Number(getHeader('X-BankFile-Exported-Employees') || 0);
+      blob.omittedEmployees = Number(getHeader('X-BankFile-Omitted-Employees') || 0);
+      blob.fileTotal = getHeader('X-BankFile-File-Total') ?? null;
+      blob.runNetPay = getHeader('X-BankFile-Run-Net-Pay') ?? null;
+      const omittedNumbers = getHeader('X-BankFile-Omitted-Employee-Numbers');
+      blob.omittedEmployeeNumbers = omittedNumbers ? String(omittedNumbers).split(',').filter(Boolean) : [];
+    }
+    return blob;
+  },
 };

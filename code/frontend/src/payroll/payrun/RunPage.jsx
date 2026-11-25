@@ -22,6 +22,7 @@ import {
   Dropdown,
   theme,
 } from 'antd';
+import { successMsg } from '@shared/ui/msgHelper.js';
 import {
   LockOutlined,
   PlayCircleOutlined,
@@ -32,6 +33,7 @@ import {
   DownloadOutlined,
   DownOutlined,
   ScheduleOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
@@ -106,6 +108,7 @@ export function RunPage() {
   const canApproveAction = useCan('payroll.run.approve');
   const canPayAction = useCan('payroll.payslip.publish');
   const canReadStatutory = useCan('payroll.statutory_report.read');
+  const canExportBankFile = useCan('payroll.bank_file.export');
 
   const runFromStore = useSelector((state) => state.payrun?.byId?.[id]);
   const [localRun, setLocalRun] = useState(null);
@@ -118,6 +121,7 @@ export function RunPage() {
   const [payNotice, setPayNotice] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [statutoryLoading, setStatutoryLoading] = useState(false);
+  const [downloadingBankFile, setDownloadingBankFile] = useState(false);
   // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
   const [loadError, setLoadError] = useState(null);
 
@@ -278,6 +282,75 @@ export function RunPage() {
     }
   };
 
+  const triggerBankFileDownload = (blob) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bank_salary_file_${run.period}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadBankFile = async () => {
+    setDownloadingBankFile(true);
+    setActionError(null);
+    try {
+      const blob = await payrunService.exportBankFile(id);
+      const omitted = blob?.omittedEmployees || 0;
+      const fileTotal = blob?.fileTotal != null ? Number(blob.fileTotal) : null;
+      const runNetPay = blob?.runNetPay != null ? Number(blob.runNetPay) : null;
+      const isShortfall = fileTotal != null && runNetPay != null && fileTotal < runNetPay;
+
+      if (omitted > 0 || isShortfall) {
+        Modal.confirm({
+          title: 'Bank File Payout Shortfall Warning',
+          icon: <ExclamationCircleOutlined style={{ color: token.colorWarning }} />,
+          content: (
+            <div>
+              <p>
+                {omitted > 0
+                  ? `${omitted} employee(s) are not in the bank file: no bank details, paid by cash or cheque, a blank account number or IFSC, or no net pay.`
+                  : 'The total payout in the bank file is less than the pay run net pay.'}
+              </p>
+              {blob?.omittedEmployeeNumbers?.length > 0 && (
+                <p data-testid="bank-file-omitted-numbers">
+                  <strong>Left out:</strong> {blob.omittedEmployeeNumbers.join(', ')}
+                </p>
+              )}
+              {fileTotal != null && runNetPay != null && (
+                <p>
+                  <strong>File Total:</strong> ₹{fileTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <br />
+                  <strong>Run Net Pay:</strong> ₹{runNetPay.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <br />
+                  <span style={{ color: token.colorError }}>
+                    Shortfall: ₹{(runNetPay - fileTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </p>
+              )}
+              <p>Do you want to proceed with downloading this bank file?</p>
+            </div>
+          ),
+          okText: 'Download Anyway',
+          okType: 'primary',
+          cancelText: 'Cancel',
+          onOk() {
+            triggerBankFileDownload(blob);
+          },
+        });
+      } else {
+        triggerBankFileDownload(blob);
+        successMsg('Downloaded', 'Bank salary payment file downloaded.');
+      }
+    } catch (err) {
+      setActionError(err?.message || 'Failed to download bank file');
+    } finally {
+      setDownloadingBankFile(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
@@ -338,6 +411,7 @@ export function RunPage() {
   const canCancel = canExecute && (status === 'DRAFT' || status === 'LOCKED' || status === 'APPROVED');
   const canApprove = canApproveAction && status === 'COMPUTED';
   const canPay = canPayAction && status === 'APPROVED';
+  const canDownloadBankFile = canExportBankFile && (status === 'APPROVED' || status === 'PAID');
 
   const progressDone = run.progress_done !== undefined ? run.progress_done : run.progressDone || 0;
   const progressTotal = run.progress_total !== undefined ? run.progress_total : run.progressTotal || 0;
@@ -455,6 +529,17 @@ export function RunPage() {
             >
               Pay
             </Button>
+
+            {canDownloadBankFile && (
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleDownloadBankFile}
+                loading={downloadingBankFile}
+                data-testid="download-bank-file-btn"
+              >
+                Download Bank File
+              </Button>
+            )}
 
             <Popconfirm
               title="Cancel this pay run?"
