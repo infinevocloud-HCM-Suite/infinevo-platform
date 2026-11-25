@@ -25,6 +25,7 @@ import {
 import { successMsg } from '@shared/ui/msgHelper.js';
 import { BankFileDrawer } from './BankFileDrawer.jsx';
 import { BankFileHistory } from './BankFileHistory.jsx';
+import { PfEcrDrawer } from './PfEcrDrawer.jsx';
 import {
   LockOutlined,
   PlayCircleOutlined,
@@ -37,6 +38,7 @@ import {
   ScheduleOutlined,
   ExclamationCircleOutlined,
   BankOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
@@ -127,6 +129,7 @@ export function RunPage() {
   const [downloadingBankFile, setDownloadingBankFile] = useState(false);
   const [bankDrawerOpen, setBankDrawerOpen] = useState(false);
   const [bankFilesMade, setBankFilesMade] = useState(0);
+  const [pfEcrDrawerOpen, setPfEcrDrawerOpen] = useState(false);
   // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
   const [loadError, setLoadError] = useState(null);
 
@@ -228,6 +231,12 @@ export function RunPage() {
   };
 
   const statutoryMenuItems = [
+    {
+      key: 'pf-ecr',
+      label: 'PF ECR File',
+      icon: <SafetyCertificateOutlined />,
+      onClick: () => setPfEcrDrawerOpen(true),
+    },
     {
       key: 'esi-xlsx',
       label: 'ESI Monthly Return (.xlsx)',
@@ -775,6 +784,13 @@ export function RunPage() {
           onGenerated={() => setBankFilesMade((n) => n + 1)}
         />
       )}
+
+      <PfEcrDrawer
+        open={pfEcrDrawerOpen}
+        payrunId={id}
+        runPeriod={run?.period}
+        onClose={() => setPfEcrDrawerOpen(false)}
+      />
     </div>
   );
 }

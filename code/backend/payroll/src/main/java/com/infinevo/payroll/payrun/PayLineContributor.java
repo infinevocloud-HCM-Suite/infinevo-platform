@@ -22,4 +22,11 @@ public interface PayLineContributor {
     default String note(PayRunEmployeeContext ctx) {
         return null;
     }
+
+    /**
+     * The statutory wages computed for the employee (W-87), or {@code null} if this contributor does not produce them.
+     */
+    default StatutoryWages statutoryWages(PayRunEmployeeContext ctx) {
+        return null;
+    }
 }

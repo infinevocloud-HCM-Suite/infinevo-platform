@@ -334,12 +334,17 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
 
         List<PayLine> produced = new ArrayList<>();
         List<String> notes = new ArrayList<>();
+        StatutoryWages statutoryWages = null;
         for (PayLineContributor contributor : contributors) {
             PayRunEmployeeContext seen = ctx.withPriorLines(produced);
             produced.addAll(contributor.contribute(seen));
             String note = contributor.note(seen);
             if (note != null) {
                 notes.add(note);
+            }
+            StatutoryWages wages = contributor.statutoryWages(seen);
+            if (wages != null) {
+                statutoryWages = wages;
             }
         }
 
@@ -359,6 +364,9 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
             fresh.recordOffCycleComputation(totals, days, unpriced, attempt, actor, now());
         } else {
             fresh.recordComputation(totals, days, unpriced, stamp, attempt, actor, now());
+        }
+        if (statutoryWages != null) {
+            fresh.setStatutoryWages(statutoryWages.epfWage(), statutoryWages.epsWage(), statutoryWages.edliWage());
         }
         fresh.noteComputation(notes.isEmpty() ? null : String.join("; ", notes));
         employeePayRuns.saveAndFlush(fresh);

@@ -76,6 +76,10 @@ public final class PayRunTestSchema {
             if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_payrun", "lop_policy_id")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V125__employee_payrun_policy_stamp.sql");
             }
+            // W-87: statutory wage columns on employee_payrun.
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_payrun", "epf_wage")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V225__payrun_statutory_wages.sql");
+            }
             // W-36.2: approve and pay columns on payrun.
             if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "approved_at")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V103__payrun_approve_pay.sql");

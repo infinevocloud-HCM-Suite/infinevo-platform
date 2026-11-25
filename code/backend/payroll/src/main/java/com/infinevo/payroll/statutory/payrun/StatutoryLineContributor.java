@@ -9,6 +9,7 @@ import com.infinevo.payroll.payrun.PayLine;
 import com.infinevo.payroll.payrun.PayLineContributor;
 import com.infinevo.payroll.payrun.PayRunEmployeeContext;
 import com.infinevo.payroll.payrun.PayRunType;
+import com.infinevo.payroll.payrun.StatutoryWages;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfileService;
 import com.infinevo.payroll.salary.SalaryComponentItemResponse;
 import com.infinevo.payroll.salary.StatutoryProfileResponse;
@@ -91,6 +92,7 @@ public class StatutoryLineContributor implements PayLineContributor {
     private final Map<UUID, EsiSettingResponse> esiCache = new ConcurrentHashMap<>();
     private final Map<UUID, String> locationStateCache = new ConcurrentHashMap<>();
     private final Map<PtKey, Money> ptCache = new ConcurrentHashMap<>();
+    private final Map<UUID, StatutoryWages> wagesCache = new ConcurrentHashMap<>();
 
     private record PtKey(UUID payrunId, String stateCode, Money gross, String gender, LocalDate periodEnd) {}
 
@@ -188,9 +190,10 @@ public class StatutoryLineContributor implements PayLineContributor {
             // Legacy paid one 12% employer PF line with no EPS split
             // (legacy/Payroll-Fend-react/src/pages/mainPages/employee/salaryDetails.js:248-263).
             Money epsUnrounded = Money.ZERO;
+            Money epsBase = Money.ZERO;
             if (epsApplies) {
                 boolean higherWages = profile.contributesEpsOnHigherWages();
-                Money epsBase = higherWages ? earnedBasic : min(earnedBasic, effectiveCeiling);
+                epsBase = higherWages ? earnedBasic : min(earnedBasic, effectiveCeiling);
                 epsUnrounded = calculateRate(epsBase, epf.epsRate());
                 Money epsAmount = StatutoryLineRounder.roundPf(epsUnrounded);
                 if (epsAmount.isPositive()) {
@@ -210,8 +213,9 @@ public class StatutoryLineContributor implements PayLineContributor {
                         LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_EPF_ER, NAME_EPF_ER, erPfAmount, false);
             }
 
+            Money edliBase = Money.ZERO;
             if (epf.includeEdliInStructure()) {
-                Money edliBase = min(earnedBasic, effectiveCeiling);
+                edliBase = min(earnedBasic, effectiveCeiling);
                 Money edliAmount = StatutoryLineRounder.roundPf(calculateRate(edliBase, epf.edliRate()));
                 if (edliAmount.isPositive()) {
                     edliLine = new PayLine(
@@ -232,6 +236,18 @@ public class StatutoryLineContributor implements PayLineContributor {
                             adminAmount,
                             false);
                 }
+            }
+
+            UUID wageKey = ctx.employeePayrunId() != null
+                    ? ctx.employeePayrunId()
+                    : (ctx.employee() != null ? ctx.employee().id() : null);
+            if (wageKey != null) {
+                wagesCache.put(
+                        wageKey,
+                        new StatutoryWages(
+                                eeBase.raw(),
+                                epsApplies ? epsBase.raw() : BigDecimal.ZERO.setScale(4),
+                                epf.includeEdliInStructure() ? edliBase.raw() : BigDecimal.ZERO.setScale(4)));
             }
         }
 
@@ -421,5 +437,16 @@ public class StatutoryLineContributor implements PayLineContributor {
         return ptCache.computeIfAbsent(
                 new PtKey(payrunId, stateCode, gross, gender, periodEnd),
                 k -> professionalTaxService.resolve(tenantId, k.stateCode(), k.gross(), k.gender(), k.periodEnd()));
+    }
+
+    @Override
+    public StatutoryWages statutoryWages(PayRunEmployeeContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        UUID key = ctx.employeePayrunId() != null
+                ? ctx.employeePayrunId()
+                : (ctx.employee() != null ? ctx.employee().id() : null);
+        return key != null ? wagesCache.remove(key) : null;
     }
 }

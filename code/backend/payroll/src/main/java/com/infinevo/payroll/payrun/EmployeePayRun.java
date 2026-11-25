@@ -118,6 +118,15 @@ public class EmployeePayRun {
     @Column(name = "lop_rounding", length = 16)
     private LopRounding lopRounding;
 
+    @Column(name = "epf_wage", precision = 14, scale = 4)
+    private BigDecimal epfWage;
+
+    @Column(name = "eps_wage", precision = 14, scale = 4)
+    private BigDecimal epsWage;
+
+    @Column(name = "edli_wage", precision = 14, scale = 4)
+    private BigDecimal edliWage;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -234,6 +243,9 @@ public class EmployeePayRun {
         this.payDivisor = null;
         this.payableDays = null;
         this.lopRounding = null;
+        this.epfWage = null;
+        this.epsWage = null;
+        this.edliWage = null;
         this.computedAt = Objects.requireNonNull(at, "at must not be null");
         this.computationError = error.length() > 500 ? error.substring(0, 500) : error;
         this.computationNote = null;
@@ -349,5 +361,35 @@ public class EmployeePayRun {
     /** The attempt that last computed this row (W-29.4); zero before the first. */
     public int getComputedAttempt() {
         return computedAttempt;
+    }
+
+    public BigDecimal getEpfWage() {
+        return epfWage;
+    }
+
+    public BigDecimal getEpsWage() {
+        return epsWage;
+    }
+
+    public BigDecimal getEdliWage() {
+        return edliWage;
+    }
+
+    public BigDecimal epfWage() {
+        return epfWage;
+    }
+
+    public BigDecimal epsWage() {
+        return epsWage;
+    }
+
+    public BigDecimal edliWage() {
+        return edliWage;
+    }
+
+    public void setStatutoryWages(BigDecimal epfWage, BigDecimal epsWage, BigDecimal edliWage) {
+        this.epfWage = epfWage;
+        this.epsWage = epsWage;
+        this.edliWage = edliWage;
     }
 }
