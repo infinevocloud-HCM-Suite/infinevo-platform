@@ -9,10 +9,17 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.infinevo.core.ai.action.AiActionService;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -23,6 +30,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AssignableTypeFilter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -244,6 +254,79 @@ class AiToolRegistryTest {
                         .ok())
                 .isTrue();
         assertThat(balances.runs.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("C11 (W-114.8): no registered tool is named confirm or cancel_action, and none depends on confirm")
+    void noToolReachesConfirm() throws Exception {
+        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AssignableTypeFilter(AiToolProvider.class));
+        List<AiToolProvider> providers = new ArrayList<>();
+        List<Class<?>> providerClasses = new ArrayList<>();
+        for (BeanDefinition candidate : scanner.findCandidateComponents("com.infinevo")) {
+            Class<?> type = Class.forName(candidate.getBeanClassName());
+            if (type.isInterface()
+                    || Modifier.isAbstract(type.getModifiers())
+                    || type.getProtectionDomain()
+                            .getCodeSource()
+                            .getLocation()
+                            .toString()
+                            .contains("test-classes")) {
+                continue;
+            }
+            providerClasses.add(type);
+            providers.add((AiToolProvider) instantiateWithMocks(type));
+        }
+        assertThat(providerClasses)
+                .extracting(Class::getSimpleName)
+                .contains("CoreAiToolProvider", "LeaveActionToolProvider");
+
+        for (PlatformModule module : PlatformModule.values()) {
+            licensed.add(module);
+        }
+        AiToolRegistry registry = registry(providers.toArray(AiToolProvider[]::new));
+        when(permissionService.holds(anyString())).thenReturn(true);
+        List<String> names = names(registry.toolsFor(new AiToolContext(tenantId, userId, UUID.randomUUID())));
+        assertThat(names).contains("core.propose_leave_request");
+        assertThat(names).allSatisfy(name -> assertThat(name)
+                .doesNotContainIgnoringCase("confirm")
+                .doesNotContainIgnoringCase("cancel_action"));
+
+        for (Class<?> type : providerClasses) {
+            for (Class<?> c : withNested(type)) {
+                for (Field field : c.getDeclaredFields()) {
+                    assertThat(field.getType())
+                            .as("%s.%s", c.getName(), field.getName())
+                            .isNotEqualTo(AiActionService.class);
+                    assertThat(Arrays.stream(field.getType().getMethods()).map(Method::getName))
+                            .as("%s.%s may reach confirm", c.getName(), field.getName())
+                            .doesNotContain("confirm");
+                }
+                for (Constructor<?> ctor : c.getDeclaredConstructors()) {
+                    assertThat(ctor.getParameterTypes()).doesNotContain(AiActionService.class);
+                }
+            }
+        }
+    }
+
+    private static List<Class<?>> withNested(Class<?> type) {
+        List<Class<?>> all = new ArrayList<>();
+        all.add(type);
+        for (Class<?> nested : type.getDeclaredClasses()) {
+            all.addAll(withNested(nested));
+        }
+        return all;
+    }
+
+    /** The widest public constructor, called with a Mockito mock for every parameter. */
+    private static Object instantiateWithMocks(Class<?> type) throws Exception {
+        Constructor<?> widest = Arrays.stream(type.getConstructors())
+                .max(java.util.Comparator.comparingInt(Constructor::getParameterCount))
+                .orElseThrow();
+        Object[] args = Arrays.stream(widest.getParameterTypes())
+                .map(p -> (Object) mock(p))
+                .toArray();
+        return widest.newInstance(args);
     }
 
     private static List<String> names(List<AiToolDescriptor> tools) {

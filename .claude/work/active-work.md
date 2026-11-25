@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-25 — W-114.8 AI helper applies leave after Confirm on `main`
+
+- Tool `core.propose_leave_request` checks the request with the leave service and stores a 15-minute intent; nothing reaches `core.leave_request` until Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/`.
+- `POST /api/v1/ai/actions/{id}/confirm` and `/cancel`, `GET /api/v1/ai/actions/{id}`. Confirm takes no body, holds the row lock, re-checks helper switch, permission, module and employee profile, runs the stored payload once, and answers the first result again on a repeat.
+- The card's summary and fields are built from the stored payload on every read (rules C1, C2). On the next turn the model is told the outcome as a fixed line (C9).
+- `LeaveRequestServiceImpl.validateApply` holds the checks moved unchanged out of `createRequest`; the Leave screen is unchanged.
+- Built by Claude; one independent read, approve (two Lows fixed: ids stripped from the refusal line the model reads, a failed card link is logged).
+- **Known, left:** the card's "Days" is the count at proposal time; the leave service counts again at Confirm. Cancelling a confirmed intent answers `409 AI_ACTION_CONFIRMED`. The model's tool result carries no intent id; the browser gets it in `proposedAction`.
+- **Next:** `W-114.9` cards (built, waiting on this), then `W-114.10`.
+
 ## 2026-11-24 — W-114.6 AI helper HRMS tools on `main`
 
 - Five read-only tools on the caller's own data: today's clock status, clock sessions, regularizations, one timesheet week, timesheets. 93-day cap; no employee id taken; the login must be the context's employee. `code/backend/hrms/src/main/java/com/infinevo/hrms/ai/`.

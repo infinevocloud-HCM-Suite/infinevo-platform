@@ -13,6 +13,14 @@ public interface LeaveRequestService {
 
     LeaveRequestResponse createRequest(UUID tenantId, UUID employeeId, LeaveApplyRequest request);
 
+    /**
+     * Runs every check {@link #createRequest} runs before it saves, and saves nothing (W-114.8). {@code createRequest}
+     * calls it first, so a request this accepts is one the Leave screen would accept at this moment.
+     *
+     * @throws IllegalArgumentException or {@link IllegalStateException} with the reason, when the request is refused
+     */
+    LeaveApplyCheck validateApply(UUID tenantId, UUID employeeId, LeaveApplyRequest request);
+
     LeaveRequestResponse createOnBehalf(UUID tenantId, LeaveOnBehalfRequest request);
 
     LeaveRequestResponse submit(UUID tenantId, UUID requestId, UUID callerEmployeeId);
