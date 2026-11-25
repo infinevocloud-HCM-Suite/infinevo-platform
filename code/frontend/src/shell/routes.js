@@ -8,6 +8,7 @@ import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
 import { ApplyWfh } from '../core/portal/ApplyWfh.jsx';
 import { LeaveRequestDetail } from '../core/leave/LeaveRequestDetail.jsx';
 import { LeaveBalanceDetail } from '../core/portal/LeaveBalanceDetail.jsx';
+import { ResignationPage } from '../hrms/exit/ResignationPage.jsx';
 
 /**
  * Self-service portal routes (W-25 §5, W-46.5 §5).
@@ -22,6 +23,7 @@ export const portalRoutes = [
   { path: '/me/leave-balance', element: React.createElement(LeaveBalanceDetail) },
   { path: '/me/wfh/apply', element: React.createElement(ApplyWfh) },
   { path: '/me/payslips/:payrunId', element: React.createElement(PayslipPage) },
+  { path: '/me/exit', element: React.createElement(ResignationPage) },
 ];
 
 /**

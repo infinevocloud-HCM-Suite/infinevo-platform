@@ -58,6 +58,9 @@ const LossOfPayLog = lazy(() =>
   import('./lossofpay/LossOfPayLog.jsx').then((m) => ({ default: m.LossOfPayLog }))
 );
 const MyWork = lazy(() => import('./projects/MyWork.jsx').then((m) => ({ default: m.MyWork })));
+const ExitDashboard = lazy(() =>
+  import('./exit/ExitDashboard.jsx').then((m) => ({ default: m.ExitDashboard }))
+);
 
 // HRMS module entry point (W-45 §5, W-48.2 §5). The week grid sits beneath `/hrms/timesheets`, the menu path
 // the feed carries (`hrms.timesheets`), so it mounts with it.
@@ -88,6 +91,8 @@ export const routes = [
   { path: '/hrms/overtime-requests/:id', mountWith: ['/approvals', '/hrms/overtime-requests/all'], element: React.createElement(OvertimeDetail) },
   // D-140: HR's manual loss of pay (feed `hrms.loss_of_pay`).
   { path: '/hrms/loss-of-pay', element: React.createElement(LossOfPayLog) },
+  // W-103 §7: HR exit management dashboard.
+  { path: '/hrms/exits', element: React.createElement(ExitDashboard) },
 ];
 
 export const reducers = {};

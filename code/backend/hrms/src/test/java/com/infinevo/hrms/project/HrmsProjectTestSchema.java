@@ -116,6 +116,9 @@ public final class HrmsProjectTestSchema {
                         executeResource(conn, "db/migration/" + script);
                     }
                 }
+                if (!tableExists(conn, "hrms", "exit_request")) {
+                    executeResource(conn, "db/migration/hrms/V199__exit_process.sql");
+                }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
             }
