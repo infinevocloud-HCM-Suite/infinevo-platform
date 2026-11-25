@@ -5,6 +5,7 @@ import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.core.setup.SetupStepChecker;
 import com.infinevo.shared.audit.AuditController;
 import com.infinevo.shared.audit.AuditQueryService;
+import com.infinevo.shared.audit.AuditWriter;
 import com.infinevo.shared.cache.RedisConfig;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.identity.UserProfileSyncService;
@@ -34,7 +35,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  *   <li>{@link AuditController} and {@link AuditQueryService}, imported by name, with the
  *       {@code shared.audit} entity and repository — the real target of the {@code core.audit}
  *       navigation item, so {@code NavigationMatchesEnforcementIT} walks no stand-in (W-12.3).
- *       The audit <em>listener</em> is not imported; nothing here writes audit rows.
+ *       The audit <em>listener</em> is not imported, so no entity write is audited here. {@link AuditWriter}
+ *       is, because the AI helper's action service writes its own rows through it (W-114.8).
  *   <li>{@code com.infinevo.core.portal} - {@code PortalController}, the real target of the {@code core.me}
  *       navigation item (D-75), so the catalogue check finds its {@code GET} and the walk calls it.
  *   <li>{@link RedisConfig}, imported by name — the real {@code CacheService} over the test Redis, so
@@ -113,7 +115,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
-@Import({RedisConfig.class, UserProfileSyncService.class, AuditController.class, AuditQueryService.class})
+@Import({
+    RedisConfig.class,
+    UserProfileSyncService.class,
+    AuditController.class,
+    AuditQueryService.class,
+    AuditWriter.class
+})
 public class PermissionGuardTestApp {
 
     @Bean

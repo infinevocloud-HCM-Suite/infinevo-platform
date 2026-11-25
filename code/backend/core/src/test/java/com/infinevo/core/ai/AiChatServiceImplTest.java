@@ -517,6 +517,189 @@ class AiChatServiceImplTest {
         assertThat(model.requests().get(0).systemPrompt()).doesNotContain("first name");
     }
 
+    // ---- W-114.8: proposals, and what the model is told about them (C9) ----
+
+    /** A service whose tools may propose: an in-memory intent store and a tool that proposes one action. */
+    private AiChatServiceImpl proposingService(List<AiActionIntent> intentStore) {
+        AiActionIntentRepository intents = mock(AiActionIntentRepository.class);
+        when(intents.findById(any())).thenAnswer(inv -> intentStore.stream()
+                .filter(i -> i.getId().equals(inv.getArgument(0)))
+                .findFirst());
+        when(intents.save(any(AiActionIntent.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(intents.findByTenantIdAndMessageIdIn(any(), any())).thenAnswer(inv -> {
+            Collection<UUID> ids = inv.getArgument(1);
+            return intentStore.stream()
+                    .filter(i -> i.getTenantId().equals(inv.getArgument(0))
+                            && i.getMessageId() != null
+                            && ids.contains(i.getMessageId()))
+                    .toList();
+        });
+        PermissionService permissions = mock(PermissionService.class);
+        when(permissions.holds(anyString())).thenReturn(true);
+        EntitlementService entitlements = mock(EntitlementService.class);
+        when(entitlements.holds(any(PlatformModule.class))).thenReturn(true);
+        AiTool proposer = new ProposingTool(intentStore);
+        AiToolRegistry registry = new AiToolRegistry(permissions, entitlements, List.of(() -> List.of(proposer)));
+        TenantClock tenantClock = mock(TenantClock.class);
+        when(tenantClock.today()).thenReturn(LocalDate.of(2026, 11, 23));
+        return new AiChatServiceImpl(
+                sessions,
+                messages,
+                intents,
+                gate,
+                rateLimiter,
+                registry,
+                model,
+                new AiMaskingFilter(),
+                new AiSystemPrompt(),
+                employeeService,
+                tenantClock,
+                TransactionOperations.withoutTransaction(),
+                clock);
+    }
+
+    @Test
+    @DisplayName("a tool proposes: the answer carries proposedAction and the intent is linked to the stored answer")
+    void proposal_carriedAndLinked() {
+        List<AiActionIntent> intentStore = new ArrayList<>();
+        AiChatServiceImpl proposing = proposingService(intentStore);
+        model.script(
+                AiModelResponse.toolCall("call_1", "core.propose_thing", "{}"),
+                AiModelResponse.text("Shall I apply it? Press Confirm."));
+
+        AiChatResponse response = proposing.send(mine.getId(), "Apply leave on Friday");
+
+        assertThat(response.proposedAction()).isNotNull();
+        assertThat(intentStore).hasSize(1);
+        assertThat(response.proposedAction().intentId())
+                .isEqualTo(intentStore.get(0).getId());
+        assertThat(response.proposedAction().status()).isEqualTo(AiIntentStatus.PROPOSED);
+        assertThat(intentStore.get(0).getMessageId())
+                .isEqualTo(response.message().id());
+        assertThat(AiChatTurn.current()).isEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "C9: after a cancel, the next request carries the declined line on that answer, no error; storage unchanged")
+    void cancelled_nextRequestToldDeclined() {
+        List<AiActionIntent> intentStore = new ArrayList<>();
+        AiChatServiceImpl proposing = proposingService(intentStore);
+        model.script(
+                AiModelResponse.toolCall("call_1", "core.propose_thing", "{}"),
+                AiModelResponse.text("Shall I apply it?"),
+                AiModelResponse.text("All right."));
+        AiChatResponse first = proposing.send(mine.getId(), "Apply leave on Friday");
+        intentStore.get(0).setStatus(AiIntentStatus.CANCELLED);
+
+        proposing.send(mine.getId(), "Thanks");
+
+        List<AiModelRequest.Message> sent = model.requests().get(2).messages();
+        AiModelRequest.Message answer = sent.stream()
+                .filter(m -> m.role() == AiModelRequest.Role.ASSISTANT)
+                .reduce((a, b) -> b)
+                .orElseThrow();
+        assertThat(answer.content())
+                .isEqualTo("Shall I apply it?\n\n" + AiChatServiceImpl.NOTE_DECLINED)
+                .doesNotContainIgnoringCase("error:");
+        AiMessage stored = messageStore.stream()
+                .filter(m -> m.getId().equals(first.message().id()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(stored.getContent()).isEqualTo("Shall I apply it?");
+    }
+
+    @Test
+    @DisplayName("C9: a PROPOSED intent adds no line; confirmed, failed and expired add theirs")
+    void statusLines() {
+        List<AiActionIntent> intentStore = new ArrayList<>();
+        AiChatServiceImpl proposing = proposingService(intentStore);
+        model.script(
+                AiModelResponse.toolCall("call_1", "core.propose_thing", "{}"),
+                AiModelResponse.text("Shall I apply it?"),
+                AiModelResponse.text("Waiting."));
+        proposing.send(mine.getId(), "Apply leave on Friday");
+
+        proposing.send(mine.getId(), "Hmm");
+
+        List<AiModelRequest.Message> sent = model.requests().get(2).messages();
+        assertThat(sent)
+                .filteredOn(m -> m.role() == AiModelRequest.Role.ASSISTANT)
+                .extracting(AiModelRequest.Message::content)
+                .containsExactly("Shall I apply it?");
+
+        AiActionIntent intent = intentStore.get(0);
+        Instant now = intent.getExpiresAt().minusSeconds(1);
+        intent.setStatus(AiIntentStatus.CONFIRMED);
+        assertThat(proposing.statusNote(intent, now)).isEqualTo(AiChatServiceImpl.NOTE_CONFIRMED);
+        intent.setStatus(AiIntentStatus.EXPIRED);
+        assertThat(proposing.statusNote(intent, now)).isEqualTo(AiChatServiceImpl.NOTE_EXPIRED);
+        intent.setStatus(AiIntentStatus.FAILED);
+        intent.setResult(JsonNodeFactory.instance.objectNode().put("reason", "Dates overlap"));
+        assertThat(proposing.statusNote(intent, now))
+                .isEqualTo("[The user confirmed, but the action was refused: Dates overlap]");
+        intent.setResult(JsonNodeFactory.instance
+                .objectNode()
+                .put("reason", "Leave type not found: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b"));
+        assertThat(proposing.statusNote(intent, now))
+                .isEqualTo("[The user confirmed, but the action was refused: Leave type not found: [id]]");
+        intent.setStatus(AiIntentStatus.PROPOSED);
+        assertThat(proposing.statusNote(intent, now)).isNull();
+        assertThat(proposing.statusNote(intent, intent.getExpiresAt())).isEqualTo(AiChatServiceImpl.NOTE_EXPIRED);
+    }
+
+    /** Proposes one action the way {@code AiActionServiceImpl.propose} does: an intent, and the card on the turn. */
+    private final class ProposingTool implements AiTool {
+        private final List<AiActionIntent> intentStore;
+
+        ProposingTool(List<AiActionIntent> intentStore) {
+            this.intentStore = intentStore;
+        }
+
+        @Override
+        public String name() {
+            return "core.propose_thing";
+        }
+
+        @Override
+        public String description() {
+            return "Proposes a thing";
+        }
+
+        @Override
+        public JsonNode inputSchema() {
+            return JsonNodeFactory.instance.objectNode().put("type", "object");
+        }
+
+        @Override
+        public String requiredAction() {
+            return "core.thing.do";
+        }
+
+        @Override
+        public AiToolResult execute(AiToolContext ctx, JsonNode input) {
+            AiChatTurn turn = AiChatTurn.current().orElseThrow();
+            AiActionIntent intent = new AiActionIntent(
+                    ctx.tenantId(),
+                    turn.sessionId(),
+                    ctx.userId(),
+                    null,
+                    "core.thing.do",
+                    JsonNodeFactory.instance.objectNode(),
+                    clock.instant().plus(Duration.ofMinutes(15)));
+            ReflectionTestUtils.setField(intent, "id", UUID.randomUUID());
+            intentStore.add(intent);
+            turn.recordProposal(new AiProposedAction(
+                    intent.getId(),
+                    intent.getActionCode(),
+                    "Do the thing",
+                    List.of(),
+                    AiIntentStatus.PROPOSED,
+                    intent.getExpiresAt()));
+            return AiToolResult.success(JsonNodeFactory.instance.objectNode().put("status", "PROPOSED"));
+        }
+    }
+
     private List<AiMessageRole> roles() {
         return messageStore.stream().map(AiMessage::getRole).toList();
     }

@@ -111,6 +111,57 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
 
     @Override
     public LeaveRequestResponse createRequest(UUID tenantId, UUID employeeId, LeaveApplyRequest request) {
+        LeaveApplyCheck check = validateApply(tenantId, employeeId, request);
+
+        UUID leaveTypeId = check.leaveTypeId();
+        LocalDate fromDate = request.fromDate();
+        LocalDate toDate = request.toDate();
+        boolean isHalfDay = check.halfDay();
+        BigDecimal workingDays = check.workingDays();
+        boolean submit = request.shouldSubmit();
+
+        LeaveRequestStatus status = submit ? LeaveRequestStatus.PENDING : LeaveRequestStatus.DRAFT;
+        LeaveRequest entity = new LeaveRequest(
+                tenantId,
+                employeeId,
+                leaveTypeId,
+                fromDate,
+                toDate,
+                isHalfDay,
+                request.halfDayPeriod(),
+                workingDays,
+                request.reason(),
+                status,
+                null,
+                false);
+        entity = leaveRequestRepository.save(entity);
+
+        List<UUID> docIds = request.documentIds();
+        if (docIds != null && !docIds.isEmpty()) {
+            for (UUID docId : docIds) {
+                leaveRequestDocumentRepository.save(new LeaveRequestDocument(tenantId, entity.getId(), docId));
+            }
+        }
+
+        if (submit) {
+            UUID instanceId = approvalService.start(
+                    ApprovalFlowType.LEAVE, new SubjectRef("leave_request", entity.getId()), employeeId);
+            entity.setApprovalInstanceId(instanceId);
+            entity = leaveRequestRepository.save(entity);
+        }
+
+        return respond(tenantId, entity, docIds);
+    }
+
+    /**
+     * Every check {@link #createRequest} makes before its first save, in the same order (W-114.8): dates and half day,
+     * an active leave type of the tenant, half day allowed, eligibility, the policy's booking limits and documents, the
+     * documents' owner, the working days against the policy's maximum, overlap, and - when the request is submitted -
+     * the balance limit. Moved here unchanged from {@code createRequest}, which calls it first, so the AI helper's
+     * proposal and the Leave screen refuse exactly the same requests.
+     */
+    @Override
+    public LeaveApplyCheck validateApply(UUID tenantId, UUID employeeId, LeaveApplyRequest request) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(employeeId, "employeeId must not be null");
         Objects.requireNonNull(request, "request must not be null");
@@ -169,37 +220,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     policyOpt.orElse(null), tenantId, employeeId, leaveTypeId, fromDate, workingDays, null);
         }
 
-        LeaveRequestStatus status = submit ? LeaveRequestStatus.PENDING : LeaveRequestStatus.DRAFT;
-        LeaveRequest entity = new LeaveRequest(
-                tenantId,
-                employeeId,
-                leaveTypeId,
-                fromDate,
-                toDate,
-                isHalfDay,
-                request.halfDayPeriod(),
-                workingDays,
-                request.reason(),
-                status,
-                null,
-                false);
-        entity = leaveRequestRepository.save(entity);
-
-        List<UUID> docIds = request.documentIds();
-        if (docIds != null && !docIds.isEmpty()) {
-            for (UUID docId : docIds) {
-                leaveRequestDocumentRepository.save(new LeaveRequestDocument(tenantId, entity.getId(), docId));
-            }
-        }
-
-        if (submit) {
-            UUID instanceId = approvalService.start(
-                    ApprovalFlowType.LEAVE, new SubjectRef("leave_request", entity.getId()), employeeId);
-            entity.setApprovalInstanceId(instanceId);
-            entity = leaveRequestRepository.save(entity);
-        }
-
-        return respond(tenantId, entity, docIds);
+        return new LeaveApplyCheck(leaveTypeId, leaveType.getName(), isHalfDay, workingDays);
     }
 
     @Override
