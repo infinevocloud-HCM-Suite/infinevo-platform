@@ -1,8 +1,6 @@
 package com.infinevo.hrms.exit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -14,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.core.employee.EmployeeResponse;
-import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.hrms.project.HrmsProjectTestSchema;
 import com.infinevo.hrms.project.HrmsTestApp;
@@ -26,7 +23,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,9 +48,6 @@ class ExitProcessLifecycleIT extends AbstractIntegrationTest {
     @Autowired
     private ExitService exitService;
 
-    @Autowired
-    private EmployeeService employeeService;
-
     private final ObjectMapper mapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -66,7 +59,7 @@ class ExitProcessLifecycleIT extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() throws SQLException {
         TenantContext.clear();
-        reset(employeeService);
+        HrmsTestApp.CURRENT_EMPLOYEE.remove();
         tenantId = HrmsProjectTestSchema.insertTenant("Exit Process Corp");
         employeeId = HrmsProjectTestSchema.insertEmployee(tenantId, "EMP-EXIT-01");
 
@@ -90,8 +83,7 @@ class ExitProcessLifecycleIT extends AbstractIntegrationTest {
                 null,
                 Instant.now(),
                 Instant.now());
-        when(employeeService.currentEmployee()).thenReturn(Optional.of(emp));
-        when(employeeService.get(employeeId)).thenReturn(emp);
+        HrmsTestApp.CURRENT_EMPLOYEE.set(emp);
 
         mvc = MockMvcBuilders.standaloneSetup(new ExitController(exitService))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
@@ -100,6 +92,7 @@ class ExitProcessLifecycleIT extends AbstractIntegrationTest {
 
     @AfterEach
     void tearDown() throws SQLException {
+        HrmsTestApp.CURRENT_EMPLOYEE.remove();
         TenantContext.clear();
         try (Connection conn = HrmsProjectTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement("DELETE FROM hrms.exit_request WHERE tenant_id = ?")) {
