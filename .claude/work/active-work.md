@@ -6,6 +6,13 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-25 — W-114.9 AI helper Confirm and Cancel cards on `main`
+
+- `ActionCard` under a helper message that carries `proposedAction.intentId`: Confirm, Cancel, a countdown, and every end state (Done with link, Cancelled, Expired, Failed with reason, permission gone, helper off, action gone). `code/frontend/src/shell/assistant/`.
+- The card takes `intentId` only and draws title, fields, status and expiry from `GET /api/v1/ai/actions/{intentId}`; no model text reaches it. Confirm and Cancel send no body. Nothing cuts text.
+- `actionLinks.js` holds the one "done" link, `core.leave.apply` → `/me/leave/requests/{id}`; later actions add a line each.
+- Built by Claude; one independent read (three fixed: countdown out of the live region, re-ask after a failed 0:00 check, 404 is an end state). 58 Vitest tests, lint 0, build green.
+- Uses the `W-114.8` endpoints, merged just before it. **Next:** `W-114.7`, then `W-114.10`.
 ## 2026-11-25 — W-114.8 AI helper applies leave after Confirm on `main`
 
 - Tool `core.propose_leave_request` checks the request with the leave service and stores a 15-minute intent; nothing reaches `core.leave_request` until Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/`.
