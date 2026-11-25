@@ -23,6 +23,8 @@ import {
   theme,
 } from 'antd';
 import { successMsg } from '@shared/ui/msgHelper.js';
+import { BankFileDrawer } from './BankFileDrawer.jsx';
+import { BankFileHistory } from './BankFileHistory.jsx';
 import {
   LockOutlined,
   PlayCircleOutlined,
@@ -34,6 +36,7 @@ import {
   DownOutlined,
   ScheduleOutlined,
   ExclamationCircleOutlined,
+  BankOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
@@ -122,6 +125,8 @@ export function RunPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [statutoryLoading, setStatutoryLoading] = useState(false);
   const [downloadingBankFile, setDownloadingBankFile] = useState(false);
+  const [bankDrawerOpen, setBankDrawerOpen] = useState(false);
+  const [bankFilesMade, setBankFilesMade] = useState(0);
   // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
   const [loadError, setLoadError] = useState(null);
 
@@ -540,6 +545,11 @@ export function RunPage() {
                 Download Bank File
               </Button>
             )}
+            {canDownloadBankFile && (
+              <Button icon={<BankOutlined />} onClick={() => setBankDrawerOpen(true)} data-testid="open-bank-file-drawer">
+                Bank file…
+              </Button>
+            )}
 
             <Popconfirm
               title="Cancel this pay run?"
@@ -753,7 +763,18 @@ export function RunPage() {
         )}
       </Card>
 
+      {canDownloadBankFile && <BankFileHistory payrunId={id} refreshKey={bankFilesMade} />}
+
       <RunEmployees payrunId={id} />
+
+      {canDownloadBankFile && (
+        <BankFileDrawer
+          open={bankDrawerOpen}
+          payrunId={id}
+          onClose={() => setBankDrawerOpen(false)}
+          onGenerated={() => setBankFilesMade((n) => n + 1)}
+        />
+      )}
     </div>
   );
 }

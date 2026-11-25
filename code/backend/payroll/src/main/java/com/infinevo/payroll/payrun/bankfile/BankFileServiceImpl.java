@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -77,18 +78,16 @@ public class BankFileServiceImpl implements BankFileService {
 
     @Override
     public List<BankFileRow> getRows(UUID payrunId) {
-        return compute(payrunId).rows();
+        return run(payrunId, null).rows();
     }
 
-    /** What one pass over the run produces: the file rows and who was left out, with the run's own net pay. */
-    private record Computed(
-            PayRun payRun, List<BankFileRow> rows, List<String> omittedEmployeeNumbers, BigDecimal runNetPay) {}
-
     /**
-     * Loads the run once and applies the omission rules (spec section 3.2). {@code generate} and {@code getRows}
-     * both read this, so the run, its employee rows and the employees are each queried once (merge review 2026-11-25).
+     * Loads the run once and applies the omission rules (spec section 3.2). {@code generate}, {@code getRows} and
+     * the template exports ({@code W-88.2}) all read this, so the run, its employee rows and the employees are
+     * each queried once.
      */
-    private Computed compute(UUID payrunId) {
+    @Override
+    public BankFileRun run(UUID payrunId, Set<UUID> selection) {
         Objects.requireNonNull(payrunId, "payrunId must not be null");
         UUID tenantId = TenantContext.require();
 
@@ -99,14 +98,31 @@ public class BankFileServiceImpl implements BankFileService {
             throw new BankFileInvalidStatusException(payRun.getStatus());
         }
 
-        List<EmployeePayRun> includedPayRuns = employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+        List<EmployeePayRun> runRows = employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
                 tenantId, payrunId, InclusionStatus.INCLUDED);
-        BigDecimal runNetPay = includedPayRuns.stream()
-                .map(EmployeePayRun::getNetPay)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal runNetPay = sumNetPay(runRows);
+
+        // W-88.2: a selection narrows the run; it never adds anyone. An id outside the run is refused.
+        List<EmployeePayRun> includedPayRuns = runRows;
+        if (selection != null && !selection.isEmpty()) {
+            Set<UUID> inRun =
+                    runRows.stream().map(EmployeePayRun::getEmployeeId).collect(Collectors.toSet());
+            List<String> strangers = selection.stream()
+                    .filter(id -> !inRun.contains(id))
+                    .map(UUID::toString)
+                    .sorted()
+                    .toList();
+            if (!strangers.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "These employees are not included in this pay run: " + String.join(", ", strangers));
+            }
+            includedPayRuns = runRows.stream()
+                    .filter(epr -> selection.contains(epr.getEmployeeId()))
+                    .toList();
+        }
+        BigDecimal selectedNetPay = sumNetPay(includedPayRuns);
         if (includedPayRuns.isEmpty()) {
-            return new Computed(payRun, List.of(), List.of(), runNetPay);
+            return new BankFileRun(payRun, List.of(), Map.of(), List.of(), runNetPay, selectedNetPay);
         }
 
         Set<UUID> employeeIds =
@@ -120,7 +136,7 @@ public class BankFileServiceImpl implements BankFileService {
 
         String narration = "Salary " + payRun.getPeriod();
         List<BankFileRow> rows = new ArrayList<>();
-        List<String> omittedNumbers = new ArrayList<>();
+        List<BankFileOmission> omissions = new ArrayList<>();
         List<String> omittedWithReason = new ArrayList<>();
         BigDecimal omittedNetPay = BigDecimal.ZERO;
 
@@ -146,7 +162,7 @@ public class BankFileServiceImpl implements BankFileService {
                 reason = "zero or negative net pay: " + netPay;
             }
             if (reason != null) {
-                omittedNumbers.add(employeeNumber);
+                omissions.add(new BankFileOmission(employeeNumber, reason));
                 omittedWithReason.add(employeeNumber + " (" + reason + ")");
                 if (netPay != null) {
                     omittedNetPay = omittedNetPay.add(netPay);
@@ -158,9 +174,14 @@ public class BankFileServiceImpl implements BankFileService {
                     employeeId,
                     employeeNumber,
                     formatEmployeeName(emp),
-                    bank.getAccountHolderName() != null ? bank.getAccountHolderName() : "",
+                    // W-88.2: a blank holder name is filled with the employee's name, and IFSC is upper-cased, so
+                    // the one-click file and the built-in template are the same file.
+                    bank.getAccountHolderName() != null
+                                    && !bank.getAccountHolderName().isBlank()
+                            ? bank.getAccountHolderName()
+                            : formatEmployeeName(emp),
                     bank.getBankAccountNumber().trim(),
-                    bank.getIfscCode().trim(),
+                    bank.getIfscCode().trim().toUpperCase(Locale.ROOT),
                     bank.getBankName() != null ? bank.getBankName() : "",
                     bank.getBankAccountType() != null
                             ? bank.getBankAccountType().name()
@@ -182,13 +203,21 @@ public class BankFileServiceImpl implements BankFileService {
 
         rows.sort(
                 Comparator.comparing(BankFileRow::employeeNumber, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
-        omittedNumbers.sort(Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
-        return new Computed(payRun, List.copyOf(rows), List.copyOf(omittedNumbers), runNetPay);
+        omissions.sort(Comparator.comparing(BankFileOmission::employeeNumber, String.CASE_INSENSITIVE_ORDER));
+        return new BankFileRun(
+                payRun, List.copyOf(rows), employeeMap, List.copyOf(omissions), runNetPay, selectedNetPay);
+    }
+
+    private static BigDecimal sumNetPay(List<EmployeePayRun> rows) {
+        return rows.stream()
+                .map(EmployeePayRun::getNetPay)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Override
     public BankFileResult generate(UUID payrunId) {
-        Computed computed = compute(payrunId);
+        BankFileRun computed = run(payrunId, null);
         List<BankFileRow> rows = computed.rows();
         BigDecimal fileTotal = rows.stream().map(BankFileRow::netPay).reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -219,7 +248,10 @@ public class BankFileServiceImpl implements BankFileService {
 
         String filename = "bank_salary_file_" + computed.payRun().getPeriod() + ".csv";
         int exportedEmployees = rows.size();
-        int omittedEmployees = computed.omittedEmployeeNumbers().size();
+        List<String> omittedEmployeeNumbers = computed.omissions().stream()
+                .map(BankFileOmission::employeeNumber)
+                .toList();
+        int omittedEmployees = omittedEmployeeNumbers.size();
         return new BankFileResult(
                 out.toByteArray(),
                 filename,
@@ -228,10 +260,10 @@ public class BankFileServiceImpl implements BankFileService {
                 omittedEmployees,
                 fileTotal,
                 computed.runNetPay(),
-                computed.omittedEmployeeNumbers());
+                omittedEmployeeNumbers);
     }
 
-    private static String formatEmployeeName(Employee emp) {
+    static String formatEmployeeName(Employee emp) {
         if (emp == null) {
             return "";
         }

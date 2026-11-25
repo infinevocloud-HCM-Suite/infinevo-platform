@@ -1,6 +1,7 @@
 package com.infinevo.payroll.payrun.bankfile;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -28,4 +29,13 @@ public interface BankFileService {
      * @throws com.infinevo.payroll.payrun.PayRunNotFoundException if pay run not found
      */
     BankFileResult generate(UUID payrunId);
+
+    /**
+     * One pass over an APPROVED or PAID run with W-88's omission rules (W-88.2): the file rows sorted by employee
+     * number, the employees they name, who was left out and why, and the net pay of the run and of the selection.
+     *
+     * @param selection the employees to consider, or {@code null} / empty for everyone included in the run; an id
+     *     that is not included in the run is an {@link IllegalArgumentException}
+     */
+    BankFileRun run(UUID payrunId, Set<UUID> selection);
 }

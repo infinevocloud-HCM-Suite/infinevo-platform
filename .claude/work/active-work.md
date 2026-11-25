@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-25 — W-88.2 bank file templates on `main`
+
+| Ticket | What | Where |
+|---|---|---|
+| `W-88.2` | Payroll › Settings › Bank files: templates of named columns (a catalogue field, fixed text or serial), date/amount formats, CSV or Excel, header switch; built-in "Generic bulk NEFT" (W-88's layout) can be copied. Pay run page: **Bank file…** drawer — template, everyone or ticked employees, preview with who is left out and why, make the file; a **Bank files** card lists every file made and downloads it again | `payroll/payrun/bankfile/` (`BankFileTemplate*`, `BankFileExport*`, `BankFileValues`, `BankFileField`), `V224__bank_file_templates.sql`, `settings/BankFileTemplates.jsx`, `settings/BankFileTemplateEditor.jsx`, `payrun/BankFileDrawer.jsx`, `payrun/BankFileHistory.jsx` |
+
+- Built by Claude to the founder's 2026-11-25 design. W-88's omission rules are shared (`BankFileService.run`), so the one-click file and the templates agree on who is paid.
+- Files are tenant `EXPORT` documents; a storage failure fails the request, so every file the bank gets is in the history.
+- **Left:** fixed-width text layouts; PAN and custom fields are not in the catalogue; department filter in the picker is a search box.
+
 ## 2026-11-25 — W-114.7 AI helper Payroll tools on `main`
 
 - Four read-only tools on the caller's own data: paid payslips list, one payslip by month, tax declaration, tax summary. No employee or run id taken; the login must be the context's employee. `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/`.

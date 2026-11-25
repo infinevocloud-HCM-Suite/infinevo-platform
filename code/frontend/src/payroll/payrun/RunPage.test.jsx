@@ -16,6 +16,17 @@ vi.mock('@shared/ui/msgHelper.js', () => ({
   errorMsg: vi.fn(),
 }));
 
+vi.mock('./bankFileService.js', () => ({
+  bankFileService: {
+    templates: vi.fn().mockResolvedValue([]),
+    history: vi.fn().mockResolvedValue([]),
+    preview: vi.fn(),
+    generate: vi.fn(),
+    download: vi.fn(),
+  },
+  saveBlob: vi.fn(),
+}));
+
 vi.mock('./payrunService.js', () => ({
   payrunService: {
     get: vi.fn(),

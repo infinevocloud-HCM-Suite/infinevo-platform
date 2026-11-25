@@ -23,8 +23,10 @@ import com.infinevo.payroll.payrun.PayRunStatus;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -391,6 +393,80 @@ class BankFileServiceTest {
         when(run.getStatus()).thenReturn(status);
         when(run.getPeriod()).thenReturn(java.time.YearMonth.parse(period));
         return run;
+    }
+
+    /** Two included employees, Asha with a blank holder name and a lower-case IFSC; the run's id. */
+    private UUID twoEmployeeRun(UUID asha, UUID ravi) {
+        UUID payrunId = UUID.randomUUID();
+        PayRun payRun = mockPayRun(payrunId, PayRunStatus.APPROVED, "2026-11");
+        Employee e1 = mockEmployee(asha, "E-101", "Asha", "Rao");
+        Employee e2 = mockEmployee(ravi, "E-102", "Ravi", "Menon");
+        EmployeeBank b1 = mockBank(
+                asha, PaymentMode.BANK_TRANSFER, " ", "000123", "hdfc0001234", "HDFC", BankAccountType.SAVINGS);
+        EmployeeBank b2 = mockBank(
+                ravi, PaymentMode.BANK_TRANSFER, "R MENON", "998877", "ICIC0000456", "ICICI", BankAccountType.SALARY);
+        EmployeePayRun r1 = mockEmployeePayRun(asha, new BigDecimal("65000.5000"));
+        EmployeePayRun r2 = mockEmployeePayRun(ravi, new BigDecimal("1234.4900"));
+        when(payRunRepository.findByIdAndTenantId(payrunId, TENANT_ID)).thenReturn(Optional.of(payRun));
+        when(employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                        TENANT_ID, payrunId, InclusionStatus.INCLUDED))
+                .thenReturn(List.of(r1, r2));
+        when(employeeRepository.findByTenantIdAndIdIn(eq(TENANT_ID), any())).thenReturn(List.of(e1, e2));
+        when(employeeBankRepository.findByTenantIdAndEmployeeIdIn(eq(TENANT_ID), any()))
+                .thenReturn(List.of(b1, b2));
+        return payrunId;
+    }
+
+    @Test
+    @DisplayName("W-88.2: a selection narrows the run, never adds; an id outside the run is refused")
+    void run_selectionNarrowsAndRefusesStrangers() {
+        UUID asha = UUID.randomUUID();
+        UUID ravi = UUID.randomUUID();
+        UUID payrunId = twoEmployeeRun(asha, ravi);
+
+        BankFileRun narrowed = service.run(payrunId, Set.of(ravi));
+        assertThat(narrowed.rows()).extracting(BankFileRow::employeeNumber).containsExactly("E-102");
+        assertThat(narrowed.selectedNetPay()).isEqualByComparingTo("1234.49");
+        assertThat(narrowed.runNetPay()).isEqualByComparingTo("66234.99");
+
+        assertThat(service.run(payrunId, null).rows()).hasSize(2);
+        assertThat(service.run(payrunId, Set.of()).rows()).hasSize(2);
+
+        UUID stranger = UUID.randomUUID();
+        assertThatThrownBy(() -> service.run(payrunId, Set.of(ravi, stranger)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(stranger.toString());
+    }
+
+    @Test
+    @DisplayName("W-88.2: a blank holder name becomes the employee's name and IFSC is upper-cased")
+    void run_normalisesHolderAndIfsc() {
+        UUID asha = UUID.randomUUID();
+        UUID payrunId = twoEmployeeRun(asha, UUID.randomUUID());
+        BankFileRow row = service.run(payrunId, null).rows().get(0);
+        assertThat(row.accountHolderName()).isEqualTo("Asha Rao");
+        assertThat(row.ifscCode()).isEqualTo("HDFC0001234");
+    }
+
+    @Test
+    @DisplayName("W-88.2: the built-in template makes exactly W-88's one-click file")
+    void builtInTemplate_matchesOneClickFile() {
+        UUID payrunId = twoEmployeeRun(UUID.randomUUID(), UUID.randomUUID());
+        String csv = new String(service.generate(payrunId).content(), StandardCharsets.UTF_8);
+        String[] oneClick = csv.substring(1).split("\r\n");
+
+        BankFileTemplateResponse builtIn = BankFileTemplateServiceImpl.BUILT_IN;
+        assertThat(String.join(
+                        ",",
+                        builtIn.columns().stream().map(BankFileColumn::heading).toList()))
+                .isEqualTo(oneClick[0]);
+        List<List<String>> lines =
+                BankFileExportServiceImpl.lines(builtIn, service.run(payrunId, null), LocalDate.of(2026, 12, 1));
+        assertThat(lines).hasSize(oneClick.length - 1);
+        for (int i = 0; i < lines.size(); i++) {
+            assertThat(String.join(",", lines.get(i))).isEqualTo(oneClick[i + 1]);
+        }
+        assertThat(oneClick[1]).endsWith(",Salary 2026-11").contains(",Asha Rao,Asha Rao,000123,HDFC0001234,");
     }
 
     private Employee mockEmployee(UUID id, String empNumber, String firstName, String lastName) {

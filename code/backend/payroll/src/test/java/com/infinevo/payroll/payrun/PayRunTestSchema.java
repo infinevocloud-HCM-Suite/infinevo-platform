@@ -102,6 +102,10 @@ public final class PayRunTestSchema {
                 PayrollTestSchema.executeResource(
                         conn, "db/migration/payroll/V223__tds_suggestion_and_reopen_month.sql");
             }
+            // W-88.2: bank file templates and the files made from them; bank_file_export references payroll.payrun.
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "bank_file_template")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V224__bank_file_templates.sql");
+            }
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DROP TABLE payroll.tax_deductor CASCADE");
@@ -130,6 +134,13 @@ public final class PayRunTestSchema {
      */
     public static void clean() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
+            // W-88.2: bank file exports reference payroll.payrun, so they go before the runs do.
+            if (PayrollTestSchema.tableExists(conn, "payroll", "bank_file_export")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.bank_file_export");
+                    st.execute("DELETE FROM payroll.bank_file_template");
+                }
+            }
             // W-73.6: references core.employee ON DELETE RESTRICT, so it goes before the employees do.
             if (PayrollTestSchema.tableExists(conn, "payroll", "scheduled_earning")) {
                 try (Statement st = conn.createStatement()) {

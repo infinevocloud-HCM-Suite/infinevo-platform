@@ -12,6 +12,7 @@ import {
   FileTextOutlined,
   AuditOutlined,
   CompassOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -56,6 +57,11 @@ export const SETTINGS_MENU_ITEMS = [
     key: '/payroll/settings/form-16',
     icon: <FileTextOutlined />,
     label: 'Form 16',
+  },
+  {
+    key: '/payroll/settings/bank-files',
+    icon: <WalletOutlined />,
+    label: 'Bank files',
   },
   {
     key: '/payroll/settings/guided-setup',

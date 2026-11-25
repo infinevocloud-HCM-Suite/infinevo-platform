@@ -43,6 +43,9 @@ const FbpDeclarationTab = lazy(() =>
 const GuidedStatutorySetup = lazy(() =>
   import('./settings/GuidedStatutorySetup.jsx').then((m) => ({ default: m.GuidedStatutorySetup }))
 );
+const BankFileTemplates = lazy(() =>
+  import('./settings/BankFileTemplates.jsx').then((m) => ({ default: m.BankFileTemplates }))
+);
 
 const TaxWindowScreen = lazy(() =>
   import('./tax/TaxWindowScreen.jsx').then((m) => ({ default: m.TaxWindowScreen }))
@@ -120,6 +123,10 @@ export const routes = [
   {
     path: '/payroll/settings/tds',
     element: React.createElement(SettingsLayout, null, React.createElement(TdsScreen)),
+  },
+  {
+    path: '/payroll/settings/bank-files',
+    element: React.createElement(SettingsLayout, null, React.createElement(BankFileTemplates)),
   },
   {
     path: '/payroll/settings/guided-setup',
