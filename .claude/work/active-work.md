@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-25 — W-114.10 AI helper 30-day chat deletion on `main`
+
+- A nightly worker job (`0 30 2 * * *`, ShedLock `ai_chat_retention_sweep`) deletes AI chat data older than 30 days: messages by their own age, action intents by age whatever their status, sessions by last activity. `code/backend/worker/src/main/java/com/infinevo/worker/retention/AiChatRetention*.java`.
+- Runs as `retention_user` with each customer bound, in batches of 500, same pattern as the audit sweep; every run is logged as a retention run. `WORKER_AI_RETENTION_DRY_RUN=true` counts without deleting.
+- `V230` grants `retention_user` SELECT and DELETE (no UPDATE) on the three chat tables and adds two `(tenant_id, created_at)` indexes. No new table.
+- Deleting an old message under a recent intent clears the intent's `message_id` (the existing `ON DELETE SET NULL`); an IT proves it as `retention_user`.
+- Built by Claude; one independent read (one Medium fixed by that IT; one Low accepted: the sweep does not restore a tenant bound before it ran, as the job never has one).
+- **Next:** `W-114.11`–`.16` and `.22`, one after another (they share the chat code).
 ## 2026-11-25 — W-88.2 bank file templates on `main` (`237fbec2`)
 
 | Ticket | What | Where |
