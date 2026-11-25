@@ -282,6 +282,9 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "form16_part_a")) {
                 executeResource(conn, "db/migration/payroll/V109__form16_part_a.sql");
             }
+            if (!tableExists(conn, "payroll", "gratuity_settlement")) {
+                executeResource(conn, "db/migration/payroll/V197__gratuity.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -331,6 +334,9 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "payroll", "tax_deductor")) {
                 st.execute("DELETE FROM payroll.tax_deductor");
+            }
+            if (tableExists(conn, "payroll", "gratuity_settlement")) {
+                st.execute("DELETE FROM payroll.gratuity_settlement");
             }
             if (tableExists(conn, "core", "approval_step")) {
                 st.execute("DELETE FROM core.approval_step");
