@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -171,6 +172,27 @@ class EmployeeDetailRlsIT extends AbstractIntegrationTest {
                 .isInstanceOf(EmployeeDetailService.NotFoundException.class);
         assertThatThrownBy(() -> bankService.get(employeeOfB))
                 .isInstanceOf(EmployeeDetailService.NotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("D-154: the system date-of-birth read needs no core.employee.read and still sees only its tenant")
+    void systemDateOfBirthReadStaysInTheTenant() {
+        TenantContext.set(TENANT_B);
+        personalService.put(
+                employeeOfB, new EmployeePersonalRequest(LocalDate.of(1961, 3, 9), null, null, null, null, null, null));
+        TenantContext.set(TENANT_A);
+        personalService.put(
+                employeeOfA,
+                new EmployeePersonalRequest(LocalDate.of(1990, 5, 17), null, null, null, null, null, null));
+        BDDMockito.given(permissionService.holds("core.employee.read")).willReturn(false);
+
+        assertThat(personalService.dateOfBirth(employeeOfA)).contains(LocalDate.of(1990, 5, 17));
+        assertThat(personalService.dateOfBirth(employeeOfB))
+                .as("tenant B's date of birth must not be readable from tenant A")
+                .isEmpty();
+        assertThatThrownBy(() -> personalService.get(employeeOfA))
+                .as("the user-facing read keeps its check")
+                .isInstanceOf(com.infinevo.shared.authz.PermissionDeniedException.class);
     }
 
     @Test

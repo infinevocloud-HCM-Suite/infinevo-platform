@@ -43,6 +43,9 @@ const FbpDeclarationTab = lazy(() =>
 const GuidedStatutorySetup = lazy(() =>
   import('./settings/GuidedStatutorySetup.jsx').then((m) => ({ default: m.GuidedStatutorySetup }))
 );
+const BankFileTemplates = lazy(() =>
+  import('./settings/BankFileTemplates.jsx').then((m) => ({ default: m.BankFileTemplates }))
+);
 
 const TaxWindowScreen = lazy(() =>
   import('./tax/TaxWindowScreen.jsx').then((m) => ({ default: m.TaxWindowScreen }))
@@ -55,6 +58,12 @@ const DeclarationPage = lazy(() =>
 );
 const Form16Page = lazy(() =>
   import('./form16/Form16Page.jsx').then((m) => ({ default: m.Form16Page }))
+);
+const ProofQueuePage = lazy(() =>
+  import('./proof/ProofQueuePage.jsx').then((m) => ({ default: m.ProofQueuePage }))
+);
+const TaxRecalcFailuresPage = lazy(() =>
+  import('./tax/TaxRecalcFailuresPage.jsx').then((m) => ({ default: m.TaxRecalcFailuresPage }))
 );
 const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
@@ -116,6 +125,10 @@ export const routes = [
     element: React.createElement(SettingsLayout, null, React.createElement(TdsScreen)),
   },
   {
+    path: '/payroll/settings/bank-files',
+    element: React.createElement(SettingsLayout, null, React.createElement(BankFileTemplates)),
+  },
+  {
     path: '/payroll/settings/guided-setup',
     element: React.createElement(SettingsLayout, null, React.createElement(GuidedStatutorySetup)),
   },
@@ -140,6 +153,16 @@ export const routes = [
   { path: '/payroll/claims', element: React.createElement(ClaimList) },
   { path: '/payroll/claims/:id', element: React.createElement(ClaimDetail) },
   { path: '/payroll/deductions', element: React.createElement(DeductionList) },
+  // D-152: the verification queue and chase list, the payroll.proofs menu item (W-47.3c).
+  { path: '/payroll/proof-of-investment', element: React.createElement(ProofQueuePage) },
+  // A reviewer opens one proof from the approvals inbox (itemRoutes.js), so it mounts with /approvals too.
+  {
+    path: '/payroll/proof-of-investment/:proofId',
+    mountWith: '/approvals',
+    element: React.createElement(ProofQueuePage),
+  },
+  // D-151: the menu item payroll.tax_recalc_failures names this path, so the feed mounts it.
+  { path: '/payroll/tax/recalc-failures', element: React.createElement(TaxRecalcFailuresPage) },
   {
     path: '/payroll/tax/form-16',
     element: React.createElement(Form16Page),

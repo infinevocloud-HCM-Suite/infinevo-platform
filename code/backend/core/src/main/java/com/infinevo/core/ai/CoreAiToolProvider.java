@@ -1,13 +1,23 @@
 package com.infinevo.core.ai;
 
+import static com.infinevo.core.ai.AiToolInputs.constantNames;
+import static com.infinevo.core.ai.AiToolInputs.date;
+import static com.infinevo.core.ai.AiToolInputs.dateProperty;
+import static com.infinevo.core.ai.AiToolInputs.enumProperty;
+import static com.infinevo.core.ai.AiToolInputs.enumValue;
+import static com.infinevo.core.ai.AiToolInputs.rejectUnknown;
+import static com.infinevo.core.ai.AiToolInputs.requireOrder;
+import static com.infinevo.core.ai.AiToolInputs.schema;
+import static com.infinevo.core.ai.AiToolInputs.text;
+
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.infinevo.core.ai.AiToolInputs.BadInput;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.holiday.HolidayQueryService;
@@ -23,16 +33,12 @@ import com.infinevo.core.tenant.TenantClock;
 import com.infinevo.core.wfh.WfhBalanceService;
 import com.infinevo.core.wfh.WfhRequestService;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.BiFunction;
-import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -61,9 +67,6 @@ public class CoreAiToolProvider implements AiToolProvider {
 
     /** At most this many leave requests are returned, as {@code GET /api/v1/me/leave-requests} pages by default. */
     static final int MAX_LEAVE_REQUESTS = 25;
-
-    private static final Pattern UUID_TEXT =
-            Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
 
@@ -403,51 +406,9 @@ public class CoreAiToolProvider implements AiToolProvider {
         }
     }
 
-    /**
-     * A copy of the node with every database id removed (rule 1): fields named {@code id} or {@code tenantId}, fields
-     * ending {@code Id} or {@code Ids}, and any other field or array element whose text is a UUID.
-     */
+    /** The answer without database ids (rule 1), by {@link AiToolResults#withoutIds}. */
     static JsonNode withoutIds(JsonNode node) {
-        if (node == null) {
-            return NODES.nullNode();
-        }
-        if (node.isObject()) {
-            ObjectNode out = NODES.objectNode();
-            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
-            while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> field = fields.next();
-                if (isIdName(field.getKey()) || isUuid(field.getValue())) {
-                    continue;
-                }
-                out.set(field.getKey(), withoutIds(field.getValue()));
-            }
-            return out;
-        }
-        if (node.isArray()) {
-            ArrayNode out = NODES.arrayNode();
-            for (JsonNode element : node) {
-                if (!isUuid(element)) {
-                    out.add(withoutIds(element));
-                }
-            }
-            return out;
-        }
-        return node.deepCopy();
-    }
-
-    private static boolean isIdName(String key) {
-        return key.equals("id")
-                || key.equalsIgnoreCase("tenantId")
-                || key.endsWith("Id")
-                || key.endsWith("Ids")
-                || key.endsWith("_id")
-                || key.endsWith("_ids");
-    }
-
-    private static boolean isUuid(JsonNode value) {
-        return value != null
-                && value.isTextual()
-                && UUID_TEXT.matcher(value.asText().trim()).matches();
+        return AiToolResults.withoutIds(node);
     }
 
     // ---- input ----
@@ -466,99 +427,5 @@ public class CoreAiToolProvider implements AiToolProvider {
                 .filter(me -> ctx.employeeId().equals(me.id()))
                 .map(EmployeeResponse::workLocationId)
                 .orElse(null);
-    }
-
-    private static void rejectUnknown(JsonNode args, JsonNode properties) {
-        Iterator<String> names = args.fieldNames();
-        while (names.hasNext()) {
-            String name = names.next();
-            if (!properties.has(name)) {
-                throw new BadInput("unknown input '" + name + "'; this tool takes "
-                        + (properties.isEmpty()
-                                ? "no input"
-                                : String.join(", ", (Iterable<String>) properties::fieldNames)));
-            }
-        }
-    }
-
-    private static String text(JsonNode args, String name) {
-        JsonNode value = args.get(name);
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        if (!value.isTextual() || value.asText().isBlank()) {
-            throw new BadInput(name + " must be text");
-        }
-        return value.asText();
-    }
-
-    private static LocalDate date(JsonNode args, String name) {
-        String value = text(args, name);
-        if (value == null) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(value.trim());
-        } catch (DateTimeParseException e) {
-            throw new BadInput(name + " must be a date as YYYY-MM-DD");
-        }
-    }
-
-    private static <E extends Enum<E>> E enumValue(JsonNode args, String name, Class<E> type) {
-        String value = text(args, name);
-        if (value == null) {
-            return null;
-        }
-        try {
-            return Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new BadInput(name + " must be one of " + constantNames(type.getEnumConstants()));
-        }
-    }
-
-    private static void requireOrder(LocalDate from, LocalDate to) {
-        if (from != null && to != null && to.isBefore(from)) {
-            throw new BadInput("to must be on or after from");
-        }
-    }
-
-    // ---- schema ----
-
-    private static ObjectNode schema(Map<String, ObjectNode> properties, String... required) {
-        ObjectNode schema = NODES.objectNode().put("type", "object");
-        ObjectNode props = schema.putObject("properties");
-        properties.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(e -> props.set(e.getKey(), e.getValue()));
-        if (required.length > 0) {
-            ArrayNode req = schema.putArray("required");
-            Arrays.stream(required).forEach(req::add);
-        }
-        schema.put("additionalProperties", false);
-        return schema;
-    }
-
-    private static ObjectNode dateProperty(String description) {
-        return NODES.objectNode().put("type", "string").put("format", "date").put("description", description);
-    }
-
-    private static ObjectNode enumProperty(String description, List<String> values) {
-        ObjectNode property = NODES.objectNode().put("type", "string").put("description", description);
-        ArrayNode allowed = property.putArray("enum");
-        values.forEach(allowed::add);
-        return property;
-    }
-
-    private static List<String> constantNames(Enum<?>[] values) {
-        return Arrays.stream(values).map(Enum::name).toList();
-    }
-
-    /** The model's input cannot be used; the message goes back to it as the tool's error. */
-    private static final class BadInput extends RuntimeException {
-        private static final long serialVersionUID = 1L;
-
-        BadInput(String message) {
-            super(message);
-        }
     }
 }

@@ -6,6 +6,7 @@ vi.mock('@shared/api/client.js', () => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -77,5 +78,11 @@ describe('employeeInvitationService', () => {
     const res = await employeeInvitationService.revoke('emp-inv-5');
     expect(apiClient.post).toHaveBeenCalledWith('/v1/employee-invitations/emp-inv-5/revoke');
     expect(res).toBeNull();
+  });
+
+  it('D-22: delete calls DELETE /v1/employee-invitations/:id', async () => {
+    apiClient.delete.mockResolvedValue({ status: 204 });
+    await employeeInvitationService.delete('inv-9');
+    expect(apiClient.delete).toHaveBeenCalledWith('/v1/employee-invitations/inv-9');
   });
 });

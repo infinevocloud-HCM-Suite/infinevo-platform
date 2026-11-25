@@ -16,6 +16,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -76,6 +77,14 @@ public class UserInvitationController {
     public ResponseEntity<Void> revoke(@PathVariable("id") UUID id) {
         invitationService.revokeUserInvitation(id, currentActorUserId());
         return ResponseEntity.ok().build();
+    }
+
+    /** D-22: {@code 204}; {@code 409} for a pending or accepted invitation; {@code 400} when unknown. */
+    @DeleteMapping("/{id}")
+    @RequiresAction("core.user.manage")
+    public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {
+        invitationService.deleteUserInvitation(id, currentActorUserId());
+        return ResponseEntity.noContent().build();
     }
 
     private static UUID currentActorUserId() {

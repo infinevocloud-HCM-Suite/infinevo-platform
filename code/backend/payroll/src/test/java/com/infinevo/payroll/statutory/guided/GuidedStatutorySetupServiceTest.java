@@ -279,7 +279,7 @@ class GuidedStatutorySetupServiceTest {
     }
 
     @Test
-    @DisplayName("applySetup preserves existing registration dates while applying statutory rates when re-run")
+    @DisplayName("applySetup keeps the company's own rates, ceilings and registration dates when re-run")
     void applySetup_preservesExistingSettingsAndRegistrationDates() {
         EpfSetting existingEpf = new EpfSetting(TENANT_ID);
         existingEpf.setEnabled(true);
@@ -320,19 +320,20 @@ class GuidedStatutorySetupServiceTest {
 
         ArgumentCaptor<EpfSettingRequest> epfCaptor = ArgumentCaptor.forClass(EpfSettingRequest.class);
         verify(statutorySettingsService).saveEpf(epfCaptor.capture());
-        // Verify registration date preserved and standard statutory rates applied
+        // A re-run must not reset rates the company set itself
         assertThat(epfCaptor.getValue().registrationDate()).isEqualTo(LocalDate.of(2020, 1, 15));
-        assertThat(epfCaptor.getValue().employeeRate()).isEqualByComparingTo("12.0000");
+        assertThat(epfCaptor.getValue().employeeRate()).isEqualByComparingTo("10.0000");
+        assertThat(epfCaptor.getValue().employerRate()).isEqualByComparingTo("10.0000");
         assertThat(epfCaptor.getValue().epsSeniorAge()).isEqualTo(60);
-        assertThat(epfCaptor.getValue().wageCeiling()).isEqualByComparingTo("15000.0000");
+        assertThat(epfCaptor.getValue().wageCeiling()).isEqualByComparingTo("20000.0000");
 
         ArgumentCaptor<EsiSettingRequest> esiCaptor = ArgumentCaptor.forClass(EsiSettingRequest.class);
         verify(statutorySettingsService).saveEsi(esiCaptor.capture());
-        // Verify registration date preserved and standard statutory rates applied
+        // A re-run must not reset rates the company set itself
         assertThat(esiCaptor.getValue().registrationDate()).isEqualTo(LocalDate.of(2019, 5, 20));
-        assertThat(esiCaptor.getValue().employeeRate()).isEqualByComparingTo("0.7500");
-        assertThat(esiCaptor.getValue().employerRate()).isEqualByComparingTo("3.2500");
-        assertThat(esiCaptor.getValue().wageCeiling()).isEqualByComparingTo("21000.0000");
+        assertThat(esiCaptor.getValue().employeeRate()).isEqualByComparingTo("1.0000");
+        assertThat(esiCaptor.getValue().employerRate()).isEqualByComparingTo("4.0000");
+        assertThat(esiCaptor.getValue().wageCeiling()).isEqualByComparingTo("25000.0000");
     }
 
     @Test

@@ -14,7 +14,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,7 +48,16 @@ public class TaxRecalcFailureController {
     @RequiresAction("payroll.tax_declaration.read")
     public ApiResponse<List<TaxRecalcFailureResponse>> open(
             @RequestParam(name = "fy", required = false) String financialYear) {
-        return ApiResponse.ok("Open tax recalculation failures retrieved", failureService.open(financialYear));
+        List<TaxRecalcFailureResponse> open = failureService.open(financialYear);
+        // D-151: names ride in the reply, read only for the ids these rows carry (as the pay run's do, D-82).
+        Set<UUID> ids = open.stream().map(TaxRecalcFailureResponse::employeeId).collect(Collectors.toSet());
+        Map<UUID, String> read = ids.isEmpty() ? Map.of() : employeeService.displayNames(ids);
+        Map<UUID, String> names = read != null ? read : Map.of();
+        return ApiResponse.ok(
+                "Open tax recalculation failures retrieved",
+                open.stream()
+                        .map(f -> f.withEmployeeName(names.get(f.employeeId())))
+                        .toList());
     }
 
     @PostMapping("/{id}/retry")

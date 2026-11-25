@@ -1,6 +1,5 @@
 package com.infinevo.payroll.statutory.payrun;
 
-import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
@@ -358,10 +357,7 @@ public class StatutoryLineContributor implements PayLineContributor {
         }
         LocalDate dob;
         try {
-            dob = employeePersonalService
-                    .find(employeeId)
-                    .map(EmployeePersonalResponse::dateOfBirth)
-                    .orElse(null);
+            dob = employeePersonalService.dateOfBirth(employeeId).orElse(null);
         } catch (RuntimeException e) {
             return false;
         }

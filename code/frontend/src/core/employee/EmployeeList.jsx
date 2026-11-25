@@ -326,6 +326,18 @@ export function EmployeeList() {
       key: 'dateOfJoining',
       render: (date) => formatDate(date),
     },
+    // D-30: the Terminated view shows when each person left, beside when they joined.
+    ...(statusFilter === 'TERMINATED'
+      ? [
+          {
+            title: 'Last working day',
+            width: 130,
+            dataIndex: 'terminationDate',
+            key: 'terminationDate',
+            render: (date) => (date ? formatDate(date) : '—'),
+          },
+        ]
+      : []),
   ];
 
   const headerActions = (

@@ -184,7 +184,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
         byte[] bytes =
                 switch (format) {
                     case XLSX -> renderPtXlsx(rows, summaries);
-                    case CSV -> renderPtCsv(rows);
+                    case CSV -> renderPtCsv(rows, summaries);
                 };
 
         String stateSuffix = sanitizeState(state);
@@ -650,7 +650,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
         }
     }
 
-    private byte[] renderPtCsv(List<PtReturnRow> rows) {
+    private byte[] renderPtCsv(List<PtReturnRow> rows, List<PtStateSummary> summaries) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 Writer writer = new BufferedWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8))) {
             writer.write(BYTE_ORDER_MARK);
@@ -666,6 +666,21 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
                                 r.employeeName() != null ? r.employeeName() : "",
                                 formatMoney(r.grossSalary()),
                                 formatMoney(r.ptDeducted())));
+            }
+
+            // State summary (spec section 4B), after one blank line; left out when no employee is liable.
+            if (!summaries.isEmpty()) {
+                writer.write("\r\n");
+                writeCsvLine(writer, PT_SUMMARY_HEADERS);
+                for (PtStateSummary s : summaries) {
+                    writeCsvLine(
+                            writer,
+                            List.of(
+                                    s.stateCode() != null ? s.stateCode() : "",
+                                    s.ptrcNumber() != null ? s.ptrcNumber() : "",
+                                    String.valueOf(s.totalEmployeesLiable()),
+                                    formatMoney(s.totalPtDeducted())));
+                }
             }
             writer.flush();
             return baos.toByteArray();

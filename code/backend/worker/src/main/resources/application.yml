@@ -108,6 +108,14 @@ worker:
       url: ${RETENTION_DB_URL:${DB_URL}}
       username: ${RETENTION_DB_USERNAME:retention_user}
       password: ${RETENTION_DB_PASSWORD}
+  # W-114.10: AI helper chats older than `days` (minimum 1) are deleted nightly, as retention_user above.
+  # dry-run defaults to false, unlike the audit job: a chat is not a record anyone must keep, and a
+  # deployment that forgot a setting must delete. WORKER_AI_RETENTION_DRY_RUN=true stops deleting at once.
+  ai-retention:
+    cron: ${WORKER_AI_RETENTION_CRON:0 30 2 * * *}
+    days: ${WORKER_AI_RETENTION_DAYS:30}
+    dry-run: ${WORKER_AI_RETENTION_DRY_RUN:false}
+    batch-size: ${WORKER_AI_RETENTION_BATCH_SIZE:500}
   report:
     cron: ${WORKER_REPORT_CRON:0 */15 * * * *}
     datasource:

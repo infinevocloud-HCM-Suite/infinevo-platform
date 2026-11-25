@@ -88,4 +88,15 @@ describe('assistantService', () => {
     expect(retryAfterSeconds({ 'retry-after': 'soon' })).toBeNull();
     expect(retryAfterSeconds(undefined)).toBeNull();
   });
+
+  it('getAction, confirmAction and cancelAction call the action paths; confirm and cancel send no body', async () => {
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { intentId: 'i 1', status: 'PROPOSED' } });
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { intentId: 'i 1', status: 'CONFIRMED' } });
+    await expect(assistantService.getAction('i 1')).resolves.toEqual({ intentId: 'i 1', status: 'PROPOSED' });
+    expect(get).toHaveBeenCalledWith('/v1/ai/actions/i%201');
+
+    await expect(assistantService.confirmAction('i 1')).resolves.toEqual({ intentId: 'i 1', status: 'CONFIRMED' });
+    await assistantService.cancelAction('i 1');
+    expect(post.mock.calls).toEqual([['/v1/ai/actions/i%201/confirm'], ['/v1/ai/actions/i%201/cancel']]);
+  });
 });

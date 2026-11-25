@@ -77,6 +77,9 @@ The frozen Payroll backend has the right idea and the wrong plumbing. All citati
 
 ```
 [W-33 or payroll officer] --> EmployeeTdsService.record(employeeId, fy, TdsFigures)
+   --> D-151: active row source = OFFICER and figures source = DECLARATION (an automatic recalculation)
+          --> no supersede: the figures are kept on that row as its suggestion (suggested_* columns, V223)
+          --> 200 with the officer's row; the pay run keeps using the officer's annual_tax
    --> UPDATE the active row: superseded_at = now(), is_active = false
    --> INSERT payroll.employee_tds  is_active = true, effective_from_period = the request's, or the current period
    --> 200 with the new row
@@ -125,7 +128,16 @@ If `W-32.1` is not on `main` when this branch is cut, the developer adds the cla
 | PUT | `/api/v1/payroll/employees/{employeeId}/tds/{fy}` | `regime`, `annual_gross`, `annual_taxable_income`, `annual_tax`, `effective_from_period?` (`YYYY-MM`), `note?` | `200`, the new active row with `year_to_date` and `remaining` | `payroll.tax_declaration.verify` |
 | GET | `/api/v1/payroll/employees/{employeeId}/tds/{fy}` | — | the active row, `year_to_date`, `remaining`, or `404` | `payroll.tax_declaration.read` |
 | GET | `/api/v1/payroll/employees/{employeeId}/tds/{fy}/history` | — | every row, newest first | `payroll.tax_declaration.read` |
-| GET | `/api/v1/me/tds/{fy}` | — | own active row with `year_to_date`, or `404` | `payroll.tax_declaration.read_own` |
+| GET | `/api/v1/me/tds/{fy}` | — | own active row with `year_to_date`, or `404`; never the suggestion | `payroll.tax_declaration.read_own` |
+| POST | `/api/v1/payroll/employees/{employeeId}/tds/{fy}/suggestion/apply` | — | D-151: the suggestion becomes the active row (`source = DECLARATION`, effective from the open month), superseding the officer's; `404` when there is none | `payroll.tax_declaration.verify` |
+| DELETE | `/api/v1/payroll/employees/{employeeId}/tds/{fy}/suggestion` | — | D-151: the suggestion is cleared; the officer's figure stays | `payroll.tax_declaration.verify` |
+
+**An officer's figure sticks (D-151, founder 2026-11-24).** An automatic recalculation never replaces an
+active row an officer set. Its figures are stored on that row as `suggestion` (regime, gross, taxable
+income, annual tax, note, `suggested_at`), shown on the officer's TDS card and edit drawer; a later
+recalculation replaces the suggestion, never the figure. The officer applies it or clears it. An
+officer's own `PUT` still supersedes and starts with no suggestion. The officer `GET` carries
+`suggestion` (null when there is none); the employee's own view never does.
 
 No new action codes: `payroll.tax_declaration.verify`, `.read`, `.read_own` exist
 (`migration/.../reference/V020__action.sql:125-129`) and are granted in `V052__fbp_actions.sql:94-95`, `:123`.

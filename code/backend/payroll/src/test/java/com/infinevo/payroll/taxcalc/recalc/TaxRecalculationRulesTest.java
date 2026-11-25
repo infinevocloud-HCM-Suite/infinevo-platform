@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.taxcalc.TaxCalculationService;
@@ -354,6 +355,80 @@ class TaxRecalculationRulesTest {
         assertThat(response.trigger()).isEqualTo(TaxTrigger.OFFICER);
         assertThat(response.computedBy()).isEqualTo(officerId);
         assertThat(response.annualTax()).isEqualByComparingTo("52000");
+    }
+
+    @Test
+    @DisplayName("D-153: the stored working carries every amount as a number")
+    void storedWorkingCarriesNumbers() throws Exception {
+        EmployeeInvestmentDeclaration decl = new EmployeeInvestmentDeclaration();
+        decl.setId(declarationId);
+        decl.setTaxRegime("OLD");
+        given(declarationRepository.findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, employeeId, fy.label()))
+                .willReturn(Optional.of(decl));
+        given(taxCalculationService.compute(employeeId, fy, TaxRegime.OLD))
+                .willReturn(sampleComputation(TaxRegime.OLD));
+        given(taxComputationRepository.save(any(TaxComputationRecord.class))).willAnswer(inv -> inv.getArgument(0));
+
+        TaxComputationRecord record = service.recalculate(employeeId, fy.label(), TaxTrigger.OFFICER, officerId);
+
+        assertThat(record.getWorking()).doesNotContain("\"positive\"", "\"zero\"", "\"negative\"");
+        JsonNode working = objectMapper.readTree(record.getWorking());
+        assertThat(working.path("incomeFromSalary").isNumber()).isTrue();
+        assertThat(working.path("incomeFromSalary").decimalValue()).isEqualByComparingTo("1200000");
+        assertThat(working.path("grossTotalIncome").isNumber()).isTrue();
+        assertThat(working.path("grossTotalIncome").decimalValue()).isEqualByComparingTo("1200000");
+        assertThat(working.path("annualTax").decimalValue()).isEqualByComparingTo("62400");
+        assertThat(working.path("houseProperty").path("housePropertyIncome").isNumber())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("D-153: history returns a new working's amounts exactly and an old working without them, unharmed")
+    void historyReadsNewAndOldWorkings() throws Exception {
+        TaxComputationRecord fresh = historyRecord("{\"incomeFromSalary\":1200000.5000,\"rebate\":0.0000}");
+        TaxComputationRecord old =
+                historyRecord("{\"incomeFromSalary\":{\"zero\":false,\"positive\":true,\"negative\":false}}");
+        given(taxComputationRepository.findByTenantIdAndEmployeeIdAndFinancialYearOrderByComputedAtDesc(
+                        tenantId, employeeId, fy.label()))
+                .willReturn(List.of(fresh, old));
+
+        List<TaxComputationRecordResponse> history = service.history(employeeId, fy.label());
+
+        assertThat(history).hasSize(2);
+        String freshJson = objectMapper.writeValueAsString(history.get(0).working());
+        assertThat(freshJson).isEqualTo("{\"incomeFromSalary\":1200000.5000,\"rebate\":0.0000}");
+        JsonNode oldWorking = (JsonNode) history.get(1).working();
+        assertThat(oldWorking.path("incomeFromSalary").isObject()).isTrue();
+        assertThat(oldWorking.path("incomeFromSalary").path("positive").asBoolean())
+                .isTrue();
+    }
+
+    private TaxComputationRecord historyRecord(String working) {
+        return new TaxComputationRecord(
+                tenantId,
+                employeeId,
+                declarationId,
+                fy.label(),
+                "OLD",
+                TaxTrigger.OFFICER,
+                BigDecimal.valueOf(1200000),
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(50000),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(1150000),
+                BigDecimal.valueOf(50000),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(2000),
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(52000),
+                working,
+                Instant.now(),
+                officerId,
+                "system");
     }
 
     @Test

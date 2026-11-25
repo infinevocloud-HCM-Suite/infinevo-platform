@@ -92,6 +92,42 @@ describe('EmployeeList component', () => {
     employeeService.limit.mockRejectedValue({ code: 'NETWORK', message: 'offline', status: 0 });
   });
 
+  it('D-30: the Terminated view adds a Last working day column', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    employeeService.list.mockResolvedValue({
+      content: [
+        {
+          id: 'emp-9',
+          employeeNumber: 'E-109',
+          firstName: 'Ravi',
+          lastName: 'Menon',
+          status: 'TERMINATED',
+          dateOfJoining: '2024-01-15',
+          terminationDate: '2026-10-31',
+        },
+      ],
+      totalElements: 1,
+    });
+
+    renderWithStore(<EmployeeList />, { route: '/employees?status=TERMINATED' });
+
+    await waitFor(() => {
+      expect(screen.getByText('E-109')).toBeDefined();
+    });
+    expect(screen.getAllByText('Last working day').length).toBeGreaterThan(0);
+    expect(screen.getByText('31 Oct 2026')).toBeDefined();
+    expect(screen.getByText('15 Jan 2024')).toBeDefined();
+  });
+
+  it('D-30: other views carry no Last working day column', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    renderWithStore(<EmployeeList />);
+    await waitFor(() => {
+      expect(screen.getByText('E-101')).toBeDefined();
+    });
+    expect(screen.queryByText('Last working day')).toBeNull();
+  });
+
   it('renders table rows, sends search q, and handles row navigation', async () => {
     vi.spyOn(useCanModule, 'useCan').mockImplementation((action) => {
       if (action === 'core.employee.create') return true;

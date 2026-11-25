@@ -6,6 +6,8 @@ vi.mock('@shared/api/client.js', () => ({
   apiClient: {
     get: vi.fn(),
     put: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -40,5 +42,15 @@ describe('employeeTdsService (D-145)', () => {
 
     expect(apiClient.put).toHaveBeenCalledWith('/v1/payroll/employees/emp-1/tds/2026-2027', body);
     expect(res).toEqual({ id: 't3' });
+  });
+
+  it('D-151: applySuggestion posts and clearSuggestion deletes, each returning the active record', async () => {
+    apiClient.post.mockResolvedValueOnce({ data: { status: 200, data: { id: 't4', source: 'DECLARATION' } } });
+    expect(await employeeTdsService.applySuggestion('emp-1', '2026-2027')).toEqual({ id: 't4', source: 'DECLARATION' });
+    expect(apiClient.post).toHaveBeenCalledWith('/v1/payroll/employees/emp-1/tds/2026-2027/suggestion/apply');
+
+    apiClient.delete.mockResolvedValueOnce({ data: { status: 200, data: { id: 't3', suggestion: null } } });
+    expect(await employeeTdsService.clearSuggestion('emp-1', '2026-2027')).toEqual({ id: 't3', suggestion: null });
+    expect(apiClient.delete).toHaveBeenCalledWith('/v1/payroll/employees/emp-1/tds/2026-2027/suggestion');
   });
 });

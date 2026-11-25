@@ -28,6 +28,9 @@ public interface EmployeeInvitationRepository extends JpaRepository<EmployeeInvi
 
     Optional<EmployeeInvitation> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    /** The rows a resend linked to {@code supersededById} (D-22: unlinked before that row is deleted). */
+    List<EmployeeInvitation> findByTenantIdAndSupersededById(UUID tenantId, UUID supersededById);
+
     Optional<EmployeeInvitation> findByTokenHash(String tokenHash);
 
     /**

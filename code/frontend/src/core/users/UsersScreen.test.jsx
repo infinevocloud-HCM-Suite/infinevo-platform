@@ -12,10 +12,10 @@ vi.mock('./userService.js', () => ({
   userService: { list: vi.fn(), setRoles: vi.fn(), disable: vi.fn(), enable: vi.fn(), roles: vi.fn() },
 }));
 vi.mock('../invitation/userInvitationService.js', () => ({
-  userInvitationService: { list: vi.fn(), create: vi.fn(), resend: vi.fn(), revoke: vi.fn() },
+  userInvitationService: { list: vi.fn(), create: vi.fn(), resend: vi.fn(), revoke: vi.fn(), delete: vi.fn() },
 }));
 vi.mock('../invitation/employeeInvitationService.js', () => ({
-  employeeInvitationService: { list: vi.fn(), create: vi.fn(), resend: vi.fn(), revoke: vi.fn() },
+  employeeInvitationService: { list: vi.fn(), create: vi.fn(), resend: vi.fn(), revoke: vi.fn(), delete: vi.fn() },
 }));
 
 const ROLES = [

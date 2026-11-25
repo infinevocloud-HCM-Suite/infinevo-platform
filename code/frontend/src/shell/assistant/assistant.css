@@ -119,3 +119,51 @@
   white-space: nowrap;
   border: 0;
 }
+
+/*
+ * The confirm card (W-114.9). The title and every field are shown whole and wrap: nothing here may cut
+ * text (W-114.8 C2), so no ellipsis, no line clamp and no fixed height.
+ */
+/* A helper message with a card: the text, then the card beneath it. */
+.assistant-row-action {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.assistant-action {
+  max-width: 85%;
+  margin-top: 4px;
+}
+
+.assistant-action-card .ant-card-head-title {
+  white-space: normal;
+  overflow: visible;
+  padding: 8px 0;
+}
+
+.assistant-action-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-action-fields {
+  margin: 0 0 8px;
+}
+
+.assistant-action-field {
+  display: grid;
+  grid-template-columns: minmax(80px, 35%) 1fr;
+  column-gap: 8px;
+  padding: 2px 0;
+}
+
+.assistant-action-field dt,
+.assistant-action-field dd {
+  margin: 0;
+}
+
+.assistant-action-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

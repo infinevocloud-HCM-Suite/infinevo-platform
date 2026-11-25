@@ -34,7 +34,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * D-144: what a pay run's lock, approve and cancel do to its month's pay input lock. Lock writes
- * LOCKED (as before), approve writes CLOSED, cancel removes a LOCKED lock and leaves a CLOSED one.
+ * LOCKED (as before), approve writes CLOSED, cancel removes a LOCKED lock, and (D-151) cancelling an
+ * approved run reopens its CLOSED month. A paid run cannot be cancelled.
  * An off-cycle run never touches the month's lock.
  */
 class PayRunPeriodLockTest {
@@ -208,8 +209,9 @@ class PayRunPeriodLockTest {
     }
 
     @Test
-    @DisplayName("cancel: an approved run's CLOSED month stays closed and unlock is never called")
-    void cancelApprovedKeepsTheMonthClosed() {
+    @DisplayName(
+            "D-151: cancel of an approved run reopens its CLOSED month; unlock (which refuses CLOSED) is never called")
+    void cancelApprovedReopensTheMonth() {
         PayRun run = computed(regular());
         run.approve(OFFICER, Instant.now());
         stored(run);
@@ -218,6 +220,21 @@ class PayRunPeriodLockTest {
         PayRunResponse cancelled = service.cancel(run.getId());
 
         assertThat(cancelled.status()).isEqualTo(PayRunStatus.CANCELLED);
+        verify(payInputService).reopen(OCTOBER);
+        verify(payInputService, never()).unlock(any());
+    }
+
+    @Test
+    @DisplayName("D-151: a CLOSED month is reopened only by cancelling its APPROVED run, not a locked one")
+    void cancelLockedRunNeverReopensAClosedMonth() {
+        PayRun run = regular();
+        run.lock(OFFICER, Instant.now());
+        stored(run);
+        when(payInputService.periodStage(OCTOBER)).thenReturn(Optional.of(PayInputLockStage.CLOSED));
+
+        service.cancel(run.getId());
+
+        verify(payInputService, never()).reopen(any());
         verify(payInputService, never()).unlock(any());
     }
 
@@ -254,5 +271,6 @@ class PayRunPeriodLockTest {
 
         assertThatThrownBy(() -> service.cancel(run.getId())).isInstanceOf(IllegalPayRunTransitionException.class);
         verify(payInputService, never()).unlock(any());
+        verify(payInputService, never()).reopen(any());
     }
 }

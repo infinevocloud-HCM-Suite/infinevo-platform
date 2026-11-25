@@ -277,9 +277,14 @@ public class PayrollTestApp {
     public EmployeePersonalService employeePersonalService(DataSource dataSource) {
         return new EmployeePersonalService() {
             @Override
+            public Optional<LocalDate> dateOfBirth(UUID employeeId) {
+                return find(employeeId).map(EmployeePersonalResponse::dateOfBirth);
+            }
+
+            @Override
             public Optional<EmployeePersonalResponse> find(UUID employeeId) {
                 try {
-                    return Optional.of(get(employeeId));
+                    return Optional.of(read(employeeId));
                 } catch (EmployeeDetailService.NotFoundException e) {
                     return Optional.empty();
                 }
@@ -287,6 +292,12 @@ public class PayrollTestApp {
 
             @Override
             public EmployeePersonalResponse get(UUID employeeId) {
+                return read(employeeId);
+            }
+
+            // D-154: find and dateOfBirth read here, not through get, as core's do: a test that makes get
+            // refuse (core's caller check) must not refuse the system read with it.
+            private EmployeePersonalResponse read(UUID employeeId) {
                 UUID tenantId = TenantContext.require();
                 try (Connection conn = dataSource.getConnection()) {
                     conn.setAutoCommit(false);
@@ -364,7 +375,7 @@ public class PayrollTestApp {
                         ps.setBoolean(9, Boolean.TRUE.equals(request.eligibleForFullTaxExemption()));
                         ps.executeUpdate();
                         conn.commit();
-                        return get(employeeId);
+                        return read(employeeId);
                     } catch (SQLException | RuntimeException e) {
                         try {
                             conn.rollback();
@@ -952,6 +963,15 @@ public class PayrollTestApp {
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    /**
+     * The real clock over {@code core.tenant.timezone}: W-114.7's {@code PayrollAiToolProvider} is a component in the
+     * scanned {@code com.infinevo.payroll} package and takes it; the tests hand the provider a mock instead.
+     */
+    @Bean
+    public com.infinevo.core.tenant.TenantClock tenantClock(DataSource dataSource) {
+        return new com.infinevo.core.tenant.TenantClock(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
     }
 
     /** The tenant's name from {@code core.tenant}, which Form 16 prints as the deductor (D-149). */

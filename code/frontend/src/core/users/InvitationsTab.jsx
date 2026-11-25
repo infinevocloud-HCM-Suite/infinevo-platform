@@ -36,6 +36,7 @@ export function InvitationsTab() {
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [resendingId, setResendingId] = useState(null);
   const [revokingId, setRevokingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -105,12 +106,15 @@ export function InvitationsTab() {
     }
   };
 
+  const BUSY = { resend: setResendingId, revoke: setRevokingId, delete: setDeletingId };
+  const DONE = { resend: 'Invitation resent', revoke: 'Invitation revoked', delete: 'Invitation deleted' };
+
   const act = async (id, record, verb) => {
-    const setBusy = verb === 'resend' ? setResendingId : setRevokingId;
+    const setBusy = BUSY[verb];
     setBusy(id);
     try {
       await SERVICES[record?.kind || 'USER'][verb](id);
-      message.success(verb === 'resend' ? 'Invitation resent' : 'Invitation revoked');
+      message.success(DONE[verb]);
       load();
     } catch (err) {
       message.error(err?.message || `Failed to ${verb} invitation`);
@@ -147,8 +151,10 @@ export function InvitationsTab() {
         loading={loading}
         onResend={(id, record) => act(id, record, 'resend')}
         onRevoke={(id, record) => act(id, record, 'revoke')}
+        onDelete={(id, record) => act(id, record, 'delete')}
         resendingId={resendingId}
         revokingId={revokingId}
+        deletingId={deletingId}
         emptyText="No invitations found"
       />
 

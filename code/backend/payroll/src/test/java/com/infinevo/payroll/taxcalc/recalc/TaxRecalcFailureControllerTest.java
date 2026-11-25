@@ -21,7 +21,9 @@ import com.infinevo.shared.authz.RequiresActionAspect;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +38,7 @@ class TaxRecalcFailureControllerTest {
 
     private TaxRecalcFailureService failureService;
     private PermissionService permissionService;
+    private EmployeeService employeeService;
     private MockMvc mvc;
 
     private final UUID failureId = UUID.randomUUID();
@@ -44,7 +47,7 @@ class TaxRecalcFailureControllerTest {
     @BeforeEach
     void setUp() {
         failureService = mock(TaxRecalcFailureService.class);
-        EmployeeService employeeService = mock(EmployeeService.class);
+        employeeService = mock(EmployeeService.class);
         given(employeeService.currentEmployee()).willReturn(Optional.empty());
         permissionService = mock(PermissionService.class);
         doAnswer(invocation -> {
@@ -89,6 +92,28 @@ class TaxRecalcFailureControllerTest {
                 .andExpect(jsonPath("$.data[0].id").value(failureId.toString()))
                 .andExpect(jsonPath("$.data[0].error_message").value("boom"))
                 .andExpect(jsonPath("$.data[0].trigger").value("DECLARATION_SUBMITTED"));
+    }
+
+    @Test
+    @DisplayName("D-151: each open failure carries the employee's name, read only for the listed ids")
+    void listCarriesEmployeeName() throws Exception {
+        given(permissionService.holds("payroll.tax_declaration.read")).willReturn(true);
+        given(failureService.open(null))
+                .willReturn(List.of(new TaxRecalcFailureResponse(
+                        failureId,
+                        employeeId,
+                        "2026-2027",
+                        TaxTrigger.SALARY_REVISION,
+                        "boom",
+                        2,
+                        Instant.now(),
+                        Instant.now())));
+        given(employeeService.displayNames(Set.of(employeeId))).willReturn(Map.of(employeeId, "Asha Rao"));
+
+        mvc.perform(get("/api/v1/payroll/tax-recalc-failures"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].employee_name").value("Asha Rao"))
+                .andExpect(jsonPath("$.data[0].attempts").value(2));
     }
 
     @Test

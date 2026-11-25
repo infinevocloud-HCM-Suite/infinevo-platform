@@ -109,12 +109,12 @@ class StatutoryReportIT extends AbstractIntegrationTest {
                 List.of(1, 2, 3, 4, 5), PayDayRule.LAST_DAY_OF_PERIOD, null, 25, LocalDate.of(2026, 1, 1)));
         PayRunTestSchema.Catalogue catalogue = PayRunTestSchema.insertWorkedExampleCatalogue(TENANT_A);
 
-        // Seed work location in Karnataka
-        UUID locKa = UUID.randomUUID();
+        // Seed work location in Gujarat
+        UUID locGj = UUID.randomUUID();
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO core.work_location (id, tenant_id, code, name, state_code, is_active) VALUES (?, ?, 'LOC-KA', 'Bangalore', 'KA', true)")) {
-            ps.setObject(1, locKa);
+                        "INSERT INTO core.work_location (id, tenant_id, code, name, state_code, is_active) VALUES (?, ?, 'LOC-GJ', 'Ahmedabad', 'GJ', true)")) {
+            ps.setObject(1, locGj);
             ps.setObject(2, TENANT_A);
             ps.executeUpdate();
         }
@@ -131,24 +131,25 @@ class StatutoryReportIT extends AbstractIntegrationTest {
             ps.executeUpdate();
         }
 
-        // Seed PT override for Karnataka
+        // Seed PT override for Gujarat
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         """
                         INSERT INTO payroll.org_pt_override (id, tenant_id, state_code, registration_number, effective_from, created_by)
-                        VALUES (gen_random_uuid(), ?, 'KA', 'PTRC-KA-12345', DATE '2025-01-01', 'system')
-                        ON CONFLICT (tenant_id, state_code) DO UPDATE SET registration_number = 'PTRC-KA-12345'
+                        VALUES (gen_random_uuid(), ?, 'GJ', 'PTRC-GJ-12345', DATE '2025-01-01', 'system')
+                        ON CONFLICT (tenant_id, state_code) DO UPDATE SET registration_number = 'PTRC-GJ-12345'
                         """)) {
             ps.setObject(1, TENANT_A);
             ps.executeUpdate();
         }
 
-        // Employee X-01 with gross 16000 (Basic 12000, HRA 4000) so ESI and PT both apply
+        // Employee X-01 with gross 16000 (Basic 12000, HRA 4000) so ESI and PT both apply (Gujarat charges 200 above
+        // 12,000)
         firstEmployeeId = PayRunTestSchema.insertEmployee(TENANT_A, "X-01", LocalDate.of(2023, 4, 1), "ACTIVE", null);
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps =
                         conn.prepareStatement("UPDATE core.employee SET work_location_id = ? WHERE id = ?")) {
-            ps.setObject(1, locKa);
+            ps.setObject(1, locGj);
             ps.setObject(2, firstEmployeeId);
             ps.executeUpdate();
         }
@@ -280,8 +281,8 @@ class StatutoryReportIT extends AbstractIntegrationTest {
             XSSFSheet ptSheet = wb.getSheet("PT Return");
             assertThat(ptSheet).isNotNull();
             assertThat(ptSheet.getPhysicalNumberOfRows()).isGreaterThanOrEqualTo(2);
-            assertThat(ptSheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("KA");
-            assertThat(ptSheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("PTRC-KA-12345");
+            assertThat(ptSheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("GJ");
+            assertThat(ptSheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("PTRC-GJ-12345");
             assertThat(ptSheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("X-01");
             assertThat(ptSheet.getRow(1).getCell(4).getCellType()).isEqualTo(CellType.NUMERIC);
             assertThat(ptSheet.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(16000.00);
@@ -290,8 +291,8 @@ class StatutoryReportIT extends AbstractIntegrationTest {
 
             XSSFSheet summarySheet = wb.getSheet("State Summary");
             assertThat(summarySheet).isNotNull();
-            assertThat(summarySheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("KA");
-            assertThat(summarySheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("PTRC-KA-12345");
+            assertThat(summarySheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("GJ");
+            assertThat(summarySheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("PTRC-GJ-12345");
             assertThat(summarySheet.getRow(1).getCell(2).getCellType()).isEqualTo(CellType.NUMERIC);
             assertThat(summarySheet.getRow(1).getCell(2).getNumericCellValue()).isEqualTo(1.0);
             assertThat(summarySheet.getRow(1).getCell(3).getCellType()).isEqualTo(CellType.NUMERIC);
@@ -300,21 +301,21 @@ class StatutoryReportIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /reports/pt with format=CSV and state=KA returns 200 with state figures in CSV")
+    @DisplayName("GET /reports/pt with format=CSV and state=GJ returns 200 with state figures in CSV")
     void getPtReturn_Csv_WithState() throws Exception {
         MvcResult mvcResult = mvc.perform(
-                        get("/api/v1/payroll/payruns/" + computedRunId + "/reports/pt?format=CSV&state=KA"))
+                        get("/api/v1/payroll/payruns/" + computedRunId + "/reports/pt?format=CSV&state=GJ"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("text/csv")))
-                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("pt-return-ka-2026-07.csv")))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("pt-return-gj-2026-07.csv")))
                 .andReturn();
 
         String csv = mvcResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(csv.charAt(0)).isEqualTo('\uFEFF');
         assertThat(csv).contains("State,PTRC Number,Employee Code,Employee Name,Gross Salary,PT Deducted");
-        assertThat(csv).contains("KA,PTRC-KA-12345,X-01,First Last,16000.00,200.00");
+        assertThat(csv).contains("GJ,PTRC-GJ-12345,X-01,First Last,16000.00,200.00");
         assertThat(csv).contains("State Code,PTRC Number,Total Employees Liable,Total PT Deducted");
-        assertThat(csv).contains("KA,PTRC-KA-12345,1,200.00");
+        assertThat(csv).contains("GJ,PTRC-GJ-12345,1,200.00");
     }
 
     @Test

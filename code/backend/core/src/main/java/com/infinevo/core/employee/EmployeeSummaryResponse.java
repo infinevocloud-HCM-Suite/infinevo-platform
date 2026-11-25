@@ -16,6 +16,8 @@ public record EmployeeSummaryResponse(
         String mobile,
         EmploymentStatus status,
         LocalDate dateOfJoining,
+        /** The last working day, set on termination; null otherwise (D-30). */
+        LocalDate terminationDate,
         UUID departmentId,
         UUID designationId,
         UUID workLocationId,
@@ -34,6 +36,7 @@ public record EmployeeSummaryResponse(
                 employee.getMobile(),
                 employee.getStatus(),
                 employee.getDateOfJoining(),
+                employee.getTerminationDate(),
                 employee.getDepartment() == null
                         ? null
                         : employee.getDepartment().getId(),

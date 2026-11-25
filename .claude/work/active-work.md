@@ -6,6 +6,132 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-25 — W-114.10 AI helper 30-day chat deletion on `main`
+
+- A nightly worker job (`0 30 2 * * *`, ShedLock `ai_chat_retention_sweep`) deletes AI chat data older than 30 days: messages by their own age, action intents by age whatever their status, sessions by last activity. `code/backend/worker/src/main/java/com/infinevo/worker/retention/AiChatRetention*.java`.
+- Runs as `retention_user` with each customer bound, in batches of 500, same pattern as the audit sweep; every run is logged as a retention run. `WORKER_AI_RETENTION_DRY_RUN=true` counts without deleting.
+- `V230` grants `retention_user` SELECT and DELETE (no UPDATE) on the three chat tables and adds two `(tenant_id, created_at)` indexes. No new table.
+- Deleting an old message under a recent intent clears the intent's `message_id` (the existing `ON DELETE SET NULL`); an IT proves it as `retention_user`.
+- Built by Claude; one independent read (one Medium fixed by that IT; one Low accepted: the sweep does not restore a tenant bound before it ran, as the job never has one).
+- **Next:** `W-114.11`–`.16` and `.22`, one after another (they share the chat code).
+## 2026-11-25 — W-88.2 bank file templates on `main` (`237fbec2`)
+
+| Ticket | What | Where |
+|---|---|---|
+| `W-88.2` | Payroll › Settings › Bank files: templates of named columns (a catalogue field, fixed text or serial), date/amount formats, CSV or Excel, header switch; built-in "Generic bulk NEFT" (W-88's layout) can be copied. Pay run page: **Bank file…** drawer — template, everyone or ticked employees, preview with who is left out and why, make the file; a **Bank files** card lists every file made and downloads it again | `payroll/payrun/bankfile/` (`BankFileTemplate*`, `BankFileExport*`, `BankFileValues`, `BankFileField`), `V224__bank_file_templates.sql`, `settings/BankFileTemplates.jsx`, `settings/BankFileTemplateEditor.jsx`, `payrun/BankFileDrawer.jsx`, `payrun/BankFileHistory.jsx` |
+
+- Built by Claude to the founder's 2026-11-25 design. W-88's omission rules are shared (`BankFileService.run`), so the one-click file and the templates agree on who is paid.
+- Files are tenant `EXPORT` documents; a storage failure fails the request, so every file the bank gets is in the history.
+- **Left:** fixed-width text layouts; PAN and custom fields are not in the catalogue; department filter in the picker is a search box; if the history row fails to save after the file is stored, the stored blob is left unreferenced.
+
+## 2026-11-25 — W-114.7 AI helper Payroll tools on `main`
+
+- Four read-only tools on the caller's own data: paid payslips list, one payslip by month, tax declaration, tax summary. No employee or run id taken; the login must be the context's employee. `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/`.
+- Amounts are `BigDecimal` written as two-decimal text with `"currency": "INR"`; no `double` or `float`. Results carry no database id.
+- A month with a REGULAR and an OFF_CYCLE run answers the REGULAR payslip and lists the others under `otherPayslipsThisMonth`.
+- The tax tools look the declaration up first and answer a plain sentence when there is none, so a question never creates a draft.
+- Built by Claude; one independent read (one High fixed: off-cycle months; one Low recorded below).
+- **Known, left:** the mapper drops the payslip's employee block (PAN, UAN, bank) instead of leaving it for the `W-114.4` mask, as rule 6 said. Safer, and matches rule 5's field list. The licence gate and the IT follow the `.6` pattern (registry by `payroll.` prefix; IT in `payroll`). `PayrollTestApp` gained a `TenantClock` bean.
+- **Next:** `W-114.8` apply leave with confirm.
+## 2026-11-25 — W-114.9 AI helper Confirm and Cancel cards on `main`
+
+- `ActionCard` under a helper message that carries `proposedAction.intentId`: Confirm, Cancel, a countdown, and every end state (Done with link, Cancelled, Expired, Failed with reason, permission gone, helper off, action gone). `code/frontend/src/shell/assistant/`.
+- The card takes `intentId` only and draws title, fields, status and expiry from `GET /api/v1/ai/actions/{intentId}`; no model text reaches it. Confirm and Cancel send no body. Nothing cuts text.
+- `actionLinks.js` holds the one "done" link, `core.leave.apply` → `/me/leave/requests/{id}`; later actions add a line each.
+- Built by Claude; one independent read (three fixed: countdown out of the live region, re-ask after a failed 0:00 check, 404 is an end state). 58 Vitest tests, lint 0, build green.
+- Uses the `W-114.8` endpoints, merged just before it. **Next:** `W-114.7`, then `W-114.10`.
+## 2026-11-25 — W-114.8 AI helper applies leave after Confirm on `main`
+
+- Tool `core.propose_leave_request` checks the request with the leave service and stores a 15-minute intent; nothing reaches `core.leave_request` until Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/`.
+- `POST /api/v1/ai/actions/{id}/confirm` and `/cancel`, `GET /api/v1/ai/actions/{id}`. Confirm takes no body, holds the row lock, re-checks helper switch, permission, module and employee profile, runs the stored payload once, and answers the first result again on a repeat.
+- The card's summary and fields are built from the stored payload on every read (rules C1, C2). On the next turn the model is told the outcome as a fixed line (C9).
+- `LeaveRequestServiceImpl.validateApply` holds the checks moved unchanged out of `createRequest`; the Leave screen is unchanged.
+- Built by Claude; one independent read, approve (two Lows fixed: ids stripped from the refusal line the model reads, a failed card link is logged).
+- **Known, left:** the card's "Days" is the count at proposal time; the leave service counts again at Confirm. Cancelling a confirmed intent answers `409 AI_ACTION_CONFIRMED`. The model's tool result carries no intent id; the browser gets it in `proposedAction`.
+- **Next:** `W-114.9` cards (built, waiting on this), then `W-114.10`.
+## 2026-11-25 — W-88 bank salary file on `main` (`6600fed2`): mohit's build, rebased and reviewed
+
+| Ticket | What | Where |
+|---|---|---|
+| `W-88` | Generic bulk-NEFT CSV for an approved or paid pay run; `GET /api/v1/payroll/payruns/{id}/bank-file` under `payroll.bank_file.export`; `X-BankFile-*` headers carry the totals and the omitted employee numbers; a confirm dialog names who is left out before the file saves | `payroll/payrun/bankfile/`, `PayRunController`, `RunPage.jsx`, `payrunService.js` |
+
+- Built by mohit on `dev-mohit` (2026-11-14 to 11-19), rebased onto `main` by Claude (three "keep both" conflicts with `W-95` in `RunPage.jsx` and its tests). No migration.
+- One independent read: approve with findings. Fixed on the branch: the omitted list named every employee (Claude's own find), the omitted numbers now reach the client (`X-BankFile-Omitted-Employee-Numbers`), the dialog names all omission reasons and lists the numbers, a success message when nothing is omitted, one pass over the run instead of two, the WARN log carries the net pay not in the file, the spec describes the confirm-before-save flow.
+- **Left:** `BankFileExportEndpointIT` boots without the permission aspect, so it does not exercise the guard (`PayRunGuardIT` does); no unit test for CSV escaping (`CsvWriter` does it); a 409 or 403 on the blob download shows a generic error, same as the existing export.
+- **Plan changes (founder 2026-11-25):** `W-107`, `W-108` out; `D-155` moves to the end; no CA wait for `W-87`, `W-89`, `W-90`, `W-91`, `W-92` — built to the public formats, the CA checks the first real file; `W-87` and `W-89` stay code done until a portal upload succeeds.
+- **Next (`W-88.2`):** the founder's template builder — named columns from a field catalogue or fixed values, saved templates per bank, pick all/filtered/ticked employees, file stored on the run. `V224`–`V226`.
+
+## 2026-11-25 — D-22 and D-30 on `main` (`d13e4062`): invitations can be deleted; terminated list shows the last working day
+
+| Defect | What |
+|---|---|
+| `D-22` | A revoked, declined or expired invitation has a Delete action (user and employee kinds); pending or accepted rows keep their record. `DELETE /api/v1/user-invitations/{id}`, `DELETE /api/v1/employee-invitations/{id}` |
+| `D-30` | Employee directory, filter Terminated: a "Last working day" column; the list summary now carries `terminationDate` |
+
+- Built by Claude. No migration. Tracker also closes `D-17`, `D-19`, `D-21`, `D-26` as stale, marks `D-134`/`D-136`/`D-137` fixed on main (`c353960e`, `b7fc8b3b`), and opens `D-155` (security: guard test for `hrms`/`payroll`/`app`, Front Door origin check, RLS policy shape — the unbuilt remainder of `W-57.1`, `W-57.2`, `W-58`, closed in INFRA-TRACKER).
+- **Founder 2026-11-25:** standing approval extended to every open ticket and defect; developer side branches (`dev-mohit`, `feature/mohit-branch-2-w89-specs`, `feature/mohit-branch-3-w90-fnf`, `feature/krushna-specs`) are reviewed and merged, not rebuilt. Order: `W-88` → `D-155` → `W-89`, `W-87`, `W-92` → `W-90`, `W-91`, `W-103` → krushna's `W-85`, `W-86`, `W-104`, `W-102`, `W-106` → `W-116`, `W-101`, `W-100` → `W-107`, `W-108`, `W-112`, `W-110`, `W-111`, `W-109`, `W-115`. `W-114.7+` continues alongside. Out: `W-98`, payslip PDF, `W-99`, `W-64`, `W-66`, `W-118`, `W-94`, migration.
+- **Left (reviewer F-2):** deleting an `EXPIRED` tenant-admin invitation drops that tenant from the platform's waiting-admin list (`V168`); only the tenant's own `core.user.manage` holder can do it.
+- One independent read: approve, two Low; F-1 (a time-expired `PENDING` row could not be deleted without a revoke) fixed on the branch.
+
+## 2026-11-24 — W-114.6 AI helper HRMS tools on `main`
+
+- Five read-only tools on the caller's own data: today's clock status, clock sessions, regularizations, one timesheet week, timesheets. 93-day cap; no employee id taken; the login must be the context's employee. `code/backend/hrms/src/main/java/com/infinevo/hrms/ai/`.
+- Shared input, id-stripping and quoted-text helpers moved to `core/ai` (`AiToolInputs`, `AiToolResults`, `AiUntrustedText`); Core tools unchanged in behaviour.
+- Built by Claude; one independent read (one Low fixed: a permission refusal no longer says "no employee record").
+- **Known, left:** the HRMS licence gate is in `AiToolRegistry` (by the `hrms.` name), not in the provider; the integration test is in `hrms` against the registry, not in `app` with the stub model.
+- **Next:** `W-114.7` Payroll read-only tools.
+## 2026-11-24 — D-49 and D-51 on `main` (`b2642fc5`): leave import; Sayeed's October defect rows settled
+
+| Defect | What |
+|---|---|
+| `D-49` | Leave import: the Leave Year box is a dropdown built from the company's leave year start month; an April company sends `2026-27`, a January one `2026` |
+| `D-51` | Leave import: a "Download error report" button opens the stored report |
+| `D-54`, `D-57` | Rows corrected: both were fixed on `50ea654d` (2026-10-14) |
+| `D-43`–`D-48` | Cancelled by the founder 2026-11-24: by design in the specs, or small improvements |
+
+- Built by Claude on `dev-claude-d49-d51`. Frontend only, `core/leave/LeaveImport.jsx`.
+- **Left:** the on-screen table of failed rows (`W-46.2`) needs the import reply to carry the rows; not checked that an HR login may fetch the error report's document link.
+- **Sayeed has no open defect.** His queue is `W-112`, `W-110`, `W-111`, then `W-87` and `W-92` after the CA review.
+
+## 2026-11-24 — W-95 and W-93 on `main` (`6833cd7b`): ESI and PT reports, guided statutory setup
+
+| Ticket | What | Where |
+|---|---|---|
+| `W-95` | ESI and PT return files (XLSX, CSV) for a computed, approved or paid regular run; Statutory Returns menu on the pay run page; off-cycle runs refused | `statutory/report/`, `RunPage.jsx` |
+| `W-93` | Guided setup wizard for EPF, ESI and PT at Payroll › Settings; a PT registration number is stored without copying slabs, and the pay run uses the reference slabs when an override has none | `statutory/guided/`, `ProfessionalTaxServiceImpl`, `GuidedStatutorySetup.jsx` |
+
+- Built by Sayeed on `dev-sayeed`; one independent read per ticket, findings fixed by Sayeed and then by Claude on `dev-claude-sayeed`; CI green on `246f0809` (same files). No migration.
+- **Founder decisions 2026-11-24:** PT number stored without a slab copy; `W-87` stores EPF, EPS and EDLI wages on the pay run; `W-92` LWF rules live in a dated reference table with no customer override.
+- **Specs on `main`, not built:** `W-87`, `W-92` (both wait on the CA), `W-110`, `W-111`, `W-112`. `W-110` proposes a minimum group of 5 for anonymous results: founder to confirm.
+- **Left:** the ESI wage column is rebuilt at report time, not stored (`W-87` fixes it); ESI stops the month wages cross the ceiling, with no contribution-period carry-on (CA to confirm).
+- **Branches:** `dev-claude-sayeed` can be deleted; `dev-sayeed` resets to `main`. `dev-sayeed-statutory-epf-pt` and `W-69-document-migration` hold nothing unmerged and can be deleted.
+
+## 2026-11-24 — D-153, D-154 on `main`: tax workings keep their amounts; background recalculation no longer refused
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-153 | `Money` writes as its amount in JSON: tax workings and the history and recalculate APIs keep their numbers | `a1461088` |
+| D-154 | Background tax recalculation reads the date of birth through a tenant-scoped system read, not the caller's `core.employee.read` | `7f1b7850` |
+
+- Built by Claude; one independent read each; CI green on the branch.
+- **Left:** recalculations that failed before D-154 stay on the failures screen until retried.
+- **Left:** workings stored before D-153 keep no amounts until that employee's year is recalculated.
+- **Branches:** `dev-claude-d153`, `dev-claude-d154` reset to `main`.
+
+## 2026-11-24 — D-150 to D-152 on `main`: Form 16, officer TDS, proof screens
+
+| Ticket | What | Commit |
+|---|---|---|
+| D-150 | Form 16: true salary when old-regime income is floored; an "Approved, not yet paid" line; a nil statement when there is no TDS record | `86a71006` |
+| D-151 | Officer TDS figure sticks (recalculation leaves a suggestion); tax recalculation failures screen; cancelling an approved run reopens its month. `V223` | `deba472a` |
+| D-152 | Proof-of-investment screens: employee receipts tab, officer verification queue and review drawer, chase list with the POI reminder; inbox link. Closes D-95 | `985b1ec2` |
+
+- Built by Claude; one independent read each, defects fixed on the branch, CI green.
+- ~~**Left:** the stored tax working holds no amounts (`Money` has no JSON serializer).~~ Fixed by D-153 (`a1461088`).
+- **Left (D-151):** ~~a background recalculation can fail on `core.employee.read`~~ (fixed by D-154, `7f1b7850`); no isolated test of the lock DELETE policy.
+- **Branches:** `dev-claude-d150` to `dev-claude-d152` reset to `main`.
+- **Left (D-152):** payroll officers see proofs read-only (verifying needs `payroll.proof.review`); no screen for proof item comments.
+
 ## 2026-11-24 — D-149 Form 16 fixes on `main`
 
 | Ticket | What | Commit |
@@ -13,7 +139,7 @@
 | D-149 | Form 16: tenant name as deductor, designation by name, full PAN, a Part B working that adds up under both regimes, a separate NO_COMPUTATION note, employee names on the Part A list, an error on a failed download, dashes when there is no statement | `dfbd5a75` |
 
 - Built by Claude; one independent read, no blocking defect; CI green on `a1b2bdb7`.
-- **Left:** F-2: under the old regime, a house-property loss that floors gross total income at 0 overstates the printed gross salary (`Form16Assembler.java:194`). By spec, not changed: only PAID runs count; no TDS record gives 404. The founder was asked whether to change either.
+- **Since fixed:** F-2 by D-150 (`86a71006`); the PAID-only rule and the 404 were changed by D-150 at the founder's word. Was: F-2: under the old regime, a house-property loss that floors gross total income at 0 overstates the printed gross salary (`Form16Assembler.java:194`). By spec, not changed: only PAID runs count; no TDS record gives 404. The founder was asked whether to change either.
 - **Branch:** `dev-claude-d149` reset to `main`.
 
 ## 2026-11-24 — D-144 to D-148 on `main`: ledger pickup month, TDS screens, tax declaration fixes

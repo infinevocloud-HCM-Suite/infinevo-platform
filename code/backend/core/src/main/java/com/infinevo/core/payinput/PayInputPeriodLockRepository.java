@@ -103,6 +103,21 @@ public interface PayInputPeriodLockRepository extends JpaRepository<PayInputPeri
     int deleteIfLocked(@Param("tenantId") UUID tenantId, @Param("period") String period);
 
     /**
+     * Removes the tenant's period lock whatever its stage - the month's approved run was cancelled
+     * (D-151). Allowed by {@code payroll/V223}'s {@code delete_period_lock_only} policy, which still hides
+     * every run lock from a DELETE.
+     *
+     * @return {@code 1} if a lock was removed, {@code 0} otherwise
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            value = "DELETE FROM core.pay_input_period_lock WHERE tenant_id = :tenantId"
+                    + " AND period = CAST(:period AS char(7)) AND run_ref IS NULL",
+            nativeQuery = true)
+    @Transactional
+    int deletePeriodLock(@Param("tenantId") UUID tenantId, @Param("period") String period);
+
+    /**
      * Locks a run, or does nothing if it is already locked (W-30.1) — {@code period} is stored
      * alongside it for reporting (spec §4). Targets {@code uk_pay_input_period_lock_tenant_run}'s
      * predicate explicitly, the same reason {@link #insertIfAbsent} targets the period index's.

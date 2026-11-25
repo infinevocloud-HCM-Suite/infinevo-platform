@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { Card, Descriptions, Typography, Spin, Button, Select, Space, Table, Tag, Empty } from 'antd';
+import { Card, Descriptions, Typography, Spin, Button, Select, Space, Table, Tag, Empty, Alert, Popconfirm } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { employeeTdsService } from './employeeTdsService.js';
@@ -8,13 +8,62 @@ import { EmployeeTdsDrawer } from './EmployeeTdsDrawer.jsx';
 import { currentFy, fyOptions, fyForApi } from '../tax/financialYear.js';
 import { MoneyText } from '@shared/ui/MoneyText.jsx';
 import { EMPTY, formatMonth, formatDateTime, humanize } from '@shared/ui/format.js';
-import { errorMsg } from '@shared/ui/msgHelper.js';
+import { errorMsg, successMsg } from '@shared/ui/msgHelper.js';
 
 const { Title, Text } = Typography;
 
 function orEmpty(value) {
   return value === undefined || value === null || String(value).trim() === '' ? EMPTY : value;
 }
+
+/**
+ * D-151: an automatic recalculation does not replace an officer's figure; it leaves a suggestion beside it.
+ * The officer applies it (it becomes the active figure) or clears it (the officer's figure stays).
+ */
+function SuggestionAlert({ suggestion, canVerify, busy, onApply, onClear }) {
+  return (
+    <Alert
+      type="info"
+      showIcon
+      style={{ marginBottom: 16 }}
+      data-testid="employee-tds-suggestion"
+      message={
+        <span>
+          A recalculation suggests annual tax <MoneyText value={suggestion.annual_tax} /> ({humanize(suggestion.regime)}{' '}
+          regime) on {formatDateTime(suggestion.suggested_at)}. The pay run keeps using the officer&apos;s figure until
+          you apply or clear this.
+        </span>
+      }
+      action={
+        canVerify && (
+          <Space direction="vertical">
+            <Popconfirm
+              title="Use the suggested figure?"
+              description="It replaces the officer's figure from the next pay run."
+              okText="Apply"
+              onConfirm={onApply}
+            >
+              <Button id="btn-apply-tds-suggestion" data-testid="employee-tds-suggestion-apply" size="small" type="primary" loading={busy}>
+                Apply suggestion
+              </Button>
+            </Popconfirm>
+            <Button id="btn-clear-tds-suggestion" data-testid="employee-tds-suggestion-clear" size="small" disabled={busy} onClick={onClear}>
+              Clear suggestion
+            </Button>
+          </Space>
+        )
+      }
+    />
+  );
+}
+
+SuggestionAlert.propTypes = {
+  suggestion: PropTypes.object.isRequired,
+  canVerify: PropTypes.bool,
+  busy: PropTypes.bool,
+  onApply: PropTypes.func.isRequired,
+  onClear: PropTypes.func.isRequired,
+};
 
 /** The share is what the next regular run deducts; the server names that run's month (`next_pay_month`). */
 function monthlyShareLabel(nextPayMonth) {
@@ -56,6 +105,20 @@ export function EmployeeTdsCard({ employeeId }) {
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [reload, setReload] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  const act = async (call, message) => {
+    setBusy(true);
+    try {
+      await call(employeeId, fyForApi(fy));
+      setBusy(false);
+      await successMsg('Success', message);
+      setReload((n) => n + 1);
+    } catch (err) {
+      setBusy(false);
+      errorMsg(err);
+    }
+  };
 
   const load = useCallback(
     (live) => {
@@ -119,6 +182,15 @@ export function EmployeeTdsCard({ employeeId }) {
       style={{ marginTop: 24 }}
     >
       <Spin spinning={loading}>
+        {record?.suggestion && (
+          <SuggestionAlert
+            suggestion={record.suggestion}
+            canVerify={canVerify}
+            busy={busy}
+            onApply={() => act(employeeTdsService.applySuggestion, 'Suggested TDS figure applied')}
+            onClear={() => act(employeeTdsService.clearSuggestion, 'Suggested TDS figure cleared')}
+          />
+        )}
         {record ? (
           <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }} data-testid="employee-tds-figures">
             <Descriptions.Item label="Annual gross">

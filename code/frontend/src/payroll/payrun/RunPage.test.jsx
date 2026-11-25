@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import dayjs from 'dayjs';
+import { Modal } from 'antd';
 import { RunPage, isPaidOnAllowed } from './RunPage.jsx';
 import payrunReducer from './payrunSlice.js';
 import { payrunService } from './payrunService.js';
@@ -13,6 +14,17 @@ import { formatMoney } from '@shared/ui/format.js';
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn(),
   errorMsg: vi.fn(),
+}));
+
+vi.mock('./bankFileService.js', () => ({
+  bankFileService: {
+    templates: vi.fn().mockResolvedValue([]),
+    history: vi.fn().mockResolvedValue([]),
+    preview: vi.fn(),
+    generate: vi.fn(),
+    download: vi.fn(),
+  },
+  saveBlob: vi.fn(),
 }));
 
 vi.mock('./payrunService.js', () => ({
@@ -27,6 +39,7 @@ vi.mock('./payrunService.js', () => ({
     export: vi.fn().mockResolvedValue(new Blob(['fake-excel-content'])),
     downloadEsiReturn: vi.fn().mockResolvedValue(new Blob(['fake-esi-content'])),
     downloadPtReturn: vi.fn().mockResolvedValue(new Blob(['fake-pt-content'])),
+    exportBankFile: vi.fn(),
     employees: vi.fn().mockResolvedValue({ content: [], totalElements: 0 }),
     employeeNames: vi.fn().mockResolvedValue(new Map()),
     lines: vi.fn().mockResolvedValue({ lines: [] }),
@@ -269,6 +282,149 @@ describe('RunPage component (W-47.2 §7)', () => {
       expect(screen.getByRole('button', { name: /pay$/i }).hasAttribute('disabled')).toBe(true);
       unmount();
     }
+  });
+
+  it('renders "Download Bank File" button for APPROVED and PAID statuses (W-88)', async () => {
+    for (const status of ['APPROVED', 'PAID']) {
+      payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+      payrunService.get.mockResolvedValueOnce({
+        id: `run-bank-${status}`,
+        period: '2026-10',
+        status,
+        included_count: 5,
+        skipped_count: 0,
+      });
+
+      const { unmount } = renderRunPage(`run-bank-${status}`);
+      await waitFor(() => {
+        expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+      });
+
+      const bankBtn = screen.getByTestId('download-bank-file-btn');
+      expect(bankBtn).toBeDefined();
+      expect(bankBtn.textContent).toContain('Download Bank File');
+
+      unmount();
+    }
+  });
+
+  it('hides "Download Bank File" button for non-finalized statuses (W-88)', async () => {
+    const unfinalizedStatuses = ['DRAFT', 'LOCKED', 'COMPUTING', 'COMPUTED', 'FAILED', 'CANCELLED'];
+    for (const status of unfinalizedStatuses) {
+      payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+      payrunService.get.mockResolvedValueOnce({
+        id: `run-unfin-${status}`,
+        period: '2026-10',
+        status,
+        compute_started_at: new Date().toISOString(),
+        included_count: 5,
+        skipped_count: 0,
+      });
+
+      const { unmount } = renderRunPage(`run-unfin-${status}`);
+      await waitFor(() => {
+        expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+      });
+
+      expect(screen.queryByTestId('download-bank-file-btn')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('calls exportBankFile and initiates download when "Download Bank File" is clicked (W-88)', async () => {
+    window.URL.createObjectURL = vi.fn(() => 'blob:mock-file-url');
+    window.URL.revokeObjectURL = vi.fn();
+
+    const mockBlob = new Blob(['col1,col2\nval1,val2'], { type: 'text/csv' });
+    payrunService.exportBankFile.mockResolvedValueOnce(mockBlob);
+
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-dl-1',
+      period: '2026-10',
+      status: 'APPROVED',
+      included_count: 5,
+      skipped_count: 0,
+    });
+
+    renderRunPage('run-dl-1');
+
+    await waitFor(() => {
+      expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+    });
+
+    const bankBtn = screen.getByTestId('download-bank-file-btn');
+    fireEvent.click(bankBtn);
+
+    await waitFor(() => {
+      expect(payrunService.exportBankFile).toHaveBeenCalledWith('run-dl-1');
+      expect(window.URL.createObjectURL).toHaveBeenCalledWith(mockBlob);
+    });
+  });
+
+  it('shows confirmation modal before download when employees are omitted from bank file (W-88)', async () => {
+    window.URL.createObjectURL = vi.fn(() => 'blob:mock-file-url');
+    window.URL.revokeObjectURL = vi.fn();
+    let capturedConfirmOptions = null;
+    const modalConfirmSpy = vi.spyOn(Modal, 'confirm').mockImplementation((options) => {
+      capturedConfirmOptions = options;
+      return { destroy: vi.fn(), update: vi.fn() };
+    });
+
+    const mockBlob = new Blob(['col1,col2\nval1,val2'], { type: 'text/csv' });
+    mockBlob.omittedEmployees = 2;
+    mockBlob.fileTotal = '80000.00';
+    mockBlob.runNetPay = '100000.00';
+    payrunService.exportBankFile.mockResolvedValueOnce(mockBlob);
+
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-dl-omitted',
+      period: '2026-10',
+      status: 'APPROVED',
+      included_count: 5,
+      skipped_count: 0,
+    });
+
+    renderRunPage('run-dl-omitted');
+
+    await waitFor(() => {
+      expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+    });
+
+    const bankBtn = screen.getByTestId('download-bank-file-btn');
+    fireEvent.click(bankBtn);
+
+    await waitFor(() => {
+      expect(payrunService.exportBankFile).toHaveBeenCalledWith('run-dl-omitted');
+      expect(modalConfirmSpy).toHaveBeenCalled();
+    });
+
+    expect(capturedConfirmOptions.title).toBe('Bank File Payout Shortfall Warning');
+    expect(capturedConfirmOptions.okText).toBe('Download Anyway');
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+
+    capturedConfirmOptions.onOk();
+    expect(window.URL.createObjectURL).toHaveBeenCalledWith(mockBlob);
+    modalConfirmSpy.mockRestore();
+  });
+
+  it('hides "Download Bank File" button when user lacks payroll.bank_file.export action (W-88)', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockImplementation((action) => action !== 'payroll.bank_file.export');
+
+    payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-bank-no-perm',
+      period: '2026-10',
+      status: 'APPROVED',
+      included_count: 5,
+      skipped_count: 0,
+    });
+
+    renderRunPage('run-bank-no-perm');
+    await waitFor(() => {
+      expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+    });
+
+    expect(screen.queryByTestId('download-bank-file-btn')).toBeNull();
   });
 });
 

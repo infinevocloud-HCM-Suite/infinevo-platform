@@ -20,9 +20,11 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -120,7 +122,31 @@ public class EmployeeTdsController {
         BigDecimal ytd = tdsService.yearToDate(current.id(), financialYear);
         TdsSpread spread = tdsService.spread(active, ytd);
 
-        return ApiResponse.ok("TDS record retrieved successfully", EmployeeTdsResponse.from(active, spread));
+        return ApiResponse.ok(
+                "TDS record retrieved successfully",
+                EmployeeTdsResponse.from(active, spread).withoutSuggestion());
+    }
+
+    /** D-151: the suggested figure replaces the officer's; the new active row comes back. */
+    @PostMapping("/api/v1/payroll/employees/{employeeId}/tds/{fy}/suggestion/apply")
+    @RequiresAction("payroll.tax_declaration.verify")
+    public ApiResponse<EmployeeTdsResponse> applySuggestion(
+            @PathVariable("employeeId") UUID employeeId, @PathVariable("fy") String financialYear) {
+        EmployeeTds saved = tdsService.applySuggestion(employeeId, financialYear);
+        BigDecimal ytd = tdsService.yearToDate(employeeId, financialYear);
+        return ApiResponse.ok(
+                "Suggested TDS figure applied", EmployeeTdsResponse.from(saved, tdsService.spread(saved, ytd)));
+    }
+
+    /** D-151: the suggestion is cleared and the officer's figure stays. */
+    @DeleteMapping("/api/v1/payroll/employees/{employeeId}/tds/{fy}/suggestion")
+    @RequiresAction("payroll.tax_declaration.verify")
+    public ApiResponse<EmployeeTdsResponse> clearSuggestion(
+            @PathVariable("employeeId") UUID employeeId, @PathVariable("fy") String financialYear) {
+        EmployeeTds active = tdsService.clearSuggestion(employeeId, financialYear);
+        BigDecimal ytd = tdsService.yearToDate(employeeId, financialYear);
+        return ApiResponse.ok(
+                "Suggested TDS figure cleared", EmployeeTdsResponse.from(active, tdsService.spread(active, ytd)));
     }
 
     @ExceptionHandler(EmployeeTdsNotFoundException.class)

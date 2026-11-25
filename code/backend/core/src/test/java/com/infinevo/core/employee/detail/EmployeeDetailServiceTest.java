@@ -4,8 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.Employee;
@@ -313,6 +316,69 @@ class EmployeeDetailServiceTest {
             assertThatThrownBy(() -> personalService.find(EMPLOYEE_A)).isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(() -> personalService.put(EMPLOYEE_A, personal("Indian")))
                     .isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("D-154: the system read of the date of birth needs no caller permission and stays in the tenant")
+    class SystemDateOfBirth {
+
+        /** No user at all: no core.employee.read and no current employee, as on the taxRecalc pool. */
+        private void noCaller() {
+            when(permissionService.holds("core.employee.read")).thenReturn(false);
+            when(employeeService.currentEmployee()).thenReturn(Optional.empty());
+            clearInvocations(permissionService, employeeService);
+        }
+
+        @Test
+        @DisplayName("dateOfBirth returns the date with no permission and no current employee, and asks neither")
+        void readsWithoutACaller() {
+            personalService.put(EMPLOYEE_A, personal("Indian"));
+            noCaller();
+
+            assertThat(personalService.dateOfBirth(EMPLOYEE_A)).contains(LocalDate.of(1990, 5, 17));
+            verify(permissionService, never()).holds(anyString());
+            verify(employeeService, never()).currentEmployee();
+        }
+
+        @Test
+        @DisplayName("The user-facing get still refuses the same caller (core.employee.read)")
+        void getStillRefusesWithoutPermission() {
+            personalService.put(EMPLOYEE_A, personal("Indian"));
+            noCaller();
+
+            assertThatThrownBy(() -> personalService.get(EMPLOYEE_A))
+                    .isInstanceOf(PermissionDeniedException.class)
+                    .hasMessageContaining("core.employee.read");
+        }
+
+        @Test
+        @DisplayName("Empty when the section is unwritten, the date is not recorded, or the employee does not exist")
+        void emptyWhenNothingToRead() {
+            noCaller();
+            assertThat(personalService.dateOfBirth(EMPLOYEE_A)).isEmpty();
+            assertThat(personalService.dateOfBirth(UUID.randomUUID())).isEmpty();
+
+            personalService.put(EMPLOYEE_C, new EmployeePersonalRequest(null, "Single", null, null, null, null, null));
+            assertThat(personalService.dateOfBirth(EMPLOYEE_C)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Another tenant's employee is not readable: empty, never their date")
+        void otherTenantIsNotRead() {
+            TenantContext.set(TENANT_B);
+            personalService.put(EMPLOYEE_B, personal("Indian"));
+            TenantContext.set(TENANT_A);
+            noCaller();
+
+            assertThat(personalService.dateOfBirth(EMPLOYEE_B)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("With no tenant bound it refuses, as every other read does")
+        void unboundTenantIsRefused() {
+            TenantContext.clear();
+            assertThatThrownBy(() -> personalService.dateOfBirth(EMPLOYEE_A)).isInstanceOf(IllegalStateException.class);
         }
     }
 

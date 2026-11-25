@@ -1,11 +1,13 @@
 package com.infinevo.payroll.taxcalc.recalc;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,9 +19,11 @@ import com.infinevo.shared.authz.AuthzExceptionHandler;
 import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresActionAspect;
+import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +52,10 @@ class TaxRecalculationControllerTest {
     private final String fyLabel = "2025-2026";
 
     private TaxComputationRecord sampleRecord() {
+        return sampleRecord("{\"taxableIncome\":1125000}");
+    }
+
+    private TaxComputationRecord sampleRecord(String working) {
         return new TaxComputationRecord(
                 UUID.randomUUID(),
                 employeeId,
@@ -69,7 +77,7 @@ class TaxRecalculationControllerTest {
                 BigDecimal.valueOf(3600),
                 BigDecimal.ZERO,
                 BigDecimal.valueOf(93600),
-                "{\"taxableIncome\":1125000}",
+                working,
                 Instant.now(),
                 officerId,
                 "system");
@@ -165,6 +173,28 @@ class TaxRecalculationControllerTest {
                 .andExpect(jsonPath("$.data.regime").value("NEW"))
                 .andExpect(jsonPath("$.data.trigger").value("OFFICER"))
                 .andExpect(jsonPath("$.data.annual_tax").value(93600));
+    }
+
+    @Test
+    @DisplayName("D-153: the recalculate response carries the working's amounts as exact numbers")
+    void recalculateWorkingCarriesAmounts() throws Exception {
+        given(permissionService.holds("payroll.tax_declaration.manage")).willReturn(true);
+        EmployeeResponse officer = mock(EmployeeResponse.class);
+        given(officer.id()).willReturn(officerId);
+        given(employeeService.currentEmployee()).willReturn(Optional.of(officer));
+        String working = new ObjectMapper()
+                .writeValueAsString(Map.of("incomeFromSalary", Money.of("1200000.5"), "rebate", Money.ZERO));
+        given(recalculationService.recalculate(employeeId, fyLabel, TaxTrigger.OFFICER, officerId))
+                .willReturn(sampleRecord(working));
+
+        officerMvc
+                .perform(post(
+                        "/api/v1/payroll/employees/{employeeId}/tax-declaration/{fy}/tax/recalculate",
+                        employeeId,
+                        fyLabel))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"incomeFromSalary\":1200000.5000")))
+                .andExpect(content().string(containsString("\"rebate\":0.0000")));
     }
 
     @Test

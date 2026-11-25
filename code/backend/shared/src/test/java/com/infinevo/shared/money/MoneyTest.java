@@ -3,7 +3,9 @@ package com.infinevo.shared.money;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -140,6 +142,51 @@ class MoneyTest {
         void toStringIsPlain() {
             assertThat(Money.of("1250.5")).hasToString("1250.50");
             assertThat(Money.of("100000000")).hasToString("100000000.00");
+        }
+    }
+
+    @Nested
+    @DisplayName("JSON (D-153)")
+    class Json {
+
+        private final ObjectMapper mapper = new ObjectMapper();
+
+        record Holder(Money amount, List<Money> lines) {}
+
+        @Test
+        @DisplayName("writes the plain amount at calculation scale, not the isZero/isPositive/isNegative bean")
+        void writesThePlainAmount() throws Exception {
+            assertThat(mapper.writeValueAsString(Money.of("1250.5"))).isEqualTo("1250.5000");
+            assertThat(mapper.writeValueAsString(Money.of("-42.125"))).isEqualTo("-42.1250");
+            assertThat(mapper.writeValueAsString(Money.ZERO)).isEqualTo("0.0000");
+            assertThat(mapper.writeValueAsString(Money.of("123456789012345.6789")))
+                    .isEqualTo("123456789012345.6789");
+            assertThat(mapper.writeValueAsString(Money.of(100000))).isEqualTo("100000.0000");
+            assertThat(mapper.writeValueAsString(new Holder(Money.of("10"), List.of(Money.of("-1.5")))))
+                    .isEqualTo("{\"amount\":10.0000,\"lines\":[-1.5000]}")
+                    .doesNotContain("positive", "zero", "negative");
+        }
+
+        @Test
+        @DisplayName("reads from a number or a numeric string, exactly")
+        void readsFromNumberOrString() throws Exception {
+            assertThat(mapper.readValue("1250.50", Money.class)).isEqualTo(Money.of("1250.50"));
+            assertThat(mapper.readValue("\"1250.50\"", Money.class)).isEqualTo(Money.of("1250.50"));
+            assertThat(mapper.readValue("-0.1", Money.class).raw()).isEqualTo(new BigDecimal("-0.1000"));
+            assertThat(mapper.readValue("0", Money.class)).isEqualTo(Money.ZERO);
+            assertThat(mapper.readValue("12345678901234567.8912", Money.class).raw())
+                    .isEqualTo(new BigDecimal("12345678901234567.8912"));
+            assertThat(mapper.readValue("null", Money.class)).isNull();
+        }
+
+        @Test
+        @DisplayName("round-trips inside a record with its scale")
+        void roundTrips() throws Exception {
+            Holder in = new Holder(Money.of("99999999.99995"), List.of(Money.ZERO, Money.of("-7")));
+            Holder out = mapper.readValue(mapper.writeValueAsString(in), Holder.class);
+            assertThat(out).isEqualTo(in);
+            assertThat(out.amount().raw()).isEqualTo(new BigDecimal("100000000.0000"));
+            assertThat(out.amount().raw().scale()).isEqualTo(Money.CALCULATION_SCALE);
         }
     }
 }

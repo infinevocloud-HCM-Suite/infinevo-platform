@@ -14,8 +14,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -41,6 +43,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * connection. Tools run in this thread as the caller, only through {@link AiToolRegistry#execute}, and only the tools
  * {@link AiToolRegistry#toolsFor} offered may run (rule 3).
  *
+ * <p>From W-114.8 a tool may propose an action ({@link AiChatTurn}). The answer then carries the action's card as
+ * {@code proposedAction}, and the intent's {@code message_id} is set to the stored answer. When the history is sent to
+ * the model again, each assistant message whose intent is no longer {@code PROPOSED} carries one fixed line saying what
+ * became of it ({@link #statusNote}) - in the copy sent only, never in the stored message.
+ *
  * <p>Logged: session id, model calls, tool rounds, tool names, token counts, duration and outcome. Never the question,
  * a tool result or the answer.
  */
@@ -61,11 +68,21 @@ public class AiChatServiceImpl implements AiChatService {
     static final String BAD_ARGUMENTS = "The arguments were not valid JSON, so the tool was not run.";
     static final String TOOL_FAILED = "The tool failed.";
 
+    static final String NOTE_DECLINED = "[The user declined this action. This is their choice, not an error."
+            + " Do not propose it again unless they ask.]";
+    static final String NOTE_CONFIRMED = "[The user confirmed this action and it was carried out.]";
+    static final String NOTE_EXPIRED = "[This proposal expired and was not carried out.]";
+    static final String NOTE_FAILED = "[The user confirmed, but the action was refused: %s]";
+
     private static final Logger log = LoggerFactory.getLogger(AiChatServiceImpl.class);
+
+    private static final java.util.regex.Pattern UUID_IN_TEXT = java.util.regex.Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     private static final List<AiMessageRole> HISTORY_ROLES = List.of(AiMessageRole.USER, AiMessageRole.ASSISTANT);
 
     private final AiSessionRepository sessions;
     private final AiMessageRepository messages;
+    private final AiActionIntentRepository intents;
     private final AiAccessGate accessGate;
     private final AiRateLimiter rateLimiter;
     private final AiToolRegistry registry;
@@ -82,6 +99,7 @@ public class AiChatServiceImpl implements AiChatService {
     public AiChatServiceImpl(
             AiSessionRepository sessions,
             AiMessageRepository messages,
+            AiActionIntentRepository intents,
             AiAccessGate accessGate,
             AiRateLimiter rateLimiter,
             AiToolRegistry registry,
@@ -94,6 +112,7 @@ public class AiChatServiceImpl implements AiChatService {
         this(
                 sessions,
                 messages,
+                intents,
                 accessGate,
                 rateLimiter,
                 registry,
@@ -106,6 +125,7 @@ public class AiChatServiceImpl implements AiChatService {
                 Clock.systemUTC());
     }
 
+    /** As W-114.4 built it: no intents, so no proposal is linked and no status line is added. */
     AiChatServiceImpl(
             AiSessionRepository sessions,
             AiMessageRepository messages,
@@ -119,6 +139,37 @@ public class AiChatServiceImpl implements AiChatService {
             TenantClock tenantClock,
             TransactionOperations tx,
             Clock clock) {
+        this(
+                sessions,
+                messages,
+                null,
+                accessGate,
+                rateLimiter,
+                registry,
+                model,
+                masking,
+                systemPrompt,
+                employeeService,
+                tenantClock,
+                tx,
+                clock);
+    }
+
+    AiChatServiceImpl(
+            AiSessionRepository sessions,
+            AiMessageRepository messages,
+            AiActionIntentRepository intents,
+            AiAccessGate accessGate,
+            AiRateLimiter rateLimiter,
+            AiToolRegistry registry,
+            AiModelClient model,
+            AiMaskingFilter masking,
+            AiSystemPrompt systemPrompt,
+            EmployeeService employeeService,
+            TenantClock tenantClock,
+            TransactionOperations tx,
+            Clock clock) {
+        this.intents = intents;
         this.sessions = Objects.requireNonNull(sessions, "sessions must not be null");
         this.messages = Objects.requireNonNull(messages, "messages must not be null");
         this.accessGate = Objects.requireNonNull(accessGate, "accessGate must not be null");
@@ -159,11 +210,13 @@ public class AiChatServiceImpl implements AiChatService {
             List<AiMessage> earlier = new ArrayList<>(messages.findByTenantIdAndSessionIdAndRoleInOrderByCreatedAtDesc(
                     tenantId, sessionId, HISTORY_ROLES, PageRequest.of(0, HISTORY - 1)));
             Collections.reverse(earlier);
+            Map<UUID, String> notes = statusNotes(tenantId, earlier);
             store(run, AiMessageRole.USER, maskedQuestion);
             LocalDate today = tenantClock.today();
             Optional<EmployeeResponse> me = employeeService.currentEmployee();
             return new Setup(
                     earlier,
+                    notes,
                     today,
                     me.map(EmployeeResponse::id).orElse(null),
                     me.map(EmployeeResponse::firstName).orElse(null));
@@ -177,6 +230,10 @@ public class AiChatServiceImpl implements AiChatService {
         List<AiModelRequest.Message> conversation = new ArrayList<>();
         for (AiMessage m : setup.history()) {
             String text = masking.mask(m.getContent());
+            String note = setup.notes().get(m.getId());
+            if (note != null) {
+                text = text + "\n\n" + note;
+            }
             conversation.add(
                     m.getRole() == AiMessageRole.USER
                             ? AiModelRequest.Message.user(text)
@@ -184,10 +241,14 @@ public class AiChatServiceImpl implements AiChatService {
         }
         conversation.add(AiModelRequest.Message.user(maskedQuestion));
 
-        try {
+        try (AiChatTurn turn = AiChatTurn.open(tenantId, userId, sessionId)) {
             AiMessage answer = loop(run, prompt, conversation, tools, offered, caller, deadline);
+            AiProposedAction proposed = turn.proposed();
+            if (proposed != null) {
+                link(proposed.intentId(), answer, tenantId, userId);
+            }
             run.log("answered", started, clock.instant());
-            return new AiChatResponse(AiChatResponse.Message.of(answer), null);
+            return new AiChatResponse(AiChatResponse.Message.of(answer), proposed);
         } catch (RuntimeException e) {
             run.log("failed (" + e.getClass().getSimpleName() + ")", started, clock.instant());
             throw e;
@@ -289,6 +350,74 @@ public class AiChatServiceImpl implements AiChatService {
         return cut(write(masking.mask(data)));
     }
 
+    /** Sets the intent's {@code message_id} to the stored answer: the link the messages list reads back. */
+    private void link(UUID intentId, AiMessage answer, UUID tenantId, UUID userId) {
+        if (intents == null) {
+            return;
+        }
+        boolean linked = Boolean.TRUE.equals(tx.execute(s -> intents.findById(intentId)
+                .filter(i -> tenantId.equals(i.getTenantId()) && userId.equals(i.getUserId()))
+                .map(i -> {
+                    i.setMessageId(answer.getId());
+                    intents.save(i);
+                    return true;
+                })
+                .orElse(false)));
+        if (!linked) {
+            log.warn(
+                    "AI intent {} was not linked to answer {}: the card will not show after a reload",
+                    intentId,
+                    answer.getId());
+        }
+    }
+
+    /**
+     * The status line of each assistant message in the history whose intent is no longer {@code PROPOSED}, keyed by
+     * message id (W-114.8, "What the model is told"). An intent past its time still {@code PROPOSED} is told as expired.
+     */
+    private Map<UUID, String> statusNotes(UUID tenantId, List<AiMessage> history) {
+        if (intents == null) {
+            return Map.of();
+        }
+        List<UUID> assistantIds = history.stream()
+                .filter(m -> m.getRole() == AiMessageRole.ASSISTANT && m.getId() != null)
+                .map(AiMessage::getId)
+                .toList();
+        if (assistantIds.isEmpty()) {
+            return Map.of();
+        }
+        Instant now = clock.instant();
+        Map<UUID, String> notes = new HashMap<>();
+        List<AiActionIntent> found = intents.findByTenantIdAndMessageIdIn(tenantId, assistantIds);
+        for (AiActionIntent intent : found == null ? List.<AiActionIntent>of() : found) {
+            String note = statusNote(intent, now);
+            if (note != null && intent.getMessageId() != null) {
+                notes.merge(intent.getMessageId(), note, (a, b) -> a + "\n" + b);
+            }
+        }
+        return notes;
+    }
+
+    /** The fixed line for the intent's state, or {@code null} while it is still waiting for the user. */
+    String statusNote(AiActionIntent intent, Instant now) {
+        return switch (intent.getStatus()) {
+            case PROPOSED -> !now.isBefore(intent.getExpiresAt()) ? NOTE_EXPIRED : null;
+            case CANCELLED -> NOTE_DECLINED;
+            case CONFIRMED -> NOTE_CONFIRMED;
+            case EXPIRED -> NOTE_EXPIRED;
+            case FAILED -> String.format(NOTE_FAILED, masking.mask(failureReason(intent.getResult())));
+        };
+    }
+
+    private static String failureReason(JsonNode result) {
+        String reason = result == null ? null : result.path("reason").asText(null);
+        if (reason == null || reason.isBlank()) {
+            return "no reason was given";
+        }
+        // A service message may name a row ("Leave type not found: <uuid>"); the model never sees an id (W-114.4).
+        return UUID_IN_TEXT.matcher(reason).replaceAll("[id]");
+    }
+
     private JsonNode parseArguments(String arguments) throws JsonProcessingException {
         if (arguments == null || arguments.isBlank()) {
             return JsonNodeFactory.instance.objectNode();
@@ -346,7 +475,8 @@ public class AiChatServiceImpl implements AiChatService {
                 .orElseThrow(() -> new AccessDeniedException("No signed-in user with a UUID subject"));
     }
 
-    private record Setup(List<AiMessage> history, LocalDate today, UUID employeeId, String firstName) {}
+    private record Setup(
+            List<AiMessage> history, Map<UUID, String> notes, LocalDate today, UUID employeeId, String firstName) {}
 
     /** What one request did, for the one log line it writes. Never holds text. */
     private static final class Run {

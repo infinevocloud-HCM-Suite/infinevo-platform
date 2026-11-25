@@ -12,6 +12,12 @@ const SESSION_PAGE_SIZE = 50;
 /** The error code the server sends with `429` and a `Retry-After` header (W-114.4). */
 export const AI_RATE_LIMITED = 'AI_RATE_LIMITED';
 
+/** The error codes the action endpoints send (W-114.8, API contract). */
+export const AI_ACTION_EXPIRED = 'AI_ACTION_EXPIRED';
+export const AI_ACTION_FAILED = 'AI_ACTION_FAILED';
+export const AI_ACTION_CANCELLED = 'AI_ACTION_CANCELLED';
+export const AI_DISABLED = 'AI_DISABLED';
+
 function bodyOf(res) {
   return res?.data !== undefined ? res.data : res;
 }
@@ -98,5 +104,26 @@ export const assistantService = {
       };
     }
     return bodyOf(res);
+  },
+
+  /**
+   * `GET /api/v1/ai/actions/{intentId}` → `{ intentId, actionCode, summary, fields, status, expiresAt, result }`
+   * (W-114.8). The one source of a confirm card's words and state.
+   */
+  async getAction(intentId) {
+    return bodyOf(await apiClient.get(`/v1/ai/actions/${encodeURIComponent(intentId)}`));
+  },
+
+  /**
+   * `POST /api/v1/ai/actions/{intentId}/confirm` → `{ intentId, actionCode, status, result }`. No body:
+   * the server runs the payload it stored (W-114.8 C8), and runs it once however often this is called.
+   */
+  async confirmAction(intentId) {
+    return bodyOf(await apiClient.post(`/v1/ai/actions/${encodeURIComponent(intentId)}/confirm`));
+  },
+
+  /** `POST /api/v1/ai/actions/{intentId}/cancel` → the same shape, `status: "CANCELLED"`. No body. */
+  async cancelAction(intentId) {
+    return bodyOf(await apiClient.post(`/v1/ai/actions/${encodeURIComponent(intentId)}/cancel`));
   },
 };

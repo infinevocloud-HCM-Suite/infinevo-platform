@@ -232,12 +232,7 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
     }
 
     private TaxComputationRecordResponse toResponse(TaxComputationRecord r) {
-        Object workingObj;
-        try {
-            workingObj = objectMapper.readTree(r.getWorking());
-        } catch (Exception e) {
-            workingObj = r.getWorking();
-        }
+        Object workingObj = TaxWorkingJson.read(objectMapper, r.getWorking());
 
         return new TaxComputationRecordResponse(
                 r.getId(),

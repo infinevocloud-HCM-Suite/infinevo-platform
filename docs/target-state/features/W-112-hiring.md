@@ -32,7 +32,7 @@ This feature delivers the **Hiring & Recruitment Management** module inside `hrm
 | Axis | Whole Module | Sub-Phase 1 (`W-112.1`) | Limit |
 |---|:---:|:---:|:---:|
 | Backend module | `hrms` | `hrms` | 1 |
-| Flyway migrations | 2 migrations (next free versions at build time):<br>1. `hrms/V<N>__hiring_schema.sql`<br>2. `core/V<M>__hiring_permissions.sql` | 1 script (`hrms/V<N>__job_openings.sql`) | 2 |
+| Flyway migrations | 2 migrations (next free versions at build time):<br>1. `hrms/V<N>__hiring_schema.sql`<br>2. `core/V<M>__hiring_permissions.sql` | Each phase ships its own schema script for its own tables (`W-112.1` openings, `.2` candidates and applications, `.3` interviews, `.4` offers); the permissions script ships with `W-112.1`. The schema below is the module total, not one migration. | 2 per phase |
 | Externally testable behaviour | HR manages job openings, candidate pipeline, interviews, and converts hired candidates to employees | HR creates, publishes, and tracks job openings with required headcount | 1 |
 | Frontend area | `src/hrms/hiring` | `src/hrms/hiring/openings` | 1 |
 
@@ -99,7 +99,7 @@ CREATE TABLE hrms.candidate (
     current_title VARCHAR(120),
     experience_years NUMERIC(4,1),
     notice_period_days INTEGER,
-    resume_url VARCHAR(255),
+    resume_document_id UUID, -- core.document id (tenant-owned file, employee_id NULL), uploaded through the existing document store
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100) NOT NULL DEFAULT 'system',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -263,7 +263,11 @@ Follows standard role grant pattern established in `code/backend/migration/src/m
 6. **One-Click Convert to Employee (`POST /api/v1/hrms/offers/{id}/convert-to-employee`):**
    - Converts an `ACCEPTED` offer into a new `core.employee` record.
    - Pre-fills first/last name, email, work phone, department, designation, work location, and joining date.
-   - Sets employee status to `ACTIVE` (or pending onboarding) without duplicate manual entry.
+   - Calls `EmployeeService.create(EmployeeRequest)`, the only create method Core has. The employee is created `ACTIVE` with the offer's joining date; Core has no pending state and this ticket adds none.
+   - HR types the employee number in the convert dialog (Core requires it and nothing generates it today). The candidate's email is stored as the personal email; the work email is entered in the same dialog.
+   - Core's employee limit (`409 EMPLOYEE_LIMIT_REACHED`, `W-84.2`) and duplicate checks apply and are shown as they are. No login invitation is sent; HR sends it from the employee page.
+   - Offered CTC is not turned into a salary: `hrms` may not call `payroll`. Salary setup stays a payroll step.
+   - On success the application moves to `HIRED` and the opening's `filled_count` goes up by one.
 
 ### Out of Scope
 1. **Public Career Website & External Job Board Syndication:** Direct XML feed generation or API push to LinkedIn/Naukri/Indeed (handled in future integration stream `W-108`).
@@ -295,12 +299,18 @@ Follows standard role grant pattern established in `code/backend/migration/src/m
 | `PUT` | `/api/v1/hrms/job-openings/{id}` | `hrms.hiring.manage` | Update job opening fields |
 | `PATCH` | `/api/v1/hrms/job-openings/{id}/status` | `hrms.hiring.manage` | Change status (`OPEN`, `ON_HOLD`, `FILLED`, `CLOSED`) |
 | `GET` | `/api/v1/hrms/candidates` | `hrms.hiring.read` | Search and list candidates across openings |
-| `POST` | `/api/v1/hrms/candidates` | `hrms.hiring.manage` | Add candidate profile with resume URL |
+| `POST` | `/api/v1/hrms/candidates` | `hrms.hiring.manage` | Add candidate profile; the resume is uploaded to the document store |
 | `POST` | `/api/v1/hrms/job-openings/{id}/applications` | `hrms.hiring.manage` | Link candidate to opening in `APPLIED` stage |
 | `PATCH` | `/api/v1/hrms/applications/{id}/stage` | `hrms.hiring.manage` | Move application to next stage (e.g. `SCREENING` $\to$ `INTERVIEWING`) |
 | `POST` | `/api/v1/hrms/applications/{id}/interviews` | `hrms.hiring.manage` | Schedule interview round with assigned interviewer |
 | `POST` | `/api/v1/hrms/interviews/{id}/feedback` | `hrms.hiring.interview` | Submit interview scorecard rating and recommendation |
 | `POST` | `/api/v1/hrms/applications/{id}/offers` | `hrms.hiring.manage` | Generate job offer with offered CTC and target join date |
+| `GET` | `/api/v1/hrms/offers` | `hrms.hiring.read` | List offers with a status filter |
+| `POST` | `/api/v1/hrms/offers/{id}/send` | `hrms.hiring.manage` | `DRAFT` to `SENT` |
+| `POST` | `/api/v1/hrms/offers/{id}/accept` | `hrms.hiring.manage` | HR records the candidate's acceptance: `SENT` to `ACCEPTED` (candidates have no login) |
+| `POST` | `/api/v1/hrms/offers/{id}/decline` | `hrms.hiring.manage` | `SENT` to `DECLINED`, with a reason |
+| `GET` | `/api/v1/hrms/interviews?mine=true` | `hrms.hiring.interview` | An interviewer's own interviews only |
+| `GET` | `/api/v1/hrms/candidates/{id}/resume` | `hrms.hiring.read` | Resume download through the document store |
 | `POST` | `/api/v1/hrms/offers/{id}/convert-to-employee` | `hrms.hiring.manage` | Converts `ACCEPTED` offer into `core.employee` record |
 
 ---

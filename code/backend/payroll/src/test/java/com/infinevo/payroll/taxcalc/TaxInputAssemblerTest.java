@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -473,20 +474,7 @@ class TaxInputAssemblerTest {
                         workLocationId,
                         null, // createdAt
                         null)); // updatedAt
-        given(personalService.get(EMPLOYEE_ID))
-                .willReturn(new com.infinevo.core.employee.detail.EmployeePersonalResponse(
-                        UUID.randomUUID(),
-                        TENANT_ID,
-                        EMPLOYEE_ID,
-                        LocalDate.of(1990, 6, 15), // dateOfBirth
-                        null, // maritalStatus
-                        null, // nationality
-                        null, // ethnicity
-                        null, // fatherName
-                        null, // differentlyAbledType
-                        false, // eligibleForFullTaxExemption
-                        null, // createdAt
-                        null)); // updatedAt
+        given(personalService.dateOfBirth(EMPLOYEE_ID)).willReturn(Optional.of(LocalDate.of(1990, 6, 15)));
 
         given(earningRepository.findAllByTenantIdAndDeletedFalse(TENANT_ID)).willReturn(List.of());
         given(prevEmploymentRepository.findByTenantIdAndDeclarationId(TENANT_ID, DECL_ID))
