@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { theme as antdTheme } from 'antd';
+import { ActionCard } from './ActionCard.jsx';
 
 /** The row shown while an answer is on its way. */
 export const THINKING_TEXT = 'Thinking…';
@@ -11,15 +12,19 @@ export const THINKING_TEXT = 'Thinking…';
  * HTML. No `dangerouslySetInnerHTML`, no markdown library, no linkifying. Line breaks are kept by the
  * `white-space: pre-wrap` in `assistant.css`.
  *
- * The one place a message turns into elements: W-114.9 renders a message carrying `proposedAction` as a
- * confirm card here. Until then such a message is shown as plain text like any other.
+ * The one place a message turns into elements: a helper message carrying `proposedAction` gets a confirm
+ * card under its text (W-114.9). The card is given the `intentId` only; it reads its words and state from
+ * the server, never from this message (W-114.8 C1).
  */
 export function renderMessage(message, token) {
   const mine = message.role === 'USER';
+  const intentId = !mine && message.proposedAction?.intentId ? String(message.proposedAction.intentId) : null;
   return (
     <div
       key={message.id}
-      className={`assistant-row ${mine ? 'assistant-row-user' : 'assistant-row-helper'}`}
+      className={`assistant-row ${mine ? 'assistant-row-user' : 'assistant-row-helper'}${
+        intentId ? ' assistant-row-action' : ''
+      }`}
       data-testid={mine ? 'assistant-user-message' : 'assistant-helper-message'}
     >
       <span className="assistant-sr-only">{mine ? 'You: ' : 'AI helper: '}</span>
@@ -34,6 +39,7 @@ export function renderMessage(message, token) {
       >
         {String(message.content ?? '')}
       </div>
+      {intentId && <ActionCard intentId={intentId} />}
     </div>
   );
 }
