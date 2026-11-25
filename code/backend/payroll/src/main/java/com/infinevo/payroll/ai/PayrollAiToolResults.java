@@ -1,0 +1,226 @@
+package com.infinevo.payroll.ai;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.infinevo.core.ai.AiToolResults;
+import com.infinevo.payroll.payslip.PayslipLineResponse;
+import com.infinevo.payroll.payslip.PayslipResponse;
+import com.infinevo.payroll.payslip.PayslipSummaryResponse;
+import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse;
+import com.infinevo.payroll.taxdeclaration.summary.dto.ComputedTaxSummaryResponse;
+import com.infinevo.payroll.taxdeclaration.summary.dto.DeclaredTotals;
+import com.infinevo.payroll.taxdeclaration.summary.dto.TaxSummaryResponse;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+/**
+ * The Payroll responses as the AI helper reads them (W-114.7 rules 2 and 5), and the one place an amount becomes text.
+ *
+ * <p>Each response is copied field by field, so only the fields named here leave the tool. A payslip carries the
+ * period, run type, pay and paid dates, paid days, each earning, deduction and reimbursement line (code, name, amount,
+ * taxable) and the ready-made totals; not the run or employee id, not the employee block (number, PF and UAN numbers),
+ * not the employer, not the link. A null field is left out. Every answer passes {@link AiToolResults#withoutIds} as a
+ * second guard.
+ *
+ * <p>Every amount is a {@link BigDecimal} from the service and is written by {@link #amount} as
+ * {@code setScale(2, HALF_UP).toPlainString()} - the payslip's own rounding ({@code PayslipServiceImpl.scale2}) - so
+ * {@code 45000} is {@code "45000.00"} and never {@code 4.5E4}. {@code "currency": "INR"} is written once per answer.
+ */
+final class PayrollAiToolResults {
+
+    static final String CURRENCY = "INR";
+
+    /** {@code PayslipServiceImpl.scale2}'s rounding ({@code payslip/PayslipServiceImpl.java:268-272}). */
+    static final RoundingMode PAYSLIP_ROUNDING = RoundingMode.HALF_UP;
+
+    private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
+
+    private PayrollAiToolResults() {}
+
+    /** {@code PayslipService.listOwn}: newest month first, as the service orders them. */
+    static JsonNode payslips(List<PayslipSummaryResponse> slips) {
+        ObjectNode out = NODES.objectNode();
+        out.put("currency", CURRENCY);
+        ArrayNode list = out.putArray("payslips");
+        if (slips != null) {
+            for (PayslipSummaryResponse s : slips) {
+                ObjectNode row = list.addObject();
+                put(row, "period", s.period());
+                put(row, "paidOn", s.paidOn());
+                putAmount(row, "netPay", s.netPay());
+            }
+        }
+        out.put("count", list.size());
+        if (list.isEmpty()) {
+            out.put("message", PayrollAiToolProvider.NO_PAYSLIPS);
+        }
+        return AiToolResults.withoutIds(out);
+    }
+
+    /**
+     * {@code PayslipService.own}: the month's main payslip, and under {@code otherPayslipsThisMonth} the month's other
+     * paid payslips (off-cycle runs), each in the same shape. The list is left out when there are none.
+     */
+    static JsonNode payslip(PayslipResponse main, List<PayslipResponse> others) {
+        ObjectNode out = (ObjectNode) payslip(main);
+        if (others != null && !others.isEmpty()) {
+            ArrayNode list = out.putArray("otherPayslipsThisMonth");
+            for (PayslipResponse other : others) {
+                list.add(payslip(other));
+            }
+        }
+        return AiToolResults.withoutIds(out);
+    }
+
+    /** {@code PayslipService.own}: one paid payslip. */
+    static JsonNode payslip(PayslipResponse p) {
+        ObjectNode out = NODES.objectNode();
+        out.put("currency", CURRENCY);
+        PayslipResponse.RunSummary run = p.run();
+        if (run != null) {
+            put(out, "period", run.period());
+            put(out, "type", run.type());
+            put(out, "payDate", run.payDate());
+            put(out, "paidOn", run.paidOn());
+        }
+        if (p.days() != null) {
+            putAmount(out, "paidDays", p.days().paidDays());
+        }
+        out.set("earnings", lines(p.earnings()));
+        out.set("deductions", lines(p.deductions()));
+        out.set("reimbursements", lines(p.reimbursements()));
+        PayslipResponse.TotalsSummary totals = p.totals();
+        if (totals != null) {
+            putAmount(out, "grossEarnings", totals.grossEarnings());
+            putAmount(out, "totalDeductions", totals.totalDeductions());
+            putAmount(out, "totalReimbursements", totals.totalReimbursements());
+            putAmount(out, "netPay", totals.netPay());
+        }
+        return AiToolResults.withoutIds(out);
+    }
+
+    /** No payslip or declaration to show: the period asked about, if any, and one plain sentence. */
+    static JsonNode none(String period, String message) {
+        ObjectNode out = NODES.objectNode();
+        if (period != null) {
+            out.put("period", period);
+        }
+        out.put("found", false);
+        out.put("message", message);
+        return out;
+    }
+
+    /** {@code TaxDeclarationService.readOwn}: the declaration header, without its id or the employee's. */
+    static JsonNode taxDeclaration(TaxDeclarationResponse d) {
+        ObjectNode out = NODES.objectNode();
+        out.put("currency", CURRENCY);
+        put(out, "financialYear", d.financialYear());
+        put(out, "taxRegime", d.taxRegime());
+        put(out, "status", d.status());
+        out.put("locked", d.isLocked());
+        put(out, "submittedAt", d.submittedAt());
+        put(out, "lockedAt", d.lockedAt());
+        put(out, "updatedAt", d.updatedAt());
+        out.put("windowOpen", d.windowOpen());
+        out.put("editable", d.editable());
+        out.put("stayingInRentedHouse", d.isStayingInRentedHouse());
+        out.put("repayingSelfOccupiedHomeLoan", d.isRepayingSelfOccupiedLoan());
+        out.put("hasLetOutProperty", d.hasLetOutProperty());
+        out.put("landlordPanRequiredOverRentThreshold", d.panRequiredForRentOverThreshold());
+        putAmount(out, "rentThresholdForLandlordPan", d.rentPanThreshold());
+        return AiToolResults.withoutIds(out);
+    }
+
+    /** {@code TaxSummaryService.summaryOwn}: what was declared and what was computed. */
+    static JsonNode taxSummary(TaxSummaryResponse s) {
+        ObjectNode out = NODES.objectNode();
+        out.put("currency", CURRENCY);
+        put(out, "financialYear", s.financialYear());
+        put(out, "taxRegime", s.taxRegime());
+        put(out, "status", s.status());
+        DeclaredTotals d = s.declared();
+        if (d != null) {
+            ObjectNode declared = out.putObject("declared");
+            putAmount(declared, "houseRentAnnual", d.houseRentAnnual());
+            putAmount(declared, "homeLoanPrincipal", d.homeLoanPrincipal());
+            putAmount(declared, "homeLoanInterest", d.homeLoanInterest());
+            putAmount(declared, "letOutNet", d.letOutNet());
+            if (d.section6aByGroup() != null && !d.section6aByGroup().isEmpty()) {
+                ObjectNode groups = declared.putObject("section6aByGroup");
+                for (Map.Entry<String, BigDecimal> e : new TreeMap<>(d.section6aByGroup()).entrySet()) {
+                    putAmount(groups, e.getKey(), e.getValue());
+                }
+            }
+            putAmount(declared, "section6aTotal", d.section6aTotal());
+            putAmount(declared, "preTaxTotal", d.preTaxTotal());
+            putAmount(declared, "previousEmploymentIncome", d.prevEmploymentIncome());
+            putAmount(declared, "previousEmploymentTax", d.prevEmploymentTax());
+            putAmount(declared, "otherIncomeTotal", d.otherIncomeTotal());
+        }
+        ComputedTaxSummaryResponse c = s.computed();
+        if (c != null) {
+            ObjectNode computed = out.putObject("computed");
+            putAmount(computed, "taxableIncome", c.taxableIncome());
+            putAmount(computed, "netTaxableIncome", c.netTaxableIncome());
+            putAmount(computed, "taxOnTaxableIncome", c.taxOnTaxableIncome());
+            putAmount(computed, "taxPaidSoFar", c.taxYtdAmount());
+            putAmount(computed, "taxToBePaid", c.taxToBePaid());
+            putAmount(computed, "tdsThroughPayroll", c.tdsThroughPayroll());
+            putAmount(computed, "tdsPreviousEmployer", c.tdsPreviousEmployer());
+            putAmount(computed, "tdsOtherIncome", c.tdsOtherIncome());
+            putAmount(computed, "otherSourcesIncome", c.otherSourcesIncome());
+            putAmount(computed, "exemptionUnderSection10", c.exemptionUnderSection10());
+            putAmount(computed, "exemptionUnderSection6a", c.exemptionUnderSection6a());
+            if (c.remainingMonths() != null) {
+                computed.put("remainingMonths", c.remainingMonths());
+            }
+            put(computed, "computedAt", c.computedAt());
+        }
+        return AiToolResults.withoutIds(out);
+    }
+
+    // ---- writing ----
+
+    /** An amount as text at two decimals, the payslip's rounding: {@code 45000} is {@code "45000.00"}. */
+    static String amount(BigDecimal value) {
+        return value == null ? null : value.setScale(2, PAYSLIP_ROUNDING).toPlainString();
+    }
+
+    private static ArrayNode lines(List<PayslipLineResponse> lines) {
+        ArrayNode list = NODES.arrayNode();
+        if (lines != null) {
+            for (PayslipLineResponse l : lines) {
+                ObjectNode row = list.addObject();
+                put(row, "code", l.code());
+                put(row, "name", l.name());
+                putAmount(row, "amount", l.amount());
+                row.put("taxable", l.isTaxable());
+            }
+        }
+        return list;
+    }
+
+    private static void putAmount(ObjectNode out, String name, BigDecimal value) {
+        String text = amount(value);
+        if (text != null) {
+            out.put(name, text);
+        }
+    }
+
+    /** Writes one value: enums by name, dates and times by their ISO {@code toString}; nothing for null. */
+    private static void put(ObjectNode out, String name, Object value) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof Enum<?> constant) {
+            out.put(name, constant.name());
+        } else {
+            out.put(name, value.toString());
+        }
+    }
+}
