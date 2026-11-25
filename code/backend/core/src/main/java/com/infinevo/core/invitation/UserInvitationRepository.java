@@ -23,6 +23,9 @@ public interface UserInvitationRepository extends JpaRepository<UserInvitation, 
 
     Optional<UserInvitation> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    /** The rows a resend linked to {@code supersededById} (D-22: unlinked before that row is deleted). */
+    List<UserInvitation> findByTenantIdAndSupersededById(UUID tenantId, UUID supersededById);
+
     Optional<UserInvitation> findByTokenHash(String tokenHash);
 
     @Query(

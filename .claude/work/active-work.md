@@ -6,6 +6,7 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+<<<<<<< HEAD
 ## 2026-11-24 — W-114.6 AI helper HRMS tools on `main`
 
 - Five read-only tools on the caller's own data: today's clock status, clock sessions, regularizations, one timesheet week, timesheets. 93-day cap; no employee id taken; the login must be the context's employee. `code/backend/hrms/src/main/java/com/infinevo/hrms/ai/`.
@@ -13,6 +14,20 @@
 - Built by Claude; one independent read (one Low fixed: a permission refusal no longer says "no employee record").
 - **Known, left:** the HRMS licence gate is in `AiToolRegistry` (by the `hrms.` name), not in the provider; the integration test is in `hrms` against the registry, not in `app` with the stub model.
 - **Next:** `W-114.7` Payroll read-only tools.
+=======
+## 2026-11-25 — D-22 and D-30 on `main` (`c9ad4a2f`): invitations can be deleted; terminated list shows the last working day
+
+| Defect | What |
+|---|---|
+| `D-22` | A revoked, declined or expired invitation has a Delete action (user and employee kinds); pending or accepted rows keep their record. `DELETE /api/v1/user-invitations/{id}`, `DELETE /api/v1/employee-invitations/{id}` |
+| `D-30` | Employee directory, filter Terminated: a "Last working day" column; the list summary now carries `terminationDate` |
+
+- Built by Claude. No migration. Tracker also closes `D-17`, `D-19`, `D-21`, `D-26` as stale, marks `D-134`/`D-136`/`D-137` fixed on main (`c353960e`, `b7fc8b3b`), and opens `D-155` (security: guard test for `hrms`/`payroll`/`app`, Front Door origin check, RLS policy shape — the unbuilt remainder of `W-57.1`, `W-57.2`, `W-58`, closed in INFRA-TRACKER).
+- **Founder 2026-11-25:** standing approval extended to every open ticket and defect; developer side branches (`dev-mohit`, `feature/mohit-branch-2-w89-specs`, `feature/mohit-branch-3-w90-fnf`, `feature/krushna-specs`) are reviewed and merged, not rebuilt. Order: `W-88` → `D-155` → `W-89`, `W-87`, `W-92` → `W-90`, `W-91`, `W-103` → krushna's `W-85`, `W-86`, `W-104`, `W-102`, `W-106` → `W-116`, `W-101`, `W-100` → `W-107`, `W-108`, `W-112`, `W-110`, `W-111`, `W-109`, `W-115`. `W-114.7+` continues alongside. Out: `W-98`, payslip PDF, `W-99`, `W-64`, `W-66`, `W-118`, `W-94`, migration.
+- **Left (reviewer F-2):** deleting an `EXPIRED` tenant-admin invitation drops that tenant from the platform's waiting-admin list (`V168`); only the tenant's own `core.user.manage` holder can do it.
+- One independent read: approve, two Low; F-1 (a time-expired `PENDING` row could not be deleted without a revoke) fixed on the branch.
+
+>>>>>>> origin/dev-claude-d22-d30
 ## 2026-11-24 — D-49 and D-51 on `main` (`b2642fc5`): leave import; Sayeed's October defect rows settled
 
 | Defect | What |

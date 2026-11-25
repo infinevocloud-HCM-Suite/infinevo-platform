@@ -81,18 +81,19 @@ not polish.
 ## 4. Security, operations, go-to-market
 
 Observability, alerting, backup and load testing are merged. `W-57` was split in two and both specs
-written 2026-09-27, as was `W-58`. `W-64` has no spec yet.
+written 2026-09-27, as was `W-58`; on 2026-11-24 the three were checked against `main`, found part-built, and the
+remainder merged into one defect, `D-155` in DEV-TRACKER. `W-64` has no spec yet.
 
 | # | Ticket | What it is | Status |
 |---|---|---|---|
-| #77 | `W-57.1` Deny-by-default: exception list and build-time check | `PublicEndpoints` in `shared` (same file as `W-21`'s branch), `PublicEndpointAuditIT` in `app` that calls every mapping without a token and fails on an unlisted open one, CI step refusing `permitAll(` outside the two security configs. **Spec written 2026-09-27** — `W-57-1-deny-by-default-exception-list.md`. Size S | **Ready — unassigned** · `W-10` merged |
-| #77 | `W-57.2` Front Door origin check | `X-Azure-FDID` filter in `shared`, armed by `FRONT_DOOR_ID` which Bicep passes from the Front Door profile to the `app` container; closes the `W-51` deferral (`D-54`). **Spec written 2026-09-27** — `W-57-2-front-door-origin-check.md`. Size S | **Ready — unassigned**, after `W-57.1` |
-| #78 | `W-58` Tenant isolation tests | `UserTenantIsolationIT` for the one untested tenant table, policy-shape assertions (`FOR ALL`, `public`, qualifier) added to `ShippedMigrationsIT`, and `RlsCoverageIT` refusing any tenant table without a named behavioural test. All in the `migration` test tree; no main code. **Spec written 2026-09-27** — `W-58-tenant-isolation-tests.md`. Size S (was M; 18 of 19 tables already tested by earlier tickets). `@RequiresAction` endpoint sweep declined, proposed as `W-57.3` | **Ready — unassigned** · `W-08` merged |
+| #77 | `W-57.1` Deny-by-default: exception list and build-time check | `PublicEndpoints` in `shared` (same file as `W-21`'s branch), `PublicEndpointAuditIT` in `app` that calls every mapping without a token and fails on an unlisted open one, CI step refusing `permitAll(` outside the two security configs. **Spec written 2026-09-27** — `W-57-1-deny-by-default-exception-list.md`. Size S | **closed 2026-11-24 → `D-155`** (DEV-TRACKER). `PublicEndpoints` and the `core`/`shared` guard test are on `main`; the `hrms`/`payroll`/`app` scan and the no-token sweep are `D-155` part 1 |
+| #77 | `W-57.2` Front Door origin check | `X-Azure-FDID` filter in `shared`, armed by `FRONT_DOOR_ID` which Bicep passes from the Front Door profile to the `app` container; closes the `W-51` deferral (`D-54`). **Spec written 2026-09-27** — `W-57-2-front-door-origin-check.md`. Size S | **closed 2026-11-24 → `D-155`** part 2 (DEV-TRACKER). Nothing built; the spec still applies |
+| #78 | `W-58` Tenant isolation tests | `UserTenantIsolationIT` for the one untested tenant table, policy-shape assertions (`FOR ALL`, `public`, qualifier) added to `ShippedMigrationsIT`, and `RlsCoverageIT` refusing any tenant table without a named behavioural test. All in the `migration` test tree; no main code. **Spec written 2026-09-27** — `W-58-tenant-isolation-tests.md`. Size S (was M; 18 of 19 tables already tested by earlier tickets). `@RequiresAction` endpoint sweep declined, proposed as `W-57.3` | **closed 2026-11-24 → `D-155`** part 3 (DEV-TRACKER). `TenantIsolationIT` and the per-table RLS checks in `ShippedMigrationsIT` are on `main`; only the policy-shape assertions remain |
 | #80 | `W-60` Observability | Structured logging, tracing, metrics, health endpoints, dashboards. One request followable across app, worker and database | **on main `3e1aebc`** · code done |
 | #81 | `W-61` Alerting | Alert rules, routing to a person, an on-call process | **on main `10e60bc`** · code done — no rule has ever fired |
 | #82 | `W-62` Backup & disaster recovery | Backup configuration, a restore that has actually been performed, a recovery runbook | **on main `1d1123a`** · code done — **no restore has been performed** |
 | #83 | `W-63` Load test | Scenarios, baseline, regression run | **on main** · code done |
-| #84 | `W-64` Penetration test | External engagement and remediation. Re-tests the perimeter and is where `D-51` Front Door Standard gets revisited | `W-57.1`, `W-57.2`, `W-58` |
+| #84 | `W-64` Penetration test | External engagement and remediation. Re-tests the perimeter and is where `D-51` Front Door Standard gets revisited | `D-155` (was `W-57.1`, `W-57.2`, `W-58`) |
 
 ---
 

@@ -25,6 +25,14 @@ export function getInvitationStatusTag(status) {
   }
 }
 
+/** D-22: the finished states a row may be deleted from. PENDING is revoked first; ACCEPTED stays. */
+export const DELETABLE_STATUSES = ['REVOKED', 'DECLINED', 'EXPIRED'];
+
+/** A PENDING row past its expiry: the server flips it to EXPIRED only when its link is opened, so treat it as finished. */
+export function isTimeExpired(record) {
+  return record?.status === 'PENDING' && !!record?.expiresAt && new Date(record.expiresAt).getTime() < Date.now();
+}
+
 /** The Kind column's words (W-73.4): who the invitation is for. */
 export const INVITATION_KINDS = { USER: 'User', EMPLOYEE: 'Employee' };
 
@@ -34,8 +42,10 @@ export function InvitationTable({
   loading = false,
   onResend,
   onRevoke,
+  onDelete,
   resendingId = null,
   revokingId = null,
+  deletingId = null,
   emptyText = 'No invitations found',
 }) {
   const columns = [
@@ -79,8 +89,31 @@ export function InvitationTable({
       title: 'Actions',
       key: 'actions',
       render: (_, record) => {
-        if (record.status !== 'PENDING') {
-          return '—';
+        if (record.status !== 'PENDING' || isTimeExpired(record)) {
+          // D-22: a finished invitation can be removed from the list; an accepted one is the account's record.
+          if (!onDelete || (!DELETABLE_STATUSES.includes(record.status) && !isTimeExpired(record))) {
+            return '—';
+          }
+          return (
+            <Popconfirm
+              title="Delete invitation"
+              description="Remove this invitation from the list? This cannot be undone."
+              okText="Yes, delete"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true, id: `btn-confirm-delete-${record.id}` }}
+              onConfirm={() => onDelete(record.id, record)}
+            >
+              <Button
+                size="small"
+                danger
+                className="btn-spring"
+                id={`btn-delete-${record.id}`}
+                loading={deletingId === record.id}
+              >
+                Delete
+              </Button>
+            </Popconfirm>
+          );
         }
         return (
           <Space size="small">
@@ -145,7 +178,9 @@ InvitationTable.propTypes = {
   showKind: PropTypes.bool,
   onResend: PropTypes.func,
   onRevoke: PropTypes.func,
+  onDelete: PropTypes.func,
   resendingId: PropTypes.string,
   revokingId: PropTypes.string,
+  deletingId: PropTypes.string,
   emptyText: PropTypes.string,
 };
