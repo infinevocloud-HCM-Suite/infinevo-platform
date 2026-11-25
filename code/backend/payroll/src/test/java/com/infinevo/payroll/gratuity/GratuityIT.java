@@ -4,7 +4,16 @@ import static com.infinevo.payroll.PayrollTestSchema.TENANT_A;
 import static com.infinevo.payroll.PayrollTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
 import com.infinevo.payroll.component.CalculationType;
@@ -31,18 +40,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
- * Integration tests for W-91 Gratuity estimation and settlement persistence.
+ * Integration tests for W-91 Gratuity estimation, REST controller, and settlement persistence.
  */
 @SpringBootTest(classes = PayrollTestApp.class)
 @EnabledIfDockerAvailable
 class GratuityIT extends AbstractIntegrationTest {
 
     @Autowired
-    private GratuityController gratuityController;
+    private GratuityService gratuityService;
 
     @Autowired
     private EmployeeSalaryService employeeSalaryService;
@@ -50,6 +61,11 @@ class GratuityIT extends AbstractIntegrationTest {
     @Autowired
     private EarningRepository earningRepository;
 
+    private final ObjectMapper mapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+    private MockMvc mvc;
     private UUID employeeId;
 
     @BeforeAll
@@ -113,6 +129,10 @@ class GratuityIT extends AbstractIntegrationTest {
                                         null)),
                         List.of(),
                         List.of()));
+
+        mvc = MockMvcBuilders.standaloneSetup(new GratuityController(gratuityService))
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
+                .build();
     }
 
     @AfterEach
@@ -123,45 +143,63 @@ class GratuityIT extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("Estimates gratuity, creates settlement, retrieves it, and enforces uniqueness and tenant isolation")
-    void estimateCreateAndRetrieveSettlement() {
+    void estimateCreateAndRetrieveSettlement() throws Exception {
         TenantContext.set(TENANT_A);
         LocalDate exitDate = LocalDate.of(2025, 8, 1); // 5y 7m -> 6 years
 
-        GratuityEstimateResponse estimate = gratuityController.estimate(
-                new GratuityEstimateRequest(employeeId, exitDate, GratuityReason.RESIGNATION));
+        String estimateJson = mvc.perform(post("/api/v1/payroll/gratuity/estimate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(
+                                new GratuityEstimateRequest(employeeId, exitDate, GratuityReason.RESIGNATION))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eligible").value(true))
+                .andExpect(jsonPath("$.completedYears").value(6))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
 
-        assertThat(estimate.eligible()).isTrue();
-        assertThat(estimate.completedYears()).isEqualTo(6);
-        assertThat(estimate.lastDrawnBasic()).isEqualByComparingTo("40000.00");
-        assertThat(estimate.lastDrawnDa()).isEqualByComparingTo("12000.00");
+        JsonNode estNode = mapper.readTree(estimateJson);
+        assertThat(estNode.get("lastDrawnBasic").decimalValue()).isEqualByComparingTo("40000.00");
+        assertThat(estNode.get("lastDrawnDa").decimalValue()).isEqualByComparingTo("12000.00");
         // 15 * 52000 * 6 / 26 = 180000.00
-        assertThat(estimate.calculatedAmount()).isEqualByComparingTo("180000.00");
-        assertThat(estimate.grossGratuityPayable()).isEqualByComparingTo("180000.00");
-        assertThat(estimate.taxExemptAmount()).isEqualByComparingTo("180000.00");
-        assertThat(estimate.taxableAmount()).isEqualByComparingTo("0.00");
+        assertThat(estNode.get("calculatedAmount").decimalValue()).isEqualByComparingTo("180000.00");
+        assertThat(estNode.get("grossGratuityPayable").decimalValue()).isEqualByComparingTo("180000.00");
+        assertThat(estNode.get("taxExemptAmount").decimalValue()).isEqualByComparingTo("180000.00");
+        assertThat(estNode.get("taxableAmount").decimalValue()).isEqualByComparingTo("0.00");
 
-        ResponseEntity<GratuitySettlementResponse> createdResp = gratuityController.createSettlement(
-                new GratuitySettlementCreateRequest(employeeId, exitDate, GratuityReason.RESIGNATION));
-        assertThat(createdResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        GratuitySettlementResponse created = createdResp.getBody();
-        assertThat(created).isNotNull();
-        assertThat(created.id()).isNotNull();
-        assertThat(created.status()).isEqualTo(GratuitySettlementStatus.DRAFT);
-        assertThat(created.grossGratuityPayable()).isEqualByComparingTo("180000.00");
+        String createdJson = mvc.perform(post("/api/v1/payroll/gratuity/settlements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(
+                                new GratuitySettlementCreateRequest(employeeId, exitDate, GratuityReason.RESIGNATION))))
+                .andExpect(status().isCreated())
+                .andExpect(header().exists("Location"))
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
 
-        GratuitySettlementResponse fetched = gratuityController.getSettlement(created.id());
-        assertThat(fetched.id()).isEqualTo(created.id());
-        assertThat(fetched.employeeId()).isEqualTo(employeeId);
-        assertThat(fetched.completedYears()).isEqualTo(6);
+        UUID settlementId =
+                UUID.fromString(mapper.readTree(createdJson).get("id").asText());
 
-        // Duplicate active settlement is rejected with conflict
-        assertThatThrownBy(() -> gratuityController.createSettlement(
-                        new GratuitySettlementCreateRequest(employeeId, exitDate, GratuityReason.RESIGNATION)))
-                .isInstanceOf(GratuityConflictException.class);
+        mvc.perform(get("/api/v1/payroll/gratuity/settlements/{id}", settlementId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(settlementId.toString()))
+                .andExpect(jsonPath("$.employeeId").value(employeeId.toString()))
+                .andExpect(jsonPath("$.completedYears").value(6))
+                .andExpect(jsonPath("$.grossGratuityPayable").value(180000.0));
 
-        // Cross-tenant read is isolated
+        // Duplicate active settlement is rejected with 409 Conflict
+        mvc.perform(post("/api/v1/payroll/gratuity/settlements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(
+                                new GratuitySettlementCreateRequest(employeeId, exitDate, GratuityReason.RESIGNATION))))
+                .andExpect(status().isConflict());
+
+        // Cross-tenant read is isolated (404 Not Found)
         TenantContext.set(TENANT_B);
-        assertThatThrownBy(() -> gratuityController.getSettlement(created.id()))
+        mvc.perform(get("/api/v1/payroll/gratuity/settlements/{id}", settlementId))
+                .andExpect(status().isNotFound());
+        assertThatThrownBy(() -> gratuityService.getSettlement(settlementId))
                 .isInstanceOf(GratuityNotFoundException.class);
     }
 
