@@ -6,7 +6,7 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
-## 2026-11-25 — W-88.2 bank file templates on `main`
+## 2026-11-25 — W-88.2 bank file templates on `main` (`237fbec2`)
 
 | Ticket | What | Where |
 |---|---|---|
@@ -14,7 +14,7 @@
 
 - Built by Claude to the founder's 2026-11-25 design. W-88's omission rules are shared (`BankFileService.run`), so the one-click file and the templates agree on who is paid.
 - Files are tenant `EXPORT` documents; a storage failure fails the request, so every file the bank gets is in the history.
-- **Left:** fixed-width text layouts; PAN and custom fields are not in the catalogue; department filter in the picker is a search box.
+- **Left:** fixed-width text layouts; PAN and custom fields are not in the catalogue; department filter in the picker is a search box; if the history row fails to save after the file is stored, the stored blob is left unreferenced.
 
 ## 2026-11-25 — W-114.7 AI helper Payroll tools on `main`
 
