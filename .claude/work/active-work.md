@@ -6,16 +6,7 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
-<<<<<<< HEAD
-## 2026-11-24 — W-114.6 AI helper HRMS tools on `main`
-
-- Five read-only tools on the caller's own data: today's clock status, clock sessions, regularizations, one timesheet week, timesheets. 93-day cap; no employee id taken; the login must be the context's employee. `code/backend/hrms/src/main/java/com/infinevo/hrms/ai/`.
-- Shared input, id-stripping and quoted-text helpers moved to `core/ai` (`AiToolInputs`, `AiToolResults`, `AiUntrustedText`); Core tools unchanged in behaviour.
-- Built by Claude; one independent read (one Low fixed: a permission refusal no longer says "no employee record").
-- **Known, left:** the HRMS licence gate is in `AiToolRegistry` (by the `hrms.` name), not in the provider; the integration test is in `hrms` against the registry, not in `app` with the stub model.
-- **Next:** `W-114.7` Payroll read-only tools.
-=======
-## 2026-11-25 — D-22 and D-30 on `main` (`c9ad4a2f`): invitations can be deleted; terminated list shows the last working day
+## 2026-11-25 — D-22 and D-30 on `main` (`d13e4062`): invitations can be deleted; terminated list shows the last working day
 
 | Defect | What |
 |---|---|
@@ -27,7 +18,13 @@
 - **Left (reviewer F-2):** deleting an `EXPIRED` tenant-admin invitation drops that tenant from the platform's waiting-admin list (`V168`); only the tenant's own `core.user.manage` holder can do it.
 - One independent read: approve, two Low; F-1 (a time-expired `PENDING` row could not be deleted without a revoke) fixed on the branch.
 
->>>>>>> origin/dev-claude-d22-d30
+## 2026-11-24 — W-114.6 AI helper HRMS tools on `main`
+
+- Five read-only tools on the caller's own data: today's clock status, clock sessions, regularizations, one timesheet week, timesheets. 93-day cap; no employee id taken; the login must be the context's employee. `code/backend/hrms/src/main/java/com/infinevo/hrms/ai/`.
+- Shared input, id-stripping and quoted-text helpers moved to `core/ai` (`AiToolInputs`, `AiToolResults`, `AiUntrustedText`); Core tools unchanged in behaviour.
+- Built by Claude; one independent read (one Low fixed: a permission refusal no longer says "no employee record").
+- **Known, left:** the HRMS licence gate is in `AiToolRegistry` (by the `hrms.` name), not in the provider; the integration test is in `hrms` against the registry, not in `app` with the stub model.
+- **Next:** `W-114.7` Payroll read-only tools.
 ## 2026-11-24 — D-49 and D-51 on `main` (`b2642fc5`): leave import; Sayeed's October defect rows settled
 
 | Defect | What |
