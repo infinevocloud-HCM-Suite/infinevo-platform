@@ -46,7 +46,9 @@ class EndpointGuardCoverageTest {
             "reports only the bound tenant's own AI helper switch, cap and monthly usage (W-114.1 API contract:"
                     + " \"signed in\"); every member may see whether their organisation has the helper",
             "com.infinevo.core.invitation.InvitationAcceptanceController",
-            "unauthenticated single-use bearer token endpoints for invitation acceptance and decline (W-24.2)");
+            "unauthenticated single-use bearer token endpoints for invitation acceptance and decline (W-24.2)",
+            "com.infinevo.core.reference.CountryController",
+            "signed-in reference data for country selection (W-116)");
 
     @Test
     @DisplayName("every mapped method in core and shared names the action it requires")

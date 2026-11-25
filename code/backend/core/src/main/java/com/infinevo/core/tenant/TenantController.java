@@ -121,6 +121,19 @@ public class TenantController {
         return ResponseEntity.ok(tenantQueryService.getOverview(id));
     }
 
+    /**
+     * Changes a customer tenant's country (W-116). Platform staff only.
+     */
+    @PutMapping("/{id}/country")
+    @RequiresAction("core.tenant.provision")
+    public ResponseEntity<TenantOverview> changeCountry(
+            @PathVariable("id") UUID id, @RequestBody TenantCountryRequest request) {
+        if (request == null || request.countryCode() == null) {
+            throw new IllegalArgumentException("countryCode must not be null");
+        }
+        return ResponseEntity.ok(tenantService.changeCountry(id, request.countryCode()));
+    }
+
     /** The Keycloak subject of the caller, as {@code UserInvitationController} resolves it; null if none. */
     private static UUID currentActorUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

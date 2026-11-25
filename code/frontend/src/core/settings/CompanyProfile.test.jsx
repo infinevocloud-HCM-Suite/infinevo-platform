@@ -7,7 +7,11 @@ import * as shellScreens from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 vi.mock('./companyProfileService.js', () => ({
-  companyProfileService: { get: vi.fn(), update: vi.fn() },
+  companyProfileService: {
+    get: vi.fn(),
+    update: vi.fn(),
+    countries: vi.fn().mockResolvedValue([{ code: 'IN', name: 'India' }]),
+  },
 }));
 
 vi.mock('../document/documentService.js', () => ({
@@ -23,7 +27,7 @@ function can(codes) {
   return vi.spyOn(shellScreens, 'useCan').mockImplementation((code) => codes.includes(code));
 }
 
-describe('CompanyProfile (W-73.1 §5)', () => {
+describe('CompanyProfile (W-73.1, W-116)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
@@ -32,7 +36,16 @@ describe('CompanyProfile (W-73.1 §5)', () => {
       tagline: null,
       logoDocumentId: null,
       logoUrl: null,
+      countryCode: 'IN',
+      timezone: 'Asia/Kolkata',
+      leaveYearStartMonth: 4,
+      countryLocked: false,
+      leaveYearLocked: false,
     });
+    companyProfileService.countries.mockResolvedValue([
+      { code: 'IN', name: 'India' },
+      { code: 'US', name: 'United States' },
+    ]);
   });
 
   it('refuses a caller without core.tenant.read', () => {
@@ -53,7 +66,7 @@ describe('CompanyProfile (W-73.1 §5)', () => {
     expect(screen.queryByText(/upload logo/i)).toBeNull();
   });
 
-  it('an admin saves the tagline and a freshly uploaded logo', async () => {
+  it('an admin saves tagline, logo and locale settings', async () => {
     can(['core.tenant.read', 'core.tenant.manage']);
     documentService.upload.mockResolvedValue({ id: 'doc-logo-1' });
     companyProfileService.update.mockResolvedValue({
@@ -61,6 +74,11 @@ describe('CompanyProfile (W-73.1 §5)', () => {
       tagline: 'People first',
       logoDocumentId: 'doc-logo-1',
       logoUrl: '/api/v1/documents/download?t=signed',
+      countryCode: 'IN',
+      timezone: 'Asia/Kolkata',
+      leaveYearStartMonth: 4,
+      countryLocked: false,
+      leaveYearLocked: false,
     });
     render(<CompanyProfile />);
     await waitFor(() => expect(screen.getByDisplayValue('Acme Ltd')).toBeDefined());
@@ -78,6 +96,9 @@ describe('CompanyProfile (W-73.1 §5)', () => {
       expect(companyProfileService.update).toHaveBeenCalledWith({
         tagline: 'People first',
         logoDocumentId: 'doc-logo-1',
+        countryCode: 'IN',
+        timezone: 'Asia/Kolkata',
+        leaveYearStartMonth: 4,
       }),
     );
     await waitFor(() => expect(successMsg).toHaveBeenCalled());
@@ -115,6 +136,11 @@ describe('CompanyProfile (W-73.1 §5)', () => {
       tagline: 'People first',
       logoDocumentId: 'doc-logo-1',
       logoUrl: '/api/v1/documents/download?t=signed',
+      countryCode: 'IN',
+      timezone: 'Asia/Kolkata',
+      leaveYearStartMonth: 4,
+      countryLocked: false,
+      leaveYearLocked: false,
     });
     companyProfileService.update.mockResolvedValue({ name: 'Acme Ltd', tagline: 'People first' });
     render(<CompanyProfile />);
@@ -125,7 +151,49 @@ describe('CompanyProfile (W-73.1 §5)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() =>
-      expect(companyProfileService.update).toHaveBeenCalledWith({ tagline: 'People first', logoDocumentId: null }),
+      expect(companyProfileService.update).toHaveBeenCalledWith({
+        tagline: 'People first',
+        logoDocumentId: null,
+        countryCode: 'IN',
+        timezone: 'Asia/Kolkata',
+        leaveYearStartMonth: 4,
+      }),
     );
+  });
+
+  it('W-116: locks country and leave year when locked by backend', async () => {
+    can(['core.tenant.read', 'core.tenant.manage']);
+    companyProfileService.get.mockResolvedValue({
+      name: 'Acme Ltd',
+      tagline: 'Hello',
+      logoDocumentId: null,
+      logoUrl: null,
+      countryCode: 'IN',
+      timezone: 'Asia/Kolkata',
+      leaveYearStartMonth: 4,
+      countryLocked: true,
+      leaveYearLocked: true,
+    });
+    render(<CompanyProfile />);
+    await waitFor(() => expect(screen.getByDisplayValue('Acme Ltd')).toBeDefined());
+
+    expect(screen.getByText(/Locked after the first pay run — contact support/i)).toBeDefined();
+    expect(screen.getByText(/Locked once leave has been allocated or requested — contact support/i)).toBeDefined();
+  });
+
+  it('W-116: displays 409 error next to field when server rejects conflict', async () => {
+    can(['core.tenant.read', 'core.tenant.manage']);
+    companyProfileService.update.mockRejectedValue({
+      status: 409,
+      message: 'The leave year cannot be changed once leave has been allocated or requested. Contact support.',
+    });
+    render(<CompanyProfile />);
+    await waitFor(() => expect(screen.getByDisplayValue('Acme Ltd')).toBeDefined());
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/The leave year cannot be changed once leave has been allocated or requested/i)).toBeDefined();
+    });
   });
 });

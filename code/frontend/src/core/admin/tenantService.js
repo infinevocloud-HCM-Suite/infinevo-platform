@@ -81,6 +81,12 @@ export const tenantService = {
     return res?.data !== undefined ? res.data : res;
   },
 
+  /** `PUT /v1/tenants/{id}/country` - change tenant country, platform staff only (W-116). */
+  async setCountry(id, countryCode) {
+    const res = await apiClient.put(`${base.basePath}/${id}/country`, { countryCode }, PLATFORM_ONLY);
+    return res?.data !== undefined ? res.data : res;
+  },
+
   /** `GET /v1/tenants/{id}/subscription` - answers only for the bound tenant, i.e. while acting in it. */
   async subscription(id) {
     const res = await apiClient.get(`/v1/tenants/${id}/subscription`);

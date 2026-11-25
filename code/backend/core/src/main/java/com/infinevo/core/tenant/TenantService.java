@@ -40,4 +40,15 @@ public interface TenantService {
      * @throws IllegalArgumentException for the platform tenant itself
      */
     TemplateApplyResponse applyCountryTemplate(UUID tenantId);
+
+    /**
+     * Changes a customer tenant's country (W-116). Platform tenant only.
+     *
+     * @param tenantId the tenant to update
+     * @param countryCode the 2-letter country code from reference.country
+     * @return the updated tenant overview
+     * @throws TenantNotFoundException when no such tenant exists
+     * @throws IllegalArgumentException for the platform tenant itself or an invalid code
+     */
+    TenantOverview changeCountry(UUID tenantId, String countryCode);
 }

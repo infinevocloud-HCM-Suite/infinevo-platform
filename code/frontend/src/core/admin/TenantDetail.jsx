@@ -20,6 +20,7 @@ import {
 } from './platform.js';
 import { applyResultText } from './countryTemplates.js';
 import { formatDate, formatDateTime, statusLabel } from '@shared/ui/format.js';
+import { apiClient } from '@shared/api/client.js';
 
 /** The user invitation form: the Invitations tab of Users & access (`core.users`, W-73.4). */
 export const INVITATION_FORM_PATH = '/users?tab=invitations';
@@ -49,6 +50,7 @@ export function TenantDetail() {
   const { token } = theme.useToken();
   const session = useSelector((state) => state.impersonation?.session ?? null);
   const canImpersonate = useCan('core.tenant.impersonate');
+  const canProvision = useCan('core.tenant.provision');
 
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +63,9 @@ export function TenantDetail() {
   const [bootstrapped, setBootstrapped] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [templateResult, setTemplateResult] = useState(null);
+  const [editingCountry, setEditingCountry] = useState(false);
+  const [countryDraft, setCountryDraft] = useState('');
+  const [countries, setCountries] = useState([]);
   const [form] = Form.useForm();
   // The Plan card's draft, reset from the overview on every load (W-84.1, W-86).
   const [planDraft, setPlanDraft] = useState({ plan: null, supportPlan: null, employeeLimit: null, currentPeriodEnd: null });
@@ -275,6 +280,39 @@ export function TenantDetail() {
     }
   };
 
+  const onChangeCountryClick = async () => {
+    setCountryDraft(tenant.country_code || 'IN');
+    setEditingCountry(true);
+    if (countries.length === 0) {
+      try {
+        const list = await apiClient.get('/v1/reference/countries');
+        setCountries(list?.data || list || []);
+      } catch {
+        // fallback
+      }
+    }
+  };
+
+  const onSaveCountry = (newCode) => {
+    Modal.confirm({
+      title: 'Change country?',
+      content: 'Changing the country does not change statutory setup, pay runs or templates already in place.',
+      okText: 'Change country',
+      onOk: async () => {
+        setBusy(true);
+        try {
+          await tenantService.setCountry(tenant.tenant_id, newCode || countryDraft);
+          await load();
+          setEditingCountry(false);
+        } catch (err) {
+          errorMsg(err);
+        } finally {
+          setBusy(false);
+        }
+      },
+    });
+  };
+
   const overview = (
     <Space direction="vertical" style={{ width: '100%' }} size={token.marginLG}>
       <Descriptions bordered column={1} size="small">
@@ -285,7 +323,48 @@ export function TenantDetail() {
           </Space>
         </Descriptions.Item>
         <Descriptions.Item label="Tenant id">{tenant.tenant_id}</Descriptions.Item>
-        <Descriptions.Item label="Country">{tenant.country_code}</Descriptions.Item>
+        <Descriptions.Item label="Country">
+          <Space>
+            {!editingCountry ? (
+              <>
+                <span>{tenant.country_code}</span>
+                {canProvision && !platform && (
+                  <Button size="small" type="link" onClick={onChangeCountryClick}>
+                    Change
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Space>
+                <Select
+                  size="small"
+                  aria-label="Country select"
+                  style={{ width: 140 }}
+                  value={countryDraft}
+                  onChange={setCountryDraft}
+                  showSearch
+                  optionFilterProp="label"
+                  options={
+                    countries.length > 0
+                      ? countries.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` }))
+                      : [
+                          { value: 'IN', label: 'India (IN)' },
+                          { value: 'US', label: 'United States (US)' },
+                          { value: 'GB', label: 'United Kingdom (GB)' },
+                          { value: 'AE', label: 'United Arab Emirates (AE)' },
+                        ]
+                  }
+                />
+                <Button size="small" type="primary" aria-label="Save country" onClick={() => onSaveCountry(countryDraft)}>
+                  Save
+                </Button>
+                <Button size="small" onClick={() => setEditingCountry(false)}>
+                  Cancel
+                </Button>
+              </Space>
+            )}
+          </Space>
+        </Descriptions.Item>
         <Descriptions.Item label="Timezone">{tenant.timezone}</Descriptions.Item>
         <Descriptions.Item label="Status">
           <Tag color={STATUS_COLORS[tenant.status] || 'default'}>{statusLabel(tenant.status)}</Tag>

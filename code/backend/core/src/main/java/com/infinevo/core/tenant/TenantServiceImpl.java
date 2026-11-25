@@ -354,4 +354,47 @@ public class TenantServiceImpl implements TenantService {
         log.info("Invited the administrator of tenant {} (user invitation {})", tenantId, invitation.id());
         return invitation.id();
     }
+
+    @Override
+    @Transactional
+    public TenantOverview changeCountry(UUID tenantId, String countryCode) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(countryCode, "countryCode must not be null");
+        platformTenant.requirePlatformTenant();
+
+        if (platformTenant.isPlatformTenant(tenantId)) {
+            throw new IllegalArgumentException("Cannot change country for platform tenant");
+        }
+
+        String cleanCode = countryCode.trim().toUpperCase();
+        if (cleanCode.length() != 2) {
+            throw new IllegalArgumentException("countryCode must be a 2-letter ISO code: " + countryCode);
+        }
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM reference.country WHERE code = ?", Integer.class, cleanCode);
+        if (count == null || count == 0) {
+            throw new IllegalArgumentException("Unknown country code: " + countryCode);
+        }
+
+        try {
+            jdbcTemplate.execute((Connection conn) -> {
+                try (PreparedStatement ps = conn.prepareStatement("SELECT core.set_tenant_country(?, ?)")) {
+                    ps.setObject(1, tenantId);
+                    ps.setString(2, cleanCode);
+                    ps.execute();
+                    return null;
+                }
+            });
+        } catch (org.springframework.dao.DataAccessException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Tenant not found")) {
+                throw new TenantNotFoundException(tenantId);
+            }
+            throw e;
+        }
+
+        log.info("Platform admin updated country for tenant {} to {}", tenantId, cleanCode);
+        TenantQueryService queryService = new TenantQueryService(jdbcTemplate, platformTenant);
+        return queryService.getOverview(tenantId);
+    }
 }

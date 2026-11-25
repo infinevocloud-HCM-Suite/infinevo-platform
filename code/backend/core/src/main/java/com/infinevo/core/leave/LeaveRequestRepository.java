@@ -20,6 +20,8 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
 
     Optional<LeaveRequest> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    boolean existsByTenantId(UUID tenantId);
+
     @Query("SELECT r FROM LeaveRequest r WHERE r.tenantId = :tenantId "
             + "AND r.employeeId = :employeeId "
             + "AND r.status IN :statuses "

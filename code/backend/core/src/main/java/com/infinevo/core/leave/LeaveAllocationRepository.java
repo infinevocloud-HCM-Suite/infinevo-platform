@@ -33,6 +33,8 @@ public interface LeaveAllocationRepository extends JpaRepository<LeaveAllocation
 
     List<LeaveAllocation> findByTenantId(UUID tenantId);
 
+    boolean existsByTenantId(UUID tenantId);
+
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT a.tenantId FROM LeaveAllocation a")
     List<UUID> findDistinctTenantIds();
 

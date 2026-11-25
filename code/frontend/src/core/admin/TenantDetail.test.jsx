@@ -13,7 +13,7 @@ import * as screens from '@shell/screens';
 vi.mock('./tenantService.js', () => ({
   tenantService: {
     get: vi.fn(), setModules: vi.fn(), setStatus: vi.fn(), setPlan: vi.fn(), setAi: vi.fn(),
-    applyTemplate: vi.fn(),
+    applyTemplate: vi.fn(), setCountry: vi.fn(),
   },
 }));
 vi.mock('./impersonationService.js', () => ({
@@ -470,5 +470,24 @@ describe('TenantDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findByRole('switch', { name: 'Module HRMS' })).toBeDefined();
     expect(tenantService.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('Change country requires core.tenant.provision and sends new country code on confirm (W-116)', async () => {
+    screens.useCan.mockImplementation((code) => code === 'core.tenant.provision' || code === 'core.tenant.impersonate');
+    setup();
+    expect(await screen.findByRole('button', { name: /change/i })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: /change/i }));
+
+    // Inline editor shows Save
+    fireEvent.click(screen.getByRole('button', { name: /save country/i }));
+
+    // Confirm dialog
+    const confirmBtn = await screen.findByRole('button', { name: /change country/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(tenantService.setCountry).toHaveBeenCalledWith('tenant-globex', 'IN');
+    });
   });
 });
