@@ -6,7 +6,7 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
-## 2026-11-26 — W-89 quarterly TDS return on `main`
+## 2026-11-26 — W-89 quarterly TDS return on `main` (`e36f75c3`)
 
 | Ticket | What | Where |
 |---|---|---|
