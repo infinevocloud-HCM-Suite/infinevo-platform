@@ -137,6 +137,15 @@ class SetupAiToolProviderTest {
     }
 
     @Test
+    @DisplayName("a step skipped and finished later is DONE, as the Setup screen shows it")
+    void skippedThenDone() {
+        assertThat(SetupAiToolProvider.state(step("ESI", "ESI", PlatformModule.PAYROLL, true, true, false)))
+                .isEqualTo("DONE");
+        assertThat(SetupAiToolProvider.state(step("ESI", "ESI", PlatformModule.PAYROLL, false, true, false)))
+                .isEqualTo("SKIPPED");
+    }
+
+    @Test
     @DisplayName(
             "a step whose menu item is not in the caller's menu has no screen; an article they cannot see is left out")
     void screenOnlyWhenTheMenuHoldsIt() throws Exception {

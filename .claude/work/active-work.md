@@ -11,6 +11,7 @@
 - Tool `core.setup_status` (needs `core.tenant.read`) reads `SetupChecklistService.getChecklist`, the call the Setup screen makes, and lists each step as `DONE`, `REVIEW` (country template, never saved), `SKIPPED` or `NOT_DONE`. `code/backend/core/src/main/java/com/infinevo/core/ai/help/SetupAiToolProvider.java`.
 - `SetupStepScreens` maps each step to its menu item and path (the frontend's `stepLinks.js` pairs). A screen is given only when the caller's menu holds that item; four `/payroll/settings/...` pages joined `help/sub-routes.json`. A test fails when a step has no entry.
 - Read only: skipping stays on the Setup screen. Built by Claude. No migration.
+- One independent read (1 Medium, 2 Low): a step skipped and finished later now reads DONE, as the screen shows; the menu test now proves a deeper step page is on the sub-route list. Left: a step new since setup was last touched reads NOT_DONE (the screen says "New").
 
 ## 2026-11-26 — W-114.14 AI helper explains my payslip and my TDS
 

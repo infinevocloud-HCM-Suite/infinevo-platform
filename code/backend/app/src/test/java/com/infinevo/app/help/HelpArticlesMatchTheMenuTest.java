@@ -168,7 +168,9 @@ class HelpArticlesMatchTheMenuTest {
         SetupStepScreens.all().forEach((code, screen) -> {
             assertThat(LEAF_KEYS).as("menu key of step %s", code).contains(screen.menuKey());
             String itemPath = ITEM_PATHS.get(screen.menuKey());
-            assertThat(screen.path().equals(itemPath) || screen.path().startsWith(itemPath + "/"))
+            // The item's own path, or a fixed sub-route whose parent is that item: otherwise the link is dropped.
+            assertThat(screen.path().equals(itemPath)
+                            || itemPath.equals(LIBRARY.subRoutes().get(screen.path())))
                     .as("step %s path %s under %s", code, screen.path(), itemPath)
                     .isTrue();
         });

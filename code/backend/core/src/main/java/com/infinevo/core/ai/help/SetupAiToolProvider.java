@@ -60,11 +60,13 @@ public class SetupAiToolProvider implements AiToolProvider {
 
     /** The state the Setup screen shows: done, pre-filled and waiting for a review, skipped, or not done. */
     static String state(SetupStepResponse step) {
-        if (step.skipped()) {
-            return "SKIPPED";
-        }
+        // The Setup screen's order (core/setup/SetupChecklist.jsx getStepStatusTag): a step skipped and finished later
+        // keeps its skip flag, and shows as done.
         if (step.completed()) {
             return step.prefilled() ? "REVIEW" : "DONE";
+        }
+        if (step.skipped()) {
+            return "SKIPPED";
         }
         return "NOT_DONE";
     }
