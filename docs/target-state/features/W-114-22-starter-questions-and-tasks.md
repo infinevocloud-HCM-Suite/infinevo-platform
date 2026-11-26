@@ -69,7 +69,7 @@ drawer opens with no messages
         --> helper off for this customer: 403 AI_DISABLED (the drawer is not shown then anyway)
         --> keep a starter when: its tool is in AiToolRegistry.toolsFor(caller)
                                  and its screen, if it names one, is in the caller's navigation feed
-        --> order: starters written for one of the caller's roles first, then the rest; at most 6
+        --> only starters written for one of the caller's roles (founder 2026-11-26); roles in turn; at most 6
   --> chips; click --> the prompt is sent through POST /api/v1/ai/sessions/{id}/messages
 ```
 
@@ -80,7 +80,7 @@ drawer opens with no messages
 | 1 | A starter is `{ id, label, prompt, kind, toolName, screenKey?, roles }`. `kind` is `QUESTION` or `TASK`. `label` is at most 40 characters and is what the chip shows; `prompt` is what is sent |
 | 2 | Returned only when `toolName` is among `AiToolRegistry.toolsFor(caller)`. A tool that is not deployed yet is not registered, so its starters do not exist for anyone |
 | 3 | If `screenKey` is set, the menu key must be in the caller's navigation feed (`NavigationService.navigation()`, `code/backend/core/src/main/java/com/infinevo/core/navigation/NavigationService.java:157`) |
-| 4 | `roles` only orders the list. The caller's role codes come from `RoleSource.roleCodesOf` (`code/backend/shared/src/main/java/com/infinevo/shared/authz/RoleSource.java:24`). With several roles, chips are taken one role at a time in turn, so no role fills all six |
+| 4 | `roles` decides who sees a starter: only one written for a role the caller holds is shown, even when that leaves fewer than six (founder 2026-11-26, after the read: "own roles only"; this replaces "only orders the list, then the rest"). The caller's role codes come from `RoleSource.roleCodesOf` (`code/backend/shared/src/main/java/com/infinevo/shared/authz/RoleSource.java:24`). With several roles, chips are taken one role at a time in turn, so no role fills all six |
 | 5 | The endpoint calls no model and does not count against the cap. It checks the customer switch through `AiAccessGate.status()` (`code/backend/core/src/main/java/com/infinevo/core/ai/AiAccessGate.java`) and answers `403 AI_DISABLED` when off |
 | 6 | The response carries `id`, `label`, `prompt`, `kind` only — no tool name, no action code |
 | 7 | Startup fails on a duplicate starter `id`, a `label` over 40 characters, or a `toolName` that is not in `module.verb_noun` form. A tool name that matches no registered tool is **not** an error — it is how a not-yet-built part looks |

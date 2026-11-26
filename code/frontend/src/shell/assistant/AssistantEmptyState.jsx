@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Button, Typography } from 'antd';
 import { assistantService } from './assistantService.js';
+import { onTenantChange } from '../auth/keycloak.js';
 
 /** The text of a chat with no messages yet. */
 export const EMPTY_STATE_TEXT = 'Ask a question about your leave, attendance or payslip.';
 
 /** The small heading above the task chips. */
 export const TASKS_HEADING = 'Do it for me';
+
+/** The screen-reader name of the question chips. */
+export const QUESTIONS_GROUP = 'Suggested questions';
 
 /**
  * A chat with no messages yet (W-114.5). From W-114.22 it also shows up to six starter chips from
@@ -17,6 +21,16 @@ export const TASKS_HEADING = 'Do it for me';
  */
 export function AssistantEmptyState({ onPick }) {
   const [starters, setStarters] = useState([]);
+  // A new tenant has its own starters: ask again (as the drawer does for link targets).
+  const [tenantEpoch, setTenantEpoch] = useState(0);
+  useEffect(
+    () =>
+      onTenantChange(() => {
+        setStarters([]);
+        setTenantEpoch((n) => n + 1);
+      }),
+    [],
+  );
 
   useEffect(() => {
     let live = true;
@@ -31,7 +45,7 @@ export function AssistantEmptyState({ onPick }) {
     return () => {
       live = false;
     };
-  }, []);
+  }, [tenantEpoch]);
 
   const questions = starters.filter((s) => s.kind === 'QUESTION');
   const tasks = starters.filter((s) => s.kind === 'TASK');
@@ -52,16 +66,26 @@ export function AssistantEmptyState({ onPick }) {
     <div className="assistant-empty" data-testid="assistant-empty">
       <Typography.Text type="secondary">{EMPTY_STATE_TEXT}</Typography.Text>
       {questions.length > 0 && (
-        <div className="assistant-starters" data-testid="assistant-starters-questions">
+        <div
+          className="assistant-starters"
+          data-testid="assistant-starters-questions"
+          role="group"
+          aria-label={QUESTIONS_GROUP}
+        >
           {questions.map(chip)}
         </div>
       )}
       {tasks.length > 0 && (
         <>
-          <Typography.Text type="secondary" className="assistant-starters-heading">
+          <Typography.Text type="secondary" className="assistant-starters-heading" id="assistant-tasks-heading">
             {TASKS_HEADING}
           </Typography.Text>
-          <div className="assistant-starters" data-testid="assistant-starters-tasks">
+          <div
+            className="assistant-starters"
+            data-testid="assistant-starters-tasks"
+            role="group"
+            aria-labelledby="assistant-tasks-heading"
+          >
             {tasks.map(chip)}
           </div>
         </>

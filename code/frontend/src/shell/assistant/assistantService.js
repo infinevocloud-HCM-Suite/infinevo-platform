@@ -108,10 +108,6 @@ export const assistantService = {
   },
 
   /**
-   * `GET /api/v1/ai/link-targets` → the fixed sub-routes this caller may be linked to (W-114.13), as a list
-   * of paths. Menu paths are not in it: the drawer has those from the navigation feed.
-   */
-  /**
    * `GET /api/v1/ai/starters` (W-114.22) → up to six `{ id, label, prompt, kind }`: the suggested questions and
    * tasks this user can really ask. Anything malformed is dropped.
    */
@@ -128,6 +124,10 @@ export const assistantService = {
     );
   },
 
+  /**
+   * `GET /api/v1/ai/link-targets` → the fixed sub-routes this caller may be linked to (W-114.13), as a list
+   * of paths. Menu paths are not in it: the drawer has those from the navigation feed.
+   */
   async linkTargets() {
     const body = bodyOf(await apiClient.get('/v1/ai/link-targets'));
     return Array.isArray(body?.paths) ? body.paths.filter((p) => typeof p === 'string') : [];

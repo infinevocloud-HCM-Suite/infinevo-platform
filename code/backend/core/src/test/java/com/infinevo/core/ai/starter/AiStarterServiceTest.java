@@ -60,6 +60,16 @@ class AiStarterServiceTest {
     }
 
     @Test
+    @DisplayName("an employee offered the manager and HR guide tool still sees only employee starters")
+    void ownRolesOnly() {
+        List<AiStarter> out = AiStarterService.pick(
+                SHIPPED,
+                Set.of("core.my_leave_balances", "core.holidays", "core.my_role_guide"),
+                viewer(Set.of("employee"), Map.of()));
+        assertThat(ids(out)).containsExactly("leave-left", "holidays-next");
+    }
+
+    @Test
     @DisplayName("own-role starters first; two roles alternate; never more than six")
     void ordering() {
         Set<String> everything = SHIPPED.stream().map(AiStarter::toolName).collect(Collectors.toSet());
@@ -80,11 +90,11 @@ class AiStarterServiceTest {
     }
 
     @Test
-    @DisplayName("no role written for: the usable starters in registry order; nothing offered: an empty list")
+    @DisplayName("own roles only: a caller holding no starter's role gets none; nothing offered: an empty list")
     void noRolesAndNoTools() {
         List<AiStarter> out = AiStarterService.pick(
                 SHIPPED, Set.of("core.find_screen"), viewer(Set.of(), Map.of("payroll.runs", "/payroll/runs")));
-        assertThat(ids(out)).containsExactly("go-payruns");
+        assertThat(out).isEmpty();
         assertThat(AiStarterService.pick(SHIPPED, Set.of(), viewer(Set.of("hr"), Map.of())))
                 .isEmpty();
         assertThat(SHIPPED).extracting(AiStarter::kind).contains(Kind.QUESTION, Kind.TASK);

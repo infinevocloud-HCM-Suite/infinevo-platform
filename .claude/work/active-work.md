@@ -11,6 +11,8 @@
 - `GET /api/v1/ai/starters` (`core.ai.use`; `403 AI_DISABLED` when off; no model call, not counted) returns up to six `{ id, label, prompt, kind }`. `code/backend/core/src/main/java/com/infinevo/core/ai/starter/`.
 - 28 starters in `AiStarterRegistry`, five roles. One is kept only when its tool is in `AiToolRegistry.toolsFor(caller)` and its menu key, when set, is in the caller's menu - so starters for `.17`-`.21` appear by themselves when those tools ship. Own-role first, roles in turn, at most six.
 - The drawer's empty chat shows them as chips, questions first, tasks under "Do it for me"; a click sends the prompt like a typed question. `code/frontend/src/shell/assistant/AssistantEmptyState.jsx`.
+- Founder 2026-11-26: own roles only - a chip written for a role the user does not hold never shows, even if that leaves fewer than six.
+- One independent read (2 Medium, 4 Low): own-role rule built; `forCaller` tested against the chat's caller and an empty registry; chip groups named for screen readers; starters asked again on a tenant change. "What is left to set up?" shows once `W-114.16` is on `main`.
 - Built by Claude. No migration.
 
 ## 2026-11-26 — W-114.14 AI helper explains my payslip and my TDS

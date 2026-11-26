@@ -30,8 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>A starter is kept when its tool is among {@link AiToolRegistry#toolsFor} for this caller - which already applies
  * the tool's action, the employee record and the customer's modules - and its {@code screenKey}, when set, is a screen
  * of the caller's own menu. The caller's menu and role codes come from {@link HelpAccess}, the navigation feed and
- * role source the help library reads. Starters written for one of the caller's roles come first, taken one role at a
- * time in turn, so no role fills all six; then the rest. At most {@value #MAX}.
+ * role source the help library reads. Only starters written for one of the caller's roles are shown (founder
+ * 2026-11-26), taken one role at a time in turn so no role fills all six. At most {@value #MAX}.
  */
 @Service
 public class AiStarterService {
@@ -97,12 +97,8 @@ public class AiStarterService {
                 }
             }
         }
-        for (AiStarter s : usable) {
-            if (out.size() >= MAX) {
-                break;
-            }
-            out.add(s);
-        }
+        // Own roles only (founder 2026-11-26): no starter written for a role the caller does not hold, even when
+        // that leaves fewer than six.
         return List.copyOf(out);
     }
 }

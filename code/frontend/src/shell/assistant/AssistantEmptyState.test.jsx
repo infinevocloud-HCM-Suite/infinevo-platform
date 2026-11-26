@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { assistantService } from './assistantService.js';
-import { AssistantEmptyState, EMPTY_STATE_TEXT, TASKS_HEADING } from './AssistantEmptyState.jsx';
+import { AssistantEmptyState, EMPTY_STATE_TEXT, QUESTIONS_GROUP, TASKS_HEADING } from './AssistantEmptyState.jsx';
+
+const tenantListeners = vi.hoisted(() => new Set());
+vi.mock('../auth/keycloak.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  onTenantChange: (listener) => {
+    tenantListeners.add(listener);
+    return () => tenantListeners.delete(listener);
+  },
+}));
 
 const STARTERS = [
   { id: 'leave-apply', label: 'Apply leave for me', prompt: 'Apply leave for me', kind: 'TASK' },
@@ -26,6 +35,8 @@ describe('AssistantEmptyState (W-114.22)', () => {
     const tasks = screen.getByTestId('assistant-starters-tasks');
     expect(within(tasks).getAllByRole('button').map((b) => b.textContent)).toEqual(['Apply leave for me']);
     expect(screen.getByText(TASKS_HEADING)).toBeDefined();
+    expect(screen.getByRole('group', { name: QUESTIONS_GROUP })).toBe(questions);
+    expect(screen.getByRole('group', { name: TASKS_HEADING })).toBe(tasks);
     expect(screen.getByText(EMPTY_STATE_TEXT)).toBeDefined();
   });
 
@@ -52,6 +63,20 @@ describe('AssistantEmptyState (W-114.22)', () => {
     expect(screen.getByText(EMPTY_STATE_TEXT)).toBeDefined();
     expect(screen.queryAllByRole('button')).toEqual([]);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a tenant change asks for the new tenant\'s starters', async () => {
+    const list = vi
+      .spyOn(assistantService, 'listStarters')
+      .mockResolvedValueOnce(STARTERS)
+      .mockResolvedValueOnce([]);
+    render(<AssistantEmptyState onPick={vi.fn()} />);
+    await screen.findByRole('button', { name: 'Apply leave for me' });
+
+    act(() => tenantListeners.forEach((listener) => listener('t2', 't1')));
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryAllByRole('button')).toEqual([]));
   });
 
   it('with no onPick (helper busy or off) the chips are shown but disabled', async () => {
