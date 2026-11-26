@@ -14,6 +14,10 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.infinevo.core.ai.help.HelpAccess;
+import com.infinevo.core.ai.help.HelpAiToolProvider;
+import com.infinevo.core.ai.help.HelpLibrary;
+import com.infinevo.core.ai.help.HelpViewer;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
@@ -515,6 +519,77 @@ class AiChatServiceImplTest {
 
         assertThat(model.requests().get(0).tools()).isEmpty();
         assertThat(model.requests().get(0).systemPrompt()).doesNotContain("first name");
+    }
+
+    // ---- W-114.11: how-to answers from the shipped help articles ----
+
+    /** A service with the shipped help library and HR's view of it; only the two help tools. */
+    private AiChatServiceImpl helpService() {
+        HelpLibrary library = new HelpLibrary();
+        HelpAccess access =
+                HelpAccess.fixed(new HelpViewer(Set.of("/leave/types", "/leave/requests"), Set.of(), Set.of("hr")));
+        PermissionService permissions = mock(PermissionService.class);
+        when(permissions.holds(anyString())).thenAnswer(inv -> "core.ai.use".equals(inv.getArgument(0)));
+        EntitlementService entitlements = mock(EntitlementService.class);
+        when(entitlements.holds(any(PlatformModule.class))).thenReturn(true);
+        AiToolRegistry registry =
+                new AiToolRegistry(permissions, entitlements, List.of(new HelpAiToolProvider(library, access)));
+        TenantClock tenantClock = mock(TenantClock.class);
+        when(tenantClock.today()).thenReturn(LocalDate.of(2026, 11, 23));
+        return new AiChatServiceImpl(
+                sessions,
+                messages,
+                gate,
+                rateLimiter,
+                registry,
+                model,
+                new AiMaskingFilter(),
+                new AiSystemPrompt(library, access),
+                employeeService,
+                tenantClock,
+                TransactionOperations.withoutTransaction(),
+                clock);
+    }
+
+    @Test
+    @DisplayName("W-114.11: the model reads leave-types by id from the catalogue; the steps come back; no search")
+    void howToFromTheCatalogue() {
+        AiChatServiceImpl help = helpService();
+        model.script(
+                AiModelResponse.toolCall("call_1", "core.read_help_article", "{\"id\":\"leave-types\"}"),
+                AiModelResponse.text("Open Leave, then Leave types, and click Add Leave Type."));
+
+        AiChatResponse answer = help.send(mine.getId(), "How do I add a leave type?");
+
+        List<AiModelRequest> sent = model.requests();
+        assertThat(sent.get(0).systemPrompt()).contains("leave-types | Create a leave type | ");
+        assertThat(sent.get(0).tools())
+                .extracting(AiToolDescriptor::name)
+                .containsExactlyInAnyOrder("core.read_help_article", "core.search_help");
+        AiModelRequest.Message result =
+                sent.get(1).messages().get(sent.get(1).messages().size() - 1);
+        assertThat(result.content()).contains("Click Add Leave Type").contains("\"screen\":\"/leave/types\"");
+        assertThat(sent).hasSize(2);
+        assertThat(answer.message().content()).contains("Add Leave Type");
+    }
+
+    @Test
+    @DisplayName("W-114.11: search, then read, gives the same steps")
+    void howToBySearchThenRead() {
+        AiChatServiceImpl help = helpService();
+        model.script(
+                AiModelResponse.toolCall("call_1", "core.search_help", "{\"query\":\"add leave type\"}"),
+                AiModelResponse.toolCall("call_2", "core.read_help_article", "{\"id\":\"leave-types\"}"),
+                AiModelResponse.text("Open Leave, then Leave types, and click Add Leave Type."));
+
+        help.send(mine.getId(), "Where do I set up Sick leave?");
+
+        List<AiModelRequest> sent = model.requests();
+        assertThat(sent).hasSize(3);
+        List<AiModelRequest.Message> second = sent.get(1).messages();
+        assertThat(second.get(second.size() - 1).content()).contains("\"id\":\"leave-types\"");
+        List<AiModelRequest.Message> third = sent.get(2).messages();
+        assertThat(third.get(third.size() - 1).content()).contains("Click Add Leave Type");
     }
 
     // ---- W-114.8: proposals, and what the model is told about them (C9) ----
