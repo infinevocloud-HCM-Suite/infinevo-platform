@@ -8,6 +8,15 @@ import PropTypes from 'prop-types';
 import { MemoryRouter } from 'react-router-dom';
 import { NavigationProvider } from '../navigation/useNavigation.js';
 
+const tenantListeners = vi.hoisted(() => new Set());
+vi.mock('../auth/keycloak.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  onTenantChange: (listener) => {
+    tenantListeners.add(listener);
+    return () => tenantListeners.delete(listener);
+  },
+}));
+
 const FEED = { items: [{ key: 'core.leave.types', labelKey: 'nav.leave.types', path: '/leave/types' }], actions: [] };
 
 /** The drawer reads the route and the menu (W-114.13). */
@@ -284,5 +293,19 @@ describe('AssistantDrawer', () => {
     const hrefs = screen.getAllByTestId('assistant-answer-link').map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual(['/leave/types', '/employees/new']);
   });
-});
 
+  it('W-114.13: a tenant change drops the old link targets and asks again', async () => {
+    assistantService.linkTargets.mockResolvedValueOnce(['/employees/new']).mockResolvedValueOnce([]);
+    vi.spyOn(assistantService, 'createSession').mockResolvedValue({ id: 's1' });
+    vi.spyOn(assistantService, 'sendMessage').mockResolvedValue(answer('Go to [New](app:/employees/new).'));
+    renderDrawer();
+    await waitFor(() => expect(assistantService.linkTargets).toHaveBeenCalledTimes(1));
+
+    act(() => tenantListeners.forEach((listener) => listener('t2', 't1')));
+    await waitFor(() => expect(assistantService.linkTargets).toHaveBeenCalledTimes(2));
+
+    ask('Where?');
+    await screen.findByText(/Go to \[New\]\(app:\/employees\/new\)/);
+    expect(screen.queryAllByTestId('assistant-answer-link')).toEqual([]);
+  });
+});

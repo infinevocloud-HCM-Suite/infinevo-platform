@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -44,7 +46,7 @@ class AiMessageControllerTest {
     }
 
     @Test
-    @DisplayName("200 { message, proposedAction: null }; any context is accepted and ignored")
+    @DisplayName("200 { message, proposedAction: null }; context.path reaches the service, any other context as none")
     void answers() throws Exception {
         UUID messageId = UUID.randomUUID();
         when(service.send(eq(sessionId), eq("How much leave?"), any()))
@@ -64,6 +66,8 @@ class AiMessageControllerTest {
                     .andExpect(jsonPath("$.message.createdAt").exists())
                     .andExpect(jsonPath("$.proposedAction").isEmpty());
         }
+        verify(service).send(sessionId, "How much leave?", "/leave");
+        verify(service, times(4)).send(sessionId, "How much leave?", null);
     }
 
     @Test

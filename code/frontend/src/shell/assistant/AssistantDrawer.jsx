@@ -4,6 +4,7 @@ import { Alert, Button, Drawer, Space, Spin, Typography } from 'antd';
 import { HistoryOutlined, PlusOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import { useNavigation } from '../navigation/useNavigation.js';
+import { onTenantChange } from '../auth/keycloak.js';
 import { feedPaths } from './answerLinks.js';
 import { assistantService, AI_RATE_LIMITED } from './assistantService.js';
 import { MessageList } from './MessageList.jsx';
@@ -75,6 +76,17 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
   const { items } = useNavigation();
   const [linkTargets, setLinkTargets] = useState([]);
   const linkTargetsAsked = useRef(false);
+  // A new tenant has its own sub-routes: forget the old ones and ask again on the next open.
+  const [tenantEpoch, setTenantEpoch] = useState(0);
+  useEffect(
+    () =>
+      onTenantChange(() => {
+        linkTargetsAsked.current = false;
+        setLinkTargets([]);
+        setTenantEpoch((n) => n + 1);
+      }),
+    [],
+  );
   useEffect(() => {
     if (!open || linkTargetsAsked.current) return;
     linkTargetsAsked.current = true;
@@ -82,7 +94,7 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
       .linkTargets()
       .then((paths) => setLinkTargets(paths))
       .catch(() => setLinkTargets([]));
-  }, [open]);
+  }, [open, tenantEpoch]);
   const allowedPaths = useMemo(() => {
     const paths = feedPaths(items);
     linkTargets.forEach((p) => paths.add(p));

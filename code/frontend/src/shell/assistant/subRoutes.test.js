@@ -22,7 +22,12 @@ function routePaths() {
 function matches(route, path) {
   const a = route.split('/');
   const b = path.split('/');
-  return a.length === b.length && a.every((seg, i) => seg.startsWith(':') || seg === b[i]);
+  // A `:param` segment stands in only for an id-free literal the backend allows; an entry may not use it to
+  // hide an id, so a digit-only or uuid-like segment never matches it.
+  const idLike = (seg) => /^\d+$/.test(seg) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(seg);
+  return (
+    a.length === b.length && a.every((seg, i) => seg === b[i] || (seg.startsWith(':') && !idLike(b[i])))
+  );
 }
 
 describe('help/sub-routes.json', () => {
