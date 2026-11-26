@@ -130,4 +130,15 @@ describe('AppShell admin routes during impersonation (W-65.3)', () => {
       expect(sent('/v1/tenants/tenant-globex')).toEqual([]);
     },
   );
+
+  it('W-114.13b: no AI helper while a session is live; it asks for its status without one', async () => {
+    renderShell('/employees', { withSession: true });
+    await screen.findByText('Employees');
+    expect(sent('/v1/ai/status')).toEqual([]);
+  });
+
+  it('W-114.13b: without a session the AI helper asks for its status', async () => {
+    renderShell('/employees', { withSession: false });
+    await waitFor(() => expect(sent('/v1/ai/status')).toHaveLength(1));
+  });
 });

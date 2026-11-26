@@ -313,8 +313,9 @@ export function AppShell() {
             </div>
           </Content>
         </Layout>
-        {/* W-114.5: the AI helper's button and drawer; renders nothing while the helper is off */}
-        <AssistantLauncher phone={phone} />
+        {/* W-114.5: the AI helper's button and drawer; renders nothing while the helper is off.
+            W-114.13b: never mounted while acting as another user; the server refuses every AI call then too. */}
+        {!session && <AssistantLauncher phone={phone} />}
       </Layout>
     </ShellBoundary>
   );

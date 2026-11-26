@@ -12,12 +12,14 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.subscription.Subscription;
 import com.infinevo.core.subscription.SubscriptionRepository;
 import com.infinevo.core.subscription.SubscriptionStatus;
+import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +49,22 @@ class AiAccessGateImplTest {
     @AfterEach
     void clearTenant() {
         TenantContext.clear();
+        ActingAs.clear();
+    }
+
+    @Test
+    @DisplayName("W-114.13b: acting as another user, status is off and consume refuses, with no read")
+    void actingAs_isOff() {
+        Subscription sub = subscription(true, 500);
+        when(subscriptions.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+        ActingAs.set(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "t@x.test", Set.of("core.ai.use"));
+
+        assertThat(gate.status().enabled()).isFalse();
+        assertThatThrownBy(gate::consume)
+                .isInstanceOf(AiDisabledException.class)
+                .hasMessage(AiActAsGuard.MESSAGE);
+        verify(subscriptions, never()).findByTenantId(any());
+        verify(usage, never()).countOne(any(), any(), anyInt());
     }
 
     @Test

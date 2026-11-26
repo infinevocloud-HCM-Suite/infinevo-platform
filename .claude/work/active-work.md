@@ -6,6 +6,12 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-114.13b AI helper off in act-as
+
+- Found while reading `.13`: during act-as the permission check takes the target user's actions, so `core.ai.use` passed and staff could chat, read the target's history and confirm actions in their name.
+- `AiActAsGuard` (`code/backend/core/src/main/java/com/infinevo/core/ai/`) answers every `/api/v1/ai/**` request `403 AI_DISABLED` while `ActingAs` is bound, before any controller, so nothing is stored or counted. `AiAccessGateImpl` says off and refuses too. `AppShell.jsx` does not mount the launcher in a session.
+- Built by Claude at the founder's word (2026-11-26, "own small part now"). No migration.
+
 ## 2026-11-26 — W-114.13 AI helper screen awareness and links on `main`
 
 - The chat drawer sends the route path with each question; the server matches it against the caller's own menu and adds `The user is on the screen "<name>" (<path>).` and its help article to the prompt. The client's text itself never reaches the prompt, a stored message or a log. `code/backend/core/src/main/java/com/infinevo/core/ai/AiScreenResolver.java`.
