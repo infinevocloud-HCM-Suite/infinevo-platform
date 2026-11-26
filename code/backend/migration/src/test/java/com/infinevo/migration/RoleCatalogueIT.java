@@ -143,12 +143,14 @@ class RoleCatalogueIT {
 
             int catalogue = count(conn, "SELECT count(*) FROM reference.action");
             assertThat(actionsPerRole.get("platform-admin"))
-                    .as("W-11.3, W-65.2: everything but core.tenant.provision and core.tenant.impersonate")
-                    .isEqualTo(catalogue - 2);
+                    .as(
+                            "W-11.3, W-65.2, W-94.1: everything but core.tenant.provision, core.tenant.impersonate and core.billing.manage")
+                    .isEqualTo(catalogue - 3);
             assertThat(actionsPerRole.get("tenant-admin"))
-                    .as("everything but core.tenant.provision and core.tenant.impersonate")
-                    .isEqualTo(catalogue - 2);
-            for (String platformOnly : List.of("core.tenant.provision", "core.tenant.impersonate")) {
+                    .as("everything but core.tenant.provision, core.tenant.impersonate and core.billing.manage")
+                    .isEqualTo(catalogue - 3);
+            for (String platformOnly :
+                    List.of("core.tenant.provision", "core.tenant.impersonate", "core.billing.manage")) {
                 assertThat(count(
                                 conn,
                                 "SELECT count(*) FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id"
@@ -227,8 +229,8 @@ class RoleCatalogueIT {
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code LIKE 'core.%'"))
                     .as(
                             "23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2) + 7 wfh (W-74)"
-                                    + " + core.ai.use (W-114.3) + 3 onboarding (W-102)")
-                    .isEqualTo(73);
+                                    + " + core.ai.use (W-114.3) + 3 onboarding (W-102) + core.billing.manage (W-94.1)")
+                    .isEqualTo(74);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE split_part(code, '.', 1) <> module"))
                     .isZero();
         }

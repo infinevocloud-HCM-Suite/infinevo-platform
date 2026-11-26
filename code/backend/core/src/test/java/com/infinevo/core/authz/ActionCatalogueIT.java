@@ -84,13 +84,15 @@ class ActionCatalogueIT extends AbstractIntegrationTest {
         Set<String> catalogue = catalogue();
         Map<String, Set<String>> held = systemRoleActions(tenant);
 
-        assertThat(catalogue).contains("core.tenant.provision", "core.tenant.impersonate");
+        assertThat(catalogue).contains("core.tenant.provision", "core.tenant.impersonate", "core.billing.manage");
         Set<String> expected = new TreeSet<>(catalogue);
         expected.remove("core.tenant.provision");
         // W-65.2: platform staff only - held by platform-admin in the platform tenant, never in a customer tenant.
         expected.remove("core.tenant.impersonate");
-        assertThat(held.get("platform-admin")).isEqualTo(expected).hasSize(catalogue.size() - 2);
-        assertThat(held.get("tenant-admin")).isEqualTo(expected).hasSize(catalogue.size() - 2);
+        // W-94.1: platform staff only - held by platform-admin in the platform tenant, never in a customer tenant.
+        expected.remove("core.billing.manage");
+        assertThat(held.get("platform-admin")).isEqualTo(expected).hasSize(catalogue.size() - 3);
+        assertThat(held.get("tenant-admin")).isEqualTo(expected).hasSize(catalogue.size() - 3);
     }
 
     @Test

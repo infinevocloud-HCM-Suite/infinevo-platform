@@ -123,6 +123,32 @@ class PlatformOnlyActionGuardIT {
         }
     }
 
+    @Test
+    @DisplayName("core.billing.manage is held only by platform-admin in the platform tenant and refused on customers")
+    void billingManageOnlyOnPlatformAdmin() throws SQLException {
+        try (Connection conn = connection()) {
+            UUID customerRole = customRole(conn, "custom-biller");
+            assertThatThrownBy(() -> grant(conn, CUSTOMER, customerRole, "core.billing.manage"))
+                    .isInstanceOf(PSQLException.class)
+                    .extracting(e -> ((PSQLException) e).getSQLState())
+                    .isEqualTo(CHECK_VIOLATION);
+
+            assertThat(count(
+                            conn,
+                            "SELECT count(*) FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id"
+                                    + " WHERE ra.action_code = 'core.billing.manage'"
+                                    + " AND NOT (ra.tenant_id = '" + PLATFORM
+                                    + "' AND r.code = 'platform-admin' AND r.is_system)"))
+                    .isZero();
+            assertThat(count(
+                            conn,
+                            "SELECT count(*) FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id"
+                                    + " WHERE ra.tenant_id = '" + PLATFORM + "' AND r.code = 'platform-admin'"
+                                    + " AND ra.action_code = 'core.billing.manage'"))
+                    .isEqualTo(1);
+        }
+    }
+
     private static UUID customRole(Connection conn, String code) throws SQLException {
         return customRole(conn, CUSTOMER, code + "-" + UUID.randomUUID());
     }

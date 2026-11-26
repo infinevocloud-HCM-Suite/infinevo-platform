@@ -92,7 +92,8 @@ public class RoleServiceImpl implements RoleService {
     static final String TENANT_ADMIN = "tenant-admin";
 
     /** Held by Infinevo staff only: see {@link #requireNoPlatformOnlyActions}. */
-    static final Set<String> PLATFORM_ONLY_ACTIONS = Set.of("core.tenant.provision", "core.tenant.impersonate");
+    static final Set<String> PLATFORM_ONLY_ACTIONS =
+            Set.of("core.tenant.provision", "core.tenant.impersonate", "core.billing.manage");
 
     private final RoleRepository roleRepository;
     private final RoleActionRepository roleActionRepository;

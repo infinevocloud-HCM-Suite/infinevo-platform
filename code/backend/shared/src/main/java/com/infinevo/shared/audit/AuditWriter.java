@@ -185,7 +185,22 @@ public class AuditWriter {
     }
 
     private void persist(AuditLog row) {
-        afterCommitTransaction.executeWithoutResult(status -> repository.save(row));
+        UUID previous = TenantContext.current().orElse(null);
+        boolean rebind = row.getTenantId() != null && !row.getTenantId().equals(previous);
+        if (rebind) {
+            TenantContext.set(row.getTenantId());
+        }
+        try {
+            afterCommitTransaction.executeWithoutResult(status -> repository.save(row));
+        } finally {
+            if (rebind) {
+                if (previous != null) {
+                    TenantContext.set(previous);
+                } else {
+                    TenantContext.clear();
+                }
+            }
+        }
     }
 
     /**
