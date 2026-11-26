@@ -1,24 +1,39 @@
 package com.infinevo.core.ai.help;
 
 import com.infinevo.shared.entitlement.PlatformModule;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * What decides which articles one caller may see (W-114.11, "Who may see an article"): the paths in the caller's
- * navigation feed, the actions they hold, their role codes (ranking only) and the modules the customer holds.
+ * What decides which help one caller may see (W-114.11, "Who may see an article"): the paths in the caller's
+ * navigation feed, the actions they hold, their role codes (ranking only) and the modules the customer holds. From
+ * W-114.12 also the feed's leaf screens, menu key to path, in feed order: the screens a role guide line may name.
  */
-public record HelpViewer(Set<String> screens, Set<String> actions, Set<String> roles, Set<PlatformModule> modules) {
+public record HelpViewer(
+        Set<String> screens,
+        Set<String> actions,
+        Set<String> roles,
+        Set<PlatformModule> modules,
+        Map<String, String> leaves) {
 
     public HelpViewer {
         screens = screens == null ? Set.of() : Set.copyOf(screens);
         actions = actions == null ? Set.of() : Set.copyOf(actions);
         roles = roles == null ? Set.of() : Set.copyOf(roles);
         modules = modules == null ? Set.of() : Set.copyOf(modules);
+        leaves = leaves == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(leaves));
     }
 
-    /** A viewer whose customer holds no module. */
+    /** A viewer with no leaf screens. */
+    public HelpViewer(Set<String> screens, Set<String> actions, Set<String> roles, Set<PlatformModule> modules) {
+        this(screens, actions, roles, modules, Map.of());
+    }
+
+    /** A viewer whose customer holds no module, with no leaf screens. */
     public HelpViewer(Set<String> screens, Set<String> actions, Set<String> roles) {
-        this(screens, actions, roles, Set.of());
+        this(screens, actions, roles, Set.of(), Map.of());
     }
 
     /**

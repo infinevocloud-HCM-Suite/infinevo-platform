@@ -73,6 +73,8 @@ class HelpAccessTest {
         assertThat(viewer.actions()).containsExactly("core.leave.manage");
         assertThat(viewer.roles()).containsExactly("hr");
         assertThat(viewer.modules()).containsExactly(PlatformModule.HRMS);
+        // W-114.12: only the leaf is a screen a guide line may name; the group above it is not.
+        assertThat(viewer.leaves()).containsExactly(java.util.Map.entry("core.leave.requests", "/leave/requests"));
     }
 
     @Test

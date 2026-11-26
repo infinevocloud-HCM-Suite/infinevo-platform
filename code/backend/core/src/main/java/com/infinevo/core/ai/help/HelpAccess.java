@@ -7,7 +7,9 @@ import com.infinevo.core.navigation.NavigationService;
 import com.infinevo.shared.authz.RoleSource;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -26,7 +28,7 @@ import org.springframework.stereotype.Component;
  * children included), which has already dropped items whose module the customer does not hold and items whose action
  * the caller lacks. Check 2: an article's extra {@code action} is one the caller holds - the feed's action set, which is
  * {@code PermissionService.currentActions()}, the set {@code PermissionService.holds} answers from. Role codes are read
- * for ranking only; a failure to read them leaves them empty and changes no access.
+ * for ranking and for the role guide (W-114.12) only; a failure to read them leaves them empty and changes no access.
  */
 @Component
 public class HelpAccess {
@@ -58,19 +60,23 @@ public class HelpAccess {
 
     static HelpViewer fromFeed(NavigationResponse feed, RoleSource roleSource) {
         Set<String> paths = new HashSet<>();
-        collect(feed.items(), paths);
-        return new HelpViewer(paths, feed.actions(), roles(roleSource), feed.modules());
+        Map<String, String> leaves = new LinkedHashMap<>();
+        collect(feed.items(), paths, leaves);
+        return new HelpViewer(paths, feed.actions(), roles(roleSource), feed.modules(), leaves);
     }
 
-    private static void collect(List<NavigationItemResponse> items, Set<String> into) {
+    private static void collect(List<NavigationItemResponse> items, Set<String> into, Map<String, String> leaves) {
         if (items == null) {
             return;
         }
         for (NavigationItemResponse item : items) {
             if (item.path() != null) {
                 into.add(item.path());
+                if ((item.children() == null || item.children().isEmpty()) && item.key() != null) {
+                    leaves.putIfAbsent(item.key(), item.path());
+                }
             }
-            collect(item.children(), into);
+            collect(item.children(), into, leaves);
         }
     }
 

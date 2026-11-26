@@ -29,7 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * W-114.11: every shipped help article points at a screen the full menu has, and needs only an action something in the
- * product declares. Lives in {@code app}, the one module that sees core, hrms and payroll together; the menu is built
+ * product declares. W-114.12: every role guide line names a key of the full menu, and every leaf of the full menu has a
+ * plain name in {@code help/screens.json}. Lives in {@code app}, the one module that sees core, hrms and payroll together; the menu is built
  * the way {@code SeededRoleHomePathTest} builds it.
  *
  * <p>An action is declared when a menu item requires it (or lists it as an alternative), a portal panel requires it,
@@ -38,8 +39,11 @@ import org.springframework.web.bind.annotation.RestController;
  */
 class HelpArticlesMatchTheMenuTest {
 
-    private static final List<HelpArticle> ARTICLES = new HelpLibrary().all();
+    private static final HelpLibrary LIBRARY = new HelpLibrary();
+    private static final List<HelpArticle> ARTICLES = LIBRARY.all();
     private static final Set<String> PATHS = new HashSet<>();
+    private static final Set<String> KEYS = new HashSet<>();
+    private static final Set<String> LEAF_KEYS = new HashSet<>();
     private static final Set<String> ACTIONS = new HashSet<>();
 
     @BeforeAll
@@ -86,6 +90,10 @@ class HelpArticlesMatchTheMenuTest {
             if (item.path() != null) {
                 PATHS.add(item.path());
             }
+            KEYS.add(item.key());
+            if (item.children() == null || item.children().isEmpty()) {
+                LEAF_KEYS.add(item.key());
+            }
             if (item.requiredAction() != null) {
                 ACTIONS.add(item.requiredAction());
             }
@@ -126,5 +134,27 @@ class HelpArticlesMatchTheMenuTest {
                 .allSatisfy(a -> assertThat(ACTIONS)
                         .as("action of help article %s", a.id())
                         .contains(a.action()));
+    }
+
+    @Test
+    @DisplayName("W-114.12: every screen a role guide line names is a key in the full menu")
+    void everyGuideScreenIsInTheMenu() {
+        assertThat(LIBRARY.guides()).hasSize(6);
+        LIBRARY.guides().values().forEach(g -> g.sections()
+                .forEach(s -> s.lines().forEach(l -> assertThat(KEYS)
+                        .as("screen of a line in the %s guide", g.role())
+                        .contains(l.screen()))));
+    }
+
+    @Test
+    @DisplayName("W-114.12: every leaf of the full menu has a name in screens.json, and every name is a menu key")
+    void everyLeafHasAName() {
+        assertThat(LEAF_KEYS).contains("core.leave.types", "payroll.runs", "hrms.attendance");
+        assertThat(LIBRARY.screenNames().keySet())
+                .as("menu leaves without a name in help/screens.json")
+                .containsAll(LEAF_KEYS);
+        assertThat(KEYS)
+                .as("names in help/screens.json for keys the menu does not have")
+                .containsAll(LIBRARY.screenNames().keySet());
     }
 }

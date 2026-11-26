@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,11 @@ import org.springframework.stereotype.Component;
  * exist in the full menu is checked by {@code HelpArticlesMatchTheMenuTest} in {@code app}, where all modules are seen.
  *
  * <p>Access is never decided from {@code roles}: callers pass a {@link HelpViewer} built by {@link HelpAccess}.
+ *
+ * <p>From W-114.12 it also loads the role duty guides, {@code help/roles/*.md}, and the plain names of the menu's
+ * screens, {@code help/screens.json}. A guide stops the application when its role code is unknown or is not the file
+ * name, a line has not exactly one {@code {screen:}} marker, a screen has no name in {@code screens.json}, an
+ * {@code {article:}} is not a loaded article, or its body is over {@value #MAX_GUIDE} characters.
  */
 @Component
 public class HelpLibrary {
@@ -43,10 +50,15 @@ public class HelpLibrary {
 
     static final String ARTICLES = "classpath*:help/articles/*.md";
     static final String SUB_ROUTES = "classpath*:help/sub-routes.json";
+    static final String ROLES = "classpath*:help/roles/*.md";
+    static final String SCREENS = "classpath*:help/screens.json";
 
     static final int MAX_TITLE = 80;
     static final int MAX_SUMMARY = 160;
     static final int MAX_BODY = 6_000;
+
+    /** A guide fits one tool result of W-114.4 (8,000 characters) with room for its JSON. */
+    static final int MAX_GUIDE = 4_000;
 
     /** At most this many lines go in the system prompt (spec step 6). */
     public static final int CATALOGUE_CAP = 60;
@@ -56,34 +68,73 @@ public class HelpLibrary {
             Set.of("platform-admin", "tenant-admin", "hr", "manager", "payroll-officer", "finance", "employee");
 
     private static final Pattern ID = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
+    private static final Pattern MARKER = Pattern.compile("\\{([a-z]+):([^}]*)}");
     private static final List<String> FIELDS =
             List.of("id", "title", "summary", "roles", "screen", "route", "action", "module", "keywords");
     private static final List<String> REQUIRED = List.of("id", "title", "summary", "roles", "screen", "keywords");
 
     private final Map<String, HelpArticle> articles;
     private final Map<String, String> subRoutes;
+    private final Map<String, String> screenNames;
+    private final Map<String, RoleGuide> guides;
 
     public HelpLibrary() {
-        this(new PathMatchingResourcePatternResolver(), ARTICLES, SUB_ROUTES);
+        this(new PathMatchingResourcePatternResolver(), ARTICLES, SUB_ROUTES, ROLES, SCREENS);
     }
 
-    /** For tests: articles and sub-routes from other locations, such as fixture folders. */
+    /** For tests: articles and sub-routes from other locations, such as fixture folders; no guides. */
     HelpLibrary(ResourcePatternResolver resolver, String articlesPattern, String subRoutesPattern) {
+        this(resolver, articlesPattern, subRoutesPattern, null, null);
+    }
+
+    /** For tests: everything from other locations; a {@code null} pattern loads nothing of that kind. */
+    HelpLibrary(
+            ResourcePatternResolver resolver,
+            String articlesPattern,
+            String subRoutesPattern,
+            String rolesPattern,
+            String screensPattern) {
         this.subRoutes = loadSubRoutes(resolver, subRoutesPattern);
         this.articles = loadArticles(resolver, articlesPattern, subRoutes);
-        log.info("Loaded {} help articles", articles.size());
+        this.screenNames = screensPattern == null ? Map.of() : loadScreenNames(resolver, screensPattern);
+        this.guides = rolesPattern == null ? Map.of() : loadGuides(resolver, rolesPattern, articles, screenNames);
+        log.info("Loaded {} help articles and {} role guides", articles.size(), guides.size());
     }
 
     /** For tests: a library holding exactly these articles. */
     static HelpLibrary of(List<HelpArticle> list) {
-        return new HelpLibrary(list);
+        return of(list, List.of(), Map.of());
     }
 
-    private HelpLibrary(List<HelpArticle> list) {
+    /** For tests: a library holding exactly these articles, guides and screen names. */
+    static HelpLibrary of(List<HelpArticle> list, List<RoleGuide> guideList, Map<String, String> names) {
+        return new HelpLibrary(list, guideList, names);
+    }
+
+    private HelpLibrary(List<HelpArticle> list, List<RoleGuide> guideList, Map<String, String> names) {
         Map<String, HelpArticle> map = new TreeMap<>();
         list.forEach(a -> map.put(a.id(), a));
         this.articles = Collections.unmodifiableMap(map);
         this.subRoutes = Map.of();
+        this.screenNames = Map.copyOf(names);
+        Map<String, RoleGuide> byRole = new TreeMap<>();
+        guideList.forEach(g -> byRole.put(g.role(), g));
+        this.guides = Collections.unmodifiableMap(byRole);
+    }
+
+    /** The duty guide of a role code, when one is shipped. */
+    public Optional<RoleGuide> guide(String role) {
+        return role == null ? Optional.empty() : Optional.ofNullable(guides.get(role));
+    }
+
+    /** Every shipped guide, by role code. */
+    public Map<String, RoleGuide> guides() {
+        return guides;
+    }
+
+    /** Menu key to plain name, from {@code help/screens.json}. */
+    public Map<String, String> screenNames() {
+        return screenNames;
     }
 
     /** Every article, sorted by id. */
@@ -199,6 +250,176 @@ public class HelpLibrary {
             }
         }
         return Collections.unmodifiableMap(loaded);
+    }
+
+    private static Map<String, String> loadScreenNames(ResourcePatternResolver resolver, String pattern) {
+        Map<String, String> names = new TreeMap<>();
+        ObjectMapper json = new ObjectMapper();
+        for (Resource resource : resources(resolver, pattern)) {
+            try (InputStream in = resource.getInputStream()) {
+                JsonNode map = json.readTree(in);
+                if (map == null || !map.isObject()) {
+                    throw new IllegalStateException("Help screens " + resource.getFilename() + " must be an object");
+                }
+                Iterator<Map.Entry<String, JsonNode>> fields = map.fields();
+                while (fields.hasNext()) {
+                    Map.Entry<String, JsonNode> entry = fields.next();
+                    String name = entry.getValue().asText("").strip();
+                    if (name.isEmpty()) {
+                        throw new IllegalStateException("Help screens: " + entry.getKey() + " has no name");
+                    }
+                    if (names.putIfAbsent(entry.getKey(), name) != null) {
+                        throw new IllegalStateException("Help screens: " + entry.getKey() + " is named twice");
+                    }
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Help screens " + resource.getFilename() + " cannot be read", e);
+            }
+        }
+        return Collections.unmodifiableMap(names);
+    }
+
+    private static Map<String, RoleGuide> loadGuides(
+            ResourcePatternResolver resolver,
+            String pattern,
+            Map<String, HelpArticle> articles,
+            Map<String, String> screenNames) {
+        Map<String, RoleGuide> loaded = new TreeMap<>();
+        for (Resource resource : resources(resolver, pattern)) {
+            String file = resource.getFilename();
+            String text;
+            try (InputStream in = resource.getInputStream()) {
+                text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new IllegalStateException("Role guide " + file + " cannot be read", e);
+            }
+            RoleGuide guide = parseGuide(file, text, articles.keySet(), screenNames.keySet());
+            if (loaded.putIfAbsent(guide.role(), guide) != null) {
+                throw new IllegalStateException("Role guide " + file + ": role " + guide.role() + " is used twice");
+            }
+        }
+        return Collections.unmodifiableMap(loaded);
+    }
+
+    /** One guide file to a guide, or an exception naming the file and the problem. */
+    static RoleGuide parseGuide(String file, String raw, Set<String> articleIds, Set<String> screenKeys) {
+        String text = raw.replace("\r\n", "\n");
+        if (text.startsWith("﻿")) {
+            text = text.substring(1);
+        }
+        if (!text.startsWith("---\n")) {
+            throw badGuide(file, "has no front matter (the file must start with a --- line)");
+        }
+        int end = text.indexOf("\n---\n", 3);
+        if (end < 0) {
+            throw badGuide(file, "front matter is not closed by a --- line");
+        }
+        Map<String, String> fields = new LinkedHashMap<>();
+        for (String line : text.substring(4, end).split("\n")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            int colon = line.indexOf(':');
+            String key = colon <= 0 ? "" : line.substring(0, colon).strip();
+            if (!List.of("role", "title").contains(key)) {
+                throw badGuide(file, "front matter line '" + line + "' is not role: or title:");
+            }
+            if (fields.putIfAbsent(key, line.substring(colon + 1).strip()) != null) {
+                throw badGuide(file, "field '" + key + "' is given twice");
+            }
+        }
+        String role = fields.getOrDefault("role", "");
+        String title = fields.getOrDefault("title", "");
+        if (role.isBlank() || title.isBlank()) {
+            throw badGuide(file, "role and title are required");
+        }
+        if (!ROLE_CODES.contains(role)) {
+            throw badGuide(file, "unknown role code '" + role + "'");
+        }
+        if (!(role + ".md").equals(file)) {
+            throw badGuide(file, "role '" + role + "' must equal the file name");
+        }
+        String body = text.substring(end + 5).strip();
+        if (body.length() > MAX_GUIDE) {
+            throw badGuide(file, "body is " + body.length() + " characters; at most " + MAX_GUIDE);
+        }
+        List<RoleGuide.Section> sections = new ArrayList<>();
+        String heading = null;
+        List<RoleGuide.Line> lines = new ArrayList<>();
+        for (String line : body.split("\n")) {
+            String row = line.strip();
+            if (row.isEmpty()) {
+                continue;
+            }
+            if (row.startsWith("## ")) {
+                if (heading != null) {
+                    sections.add(section(file, heading, lines));
+                }
+                heading = row.substring(3).strip();
+                lines = new ArrayList<>();
+            } else if (row.startsWith("- ")) {
+                if (heading == null) {
+                    throw badGuide(file, "line '" + row + "' comes before the first ## heading");
+                }
+                lines.add(guideLine(file, row.substring(2), articleIds, screenKeys));
+            } else {
+                throw badGuide(file, "line '" + row + "' is neither a ## heading nor a - duty");
+            }
+        }
+        if (heading == null) {
+            throw badGuide(file, "has no ## section");
+        }
+        sections.add(section(file, heading, lines));
+        return new RoleGuide(role, title, sections);
+    }
+
+    private static RoleGuide.Section section(String file, String heading, List<RoleGuide.Line> lines) {
+        if (lines.isEmpty()) {
+            throw badGuide(file, "section '" + heading + "' has no duty line");
+        }
+        return new RoleGuide.Section(heading, lines);
+    }
+
+    private static RoleGuide.Line guideLine(String file, String row, Set<String> articleIds, Set<String> screenKeys) {
+        String screen = null;
+        String article = null;
+        Matcher m = MARKER.matcher(row);
+        while (m.find()) {
+            String kind = m.group(1);
+            String value = m.group(2).strip();
+            if ("screen".equals(kind)) {
+                if (screen != null) {
+                    throw badGuide(file, "line '" + row + "' names more than one {screen:}");
+                }
+                if (!screenKeys.contains(value)) {
+                    throw badGuide(file, "screen '" + value + "' has no name in help/screens.json");
+                }
+                screen = value;
+            } else if ("article".equals(kind)) {
+                if (article != null) {
+                    throw badGuide(file, "line '" + row + "' names more than one {article:}");
+                }
+                if (!articleIds.contains(value)) {
+                    throw badGuide(file, "article '" + value + "' is not a help article");
+                }
+                article = value;
+            } else {
+                throw badGuide(file, "unknown marker {" + kind + ":} in line '" + row + "'");
+            }
+        }
+        if (screen == null) {
+            throw badGuide(file, "line '" + row + "' has no {screen:}");
+        }
+        String words =
+                MARKER.matcher(row).replaceAll("").replaceAll("\\s+", " ").strip();
+        if (words.isEmpty()) {
+            throw badGuide(file, "a line has no words");
+        }
+        return new RoleGuide.Line(words, screen, article);
+    }
+
+    private static IllegalStateException badGuide(String file, String problem) {
+        return new IllegalStateException("Role guide " + file + ": " + problem);
     }
 
     private static Resource[] resources(ResourcePatternResolver resolver, String pattern) {

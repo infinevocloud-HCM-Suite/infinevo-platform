@@ -28,6 +28,7 @@ class AiSystemPromptTest {
         assertThat(prompt).doesNotContain("leave-types");
         assertThat(prompt).doesNotContain("Click Apply for Leave");
         assertThat(prompt).contains(AiSystemPrompt.HELP_RULE);
+        assertThat(prompt).contains(AiSystemPrompt.ROLE_RULE);
     }
 
     @Test

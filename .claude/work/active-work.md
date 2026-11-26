@@ -6,13 +6,21 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-114.12 AI helper role guide on `main`
+
+- New tool `core.my_role_guide`: the caller's roles, every screen of their menu (plain name and path), and the duty guide of each role. `code/backend/core/src/main/java/com/infinevo/core/ai/help/RoleGuideAiToolProvider.java`.
+- Six guides ship in `code/backend/core/src/main/resources/help/roles/` (employee, manager, hr, payroll-officer, tenant-admin, finance); `help/screens.json` names every menu screen. A duty whose screen is not in the caller's menu is dropped, so a role the customer changed answers what it really holds.
+- `HelpArticlesMatchTheMenuTest` (in `app`) now also fails when a guide names a screen the menu lacks or a menu screen has no name.
+- No migration. Built by Claude. The founder reviews the guide wording; a correction is a file edit.
+- **Next:** `W-114.13`.
+
 ## 2026-11-26 — W-114.11 AI helper help library on `main`
 
 - 30 how-to articles ship in the `core` jar, `code/backend/core/src/main/resources/help/articles/*.md`, plus `help/sub-routes.json` (six deeper pages). A broken article stops the app at startup (`HelpLibrary`).
 - Each message's system prompt lists the articles the caller may see (id, title, summary only), worked out from their navigation feed; `core.read_help_article` reads one by id, `core.search_help` is the keyword fallback. A hidden article answers "not found", the same as an unknown id. `code/backend/core/src/main/java/com/infinevo/core/ai/help/`.
 - `HelpArticlesMatchTheMenuTest` (in `app`) fails when an article names a screen that is not in the full menu or an action nothing declares.
 - No migration. Built by Claude. The founder reviews the article wording; a correction is a file edit.
-- **Next:** `W-114.12`–`.16` and `.22`.
+- **Next:** `W-114.12`.
 
 ## 2026-11-26 — W-102 employee onboarding tasks on `main` (`8af9d9fc`)
 

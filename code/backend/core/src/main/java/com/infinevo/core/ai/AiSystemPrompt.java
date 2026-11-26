@@ -17,7 +17,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>From W-114.11 it also lists the help articles the caller may see - id, title and summary only, our own shipped
  * text, never an article body or anything a user typed - under {@value #CATALOGUE_HEADING}, with the rule
- * {@link #HELP_RULE}. The list is worked out per request from the caller's navigation feed.
+ * {@link #HELP_RULE}. The list is worked out per request from the caller's navigation feed. From W-114.12 the rule
+ * {@link #ROLE_RULE} sends "what can I do" questions to {@code core.my_role_guide}.
  */
 @Component
 public class AiSystemPrompt {
@@ -30,6 +31,9 @@ public class AiSystemPrompt {
             + CATALOGUE_HEADING + "' and call core.read_help_article with its id. If no line fits, call"
             + " core.search_help. Answer only from the article you read. If no article fits, say you do not have a"
             + " guide for that. When an article gives a screen, link it as [name](app:/path).";
+
+    static final String ROLE_RULE = "For a question about what the user can do, or should do, call core.my_role_guide."
+            + " Say only what it returns. Never tell the user they can do something it did not list.";
 
     static final String MORE_ARTICLES = "More articles exist - use core.search_help.";
 
@@ -46,7 +50,8 @@ public class AiSystemPrompt {
             "Some values are hidden and shown as [hidden], [PAN], [AADHAAR], [IFSC], [NUMBER] or [TOKEN]. Do not"
                     + " try to work them out; tell the user to open the screen if they need them.",
             "Keep answers short and plain. Write dates as they appear in the tool results.",
-            HELP_RULE);
+            HELP_RULE,
+            ROLE_RULE);
 
     /** Null in a context without help (the unit tests that predate W-114.11): no catalogue is listed. */
     private final HelpLibrary library;

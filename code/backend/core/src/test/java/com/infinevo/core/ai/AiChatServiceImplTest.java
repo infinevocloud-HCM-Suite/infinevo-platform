@@ -18,6 +18,8 @@ import com.infinevo.core.ai.help.HelpAccess;
 import com.infinevo.core.ai.help.HelpAiToolProvider;
 import com.infinevo.core.ai.help.HelpLibrary;
 import com.infinevo.core.ai.help.HelpViewer;
+import com.infinevo.core.ai.help.RoleGuideAiToolProvider;
+import com.infinevo.core.authz.RoleRepository;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
@@ -37,6 +39,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -46,6 +49,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -526,14 +530,24 @@ class AiChatServiceImplTest {
     /** A service with the shipped help library and HR's view of it; only the two help tools. */
     private AiChatServiceImpl helpService() {
         HelpLibrary library = new HelpLibrary();
-        HelpAccess access =
-                HelpAccess.fixed(new HelpViewer(Set.of("/leave/types", "/leave/requests"), Set.of(), Set.of("hr")));
+        HelpAccess access = HelpAccess.fixed(new HelpViewer(
+                Set.of("/leave/types", "/leave/requests"),
+                Set.of(),
+                Set.of("hr"),
+                Set.of(),
+                Map.of("core.leave.types", "/leave/types", "core.leave.requests", "/leave/requests")));
+        @SuppressWarnings("unchecked")
+        ObjectProvider<RoleRepository> noRoles = mock(ObjectProvider.class);
         PermissionService permissions = mock(PermissionService.class);
         when(permissions.holds(anyString())).thenAnswer(inv -> "core.ai.use".equals(inv.getArgument(0)));
         EntitlementService entitlements = mock(EntitlementService.class);
         when(entitlements.holds(any(PlatformModule.class))).thenReturn(true);
-        AiToolRegistry registry =
-                new AiToolRegistry(permissions, entitlements, List.of(new HelpAiToolProvider(library, access)));
+        AiToolRegistry registry = new AiToolRegistry(
+                permissions,
+                entitlements,
+                List.of(
+                        new HelpAiToolProvider(library, access),
+                        new RoleGuideAiToolProvider(library, access, noRoles)));
         TenantClock tenantClock = mock(TenantClock.class);
         when(tenantClock.today()).thenReturn(LocalDate.of(2026, 11, 23));
         return new AiChatServiceImpl(
@@ -565,7 +579,7 @@ class AiChatServiceImplTest {
         assertThat(sent.get(0).systemPrompt()).contains("leave-types | Create a leave type | ");
         assertThat(sent.get(0).tools())
                 .extracting(AiToolDescriptor::name)
-                .containsExactlyInAnyOrder("core.read_help_article", "core.search_help");
+                .containsExactlyInAnyOrder("core.read_help_article", "core.search_help", "core.my_role_guide");
         AiModelRequest.Message result =
                 sent.get(1).messages().get(sent.get(1).messages().size() - 1);
         assertThat(result.content()).contains("Click Add Leave Type").contains("\"screen\":\"/leave/types\"");
@@ -590,6 +604,32 @@ class AiChatServiceImplTest {
         assertThat(second.get(second.size() - 1).content()).contains("\"id\":\"leave-types\"");
         List<AiModelRequest.Message> third = sent.get(2).messages();
         assertThat(third.get(third.size() - 1).content()).contains("Click Add Leave Type");
+    }
+
+    @Test
+    @DisplayName("W-114.12: \"what can I do here?\" - the model calls core.my_role_guide, then reads the hr guide")
+    void roleGuideThenAnswer() {
+        AiChatServiceImpl help = helpService();
+        model.script(
+                AiModelResponse.toolCall("call_1", "core.my_role_guide", "{}"),
+                AiModelResponse.toolCall("call_2", "core.my_role_guide", "{\"role\":\"hr\"}"),
+                AiModelResponse.text("As HR you check [Leave requests](app:/leave/requests) every day."));
+
+        AiChatResponse answer = help.send(mine.getId(), "What can I do here?");
+
+        List<AiModelRequest> sent = model.requests();
+        assertThat(sent).hasSize(3);
+        assertThat(sent.get(0).systemPrompt()).contains("core.my_role_guide");
+        List<AiModelRequest.Message> second = sent.get(1).messages();
+        assertThat(second.get(second.size() - 1).content())
+                .contains("\"code\":\"hr\"")
+                .contains("\"path\":\"/leave/requests\"")
+                .contains("Every day");
+        List<AiModelRequest.Message> third = sent.get(2).messages();
+        assertThat(third.get(third.size() - 1).content())
+                .contains("leave-requests-review")
+                .doesNotContain("Clock in");
+        assertThat(answer.message().content()).contains("Leave requests");
     }
 
     // ---- W-114.8: proposals, and what the model is told about them (C9) ----
