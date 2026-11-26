@@ -1,6 +1,6 @@
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Card, Descriptions, Switch, Select, Form, Input, Button, Tabs, Tag, Typography, Space, Skeleton,
@@ -13,6 +13,7 @@ import { tenantService } from './tenantService.js';
 import { impersonationService } from './impersonationService.js';
 import { started } from './impersonationSlice.js';
 import { AuditTab, AUDIT_HINT } from './AuditTab.jsx';
+import { PlatformBillingTab } from './PlatformBillingTab.jsx';
 import {
   isPlatformTenant, MODULES, STATUSES, STATUS_COLORS, PLANS, PLAN_LABELS, SUPPORT_PLANS,
   SUPPORT_PLAN_LABELS, employeesText,
@@ -44,6 +45,7 @@ const LOCKING_STATUSES = ['SUSPENDED', 'CANCELLED'];
 export function TenantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const { token } = theme.useToken();
   const session = useSelector((state) => state.impersonation?.session ?? null);
@@ -508,6 +510,8 @@ export function TenantDetail() {
     </Space>
   );
 
+  const defaultTab = location.pathname.endsWith('/billing') ? 'billing' : 'overview';
+
   return (
     <Card variant="borderless">
       <PageHeader
@@ -516,12 +520,17 @@ export function TenantDetail() {
         backLabel="Tenants"
       />
       <Tabs
-        defaultActiveKey="overview"
+        defaultActiveKey={defaultTab}
         tabBarExtraContent={
           sessionHere ? null : <Typography.Text type="secondary">{AUDIT_HINT}</Typography.Text>
         }
         items={[
           { key: 'overview', label: 'Overview', children: overview },
+          {
+            key: 'billing',
+            label: 'Billing & Invoices',
+            children: <PlatformBillingTab tenant={tenant} onUpdate={load} />,
+          },
           {
             key: 'audit',
             label: 'Audit',

@@ -113,6 +113,9 @@ const OnboardingTemplateSettings = lazy(() =>
 const CompanyProfile = lazy(() =>
   import('./settings/CompanyProfile.jsx').then((m) => ({ default: m.CompanyProfile }))
 );
+const TenantBillingPage = lazy(() =>
+  import('./billing/TenantBillingPage.jsx').then((m) => ({ default: m.TenantBillingPage }))
+);
 
 const PlatformHome = lazy(() =>
   import('./admin/PlatformHome.jsx').then((m) => ({ default: m.PlatformHome }))
@@ -175,6 +178,8 @@ export const routes = [
   { path: '/wfh/import', element: React.createElement(WfhImport) },
   // W-73.1: mounted when the feed carries `core.settings.company`.
   { path: '/settings/company', element: React.createElement(CompanyProfile) },
+  // W-94.2: customer billing and subscription GST tax invoices
+  { path: '/settings/billing', element: React.createElement(TenantBillingPage), mountWith: ['/settings/company', '/setup'] },
   // W-102: mounted when the feed carries `core.settings.onboarding`.
   { path: '/settings/onboarding', element: React.createElement(OnboardingTemplateSettings) },
   // Platform staff only: mounted when the feed carries `core.admin.home` (W-73.2) or `core.tenants`
@@ -183,6 +188,8 @@ export const routes = [
   { path: '/admin/tenants', element: React.createElement(TenantList) },
   { path: '/admin/tenants/new', element: React.createElement(TenantCreate) },
   { path: '/admin/tenants/:id', element: React.createElement(TenantDetail) },
+  // W-94.2: platform admin tenant billing tab direct route
+  { path: '/admin/tenants/:id/billing', element: React.createElement(TenantDetail) },
 ];
 
 export const publicRoutes = [
