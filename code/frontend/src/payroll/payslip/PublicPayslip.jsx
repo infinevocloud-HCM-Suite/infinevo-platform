@@ -132,6 +132,8 @@ export function PublicPayslip({ token: propToken }) {
               background: white !important;
               margin: 0 !important;
               padding: 0 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             .no-print {
               display: none !important;

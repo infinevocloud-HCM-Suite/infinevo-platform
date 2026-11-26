@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.ai.help.HelpArticle;
 import com.infinevo.core.ai.help.HelpLibrary;
+import com.infinevo.core.ai.help.SetupStepScreens;
 import com.infinevo.core.navigation.NavigationCatalogue;
 import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
@@ -13,8 +14,10 @@ import com.infinevo.shared.authz.RequiresAction;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
@@ -44,6 +47,7 @@ class HelpArticlesMatchTheMenuTest {
     private static final Set<String> PATHS = new HashSet<>();
     private static final Set<String> KEYS = new HashSet<>();
     private static final Set<String> LEAF_KEYS = new HashSet<>();
+    private static final Map<String, String> ITEM_PATHS = new HashMap<>();
     private static final Set<String> ACTIONS = new HashSet<>();
 
     @BeforeAll
@@ -91,6 +95,9 @@ class HelpArticlesMatchTheMenuTest {
                 PATHS.add(item.path());
             }
             KEYS.add(item.key());
+            if (item.path() != null) {
+                ITEM_PATHS.put(item.key(), item.path());
+            }
             if (item.children() == null || item.children().isEmpty()) {
                 LEAF_KEYS.add(item.key());
             }
@@ -152,6 +159,21 @@ class HelpArticlesMatchTheMenuTest {
                                 .contains(l.action());
                     }
                 })));
+    }
+
+    @Test
+    @DisplayName("W-114.16: every setup step's menu key is a menu leaf, and its path is that item's or below it")
+    void everySetupScreenIsInTheMenu() {
+        assertThat(SetupStepScreens.all()).isNotEmpty();
+        SetupStepScreens.all().forEach((code, screen) -> {
+            assertThat(LEAF_KEYS).as("menu key of step %s", code).contains(screen.menuKey());
+            String itemPath = ITEM_PATHS.get(screen.menuKey());
+            // The item's own path, or a fixed sub-route whose parent is that item: otherwise the link is dropped.
+            assertThat(screen.path().equals(itemPath)
+                            || itemPath.equals(LIBRARY.subRoutes().get(screen.path())))
+                    .as("step %s path %s under %s", code, screen.path(), itemPath)
+                    .isTrue();
+        });
     }
 
     @Test

@@ -15,6 +15,13 @@
 - One independent read (2 Medium, 4 Low): own-role rule built; `forCaller` tested against the chat's caller and an empty registry; chip groups named for screen readers; starters asked again on a tenant change. "What is left to set up?" shows once `W-114.16` is on `main`.
 - Built by Claude. No migration.
 
+## 2026-11-26 — W-114.16 AI helper setup guide
+
+- Tool `core.setup_status` (needs `core.tenant.read`) reads `SetupChecklistService.getChecklist`, the call the Setup screen makes, and lists each step as `DONE`, `REVIEW` (country template, never saved), `SKIPPED` or `NOT_DONE`. `code/backend/core/src/main/java/com/infinevo/core/ai/help/SetupAiToolProvider.java`.
+- `SetupStepScreens` maps each step to its menu item and path (the frontend's `stepLinks.js` pairs). A screen is given only when the caller's menu holds that item; four `/payroll/settings/...` pages joined `help/sub-routes.json`. A test fails when a step has no entry.
+- Read only: skipping stays on the Setup screen. Built by Claude. No migration.
+- One independent read (1 Medium, 2 Low): a step skipped and finished later now reads DONE, as the screen shows; the menu test now proves a deeper step page is on the sub-route list. Left: a step new since setup was last touched reads NOT_DONE (the screen says "New").
+
 ## 2026-11-26 — W-114.14 AI helper explains my payslip and my TDS
 
 - `payroll.explain_payslip` compares one of the caller's paid payslips with the newest earlier regular one (never an off-cycle): each line's amount, last month's, the difference and a reason code from a closed list (`LOSS_OF_PAY`, `MONTH_ONLY_ENTRY`, `NEW_COMPONENT`, `ENDED_COMPONENT`, `SALARY_REVISED`, `PAID_DAYS_CHANGED`, `JOINED_THIS_MONTH`, `FOLLOWS_EARNINGS`, `TAX_SEE_TDS`, `FIRST_PAYSLIP`, `NOT_KNOWN`). `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/PayslipComparison.java`.

@@ -46,7 +46,11 @@ class HelpLibraryTest {
                         "/me/wfh",
                         "/me/payslips",
                         "/me/taxDeclaration",
-                        "/payroll/settings/tax-declaration");
+                        "/payroll/settings/tax-declaration",
+                        "/payroll/settings/pay-schedule",
+                        "/payroll/settings/epf",
+                        "/payroll/settings/esi",
+                        "/payroll/settings/professional-tax");
         assertThat(library.all()).allSatisfy(a -> {
             assertThat(a.body().length()).isLessThanOrEqualTo(HelpLibrary.MAX_BODY);
             assertThat(a.roles()).isNotEmpty();
