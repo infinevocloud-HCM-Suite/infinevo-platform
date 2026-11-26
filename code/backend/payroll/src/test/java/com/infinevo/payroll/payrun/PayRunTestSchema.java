@@ -474,7 +474,7 @@ public final class PayRunTestSchema {
     }
 
     /** W-29.3 §8: Basic, HRA, Special allowance and the employer PF benefit are pro-rata; the meal card is not. */
-    static void markWorkedExampleProRata(UUID tenantId) throws SQLException {
+    public static void markWorkedExampleProRata(UUID tenantId) throws SQLException {
         execute(
                 "UPDATE payroll.earning SET is_pro_rata = true WHERE tenant_id = ? AND code IN ('BASIC', 'HRA', 'SPECIAL')",
                 tenantId);

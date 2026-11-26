@@ -15,17 +15,29 @@ import com.infinevo.core.ai.AiToolResult;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.tenant.TenantClock;
+import com.infinevo.payroll.payrun.EmployeePayRun;
+import com.infinevo.payroll.payrun.EmployeePayRunRepository;
+import com.infinevo.payroll.payrun.PayFigureExplanationResponse;
+import com.infinevo.payroll.payrun.PayFigureExplanationService;
 import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.payslip.PayslipForbiddenException;
 import com.infinevo.payroll.payslip.PayslipNotFoundException;
 import com.infinevo.payroll.payslip.PayslipResponse;
 import com.infinevo.payroll.payslip.PayslipService;
 import com.infinevo.payroll.payslip.PayslipSummaryResponse;
+import com.infinevo.payroll.taxcalc.recalc.TaxComputationRecordResponse;
+import com.infinevo.payroll.taxcalc.recalc.TaxRecalculationService;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationService;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException;
 import com.infinevo.payroll.taxdeclaration.summary.TaxSummaryService;
+import com.infinevo.payroll.tds.EmployeeTds;
+import com.infinevo.payroll.tds.EmployeeTdsService;
+import com.infinevo.payroll.tds.TdsSpread;
 import com.infinevo.shared.authz.NoEmployeeRecordException;
+import com.infinevo.shared.authz.PermissionService;
+import com.infinevo.shared.tenant.TenantContext;
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -91,6 +103,11 @@ public class PayrollAiToolProvider implements AiToolProvider {
 
     static final String NO_PAYSLIPS = "There is no paid payslip yet.";
 
+    static final String NO_TDS_OFF_CYCLE =
+            "That month's paid payslip is an off-cycle one, and an off-cycle payslip deducts no TDS.";
+
+    static final String PAYSLIP_READ_OWN = "payroll.payslip.read_own";
+
     static final String NO_DECLARATION = "There is no tax declaration for that financial year yet.";
 
     static final String NO_EMPLOYEE = "Not available: the signed-in user has no employee record";
@@ -112,9 +129,54 @@ public class PayrollAiToolProvider implements AiToolProvider {
     private final TenantClock tenantClock;
     private final TransactionOperations readOnlyTx;
     private final TransactionOperations tx;
+    private final ExplainSources explain;
     private final List<AiTool> tools;
 
+    /**
+     * What the two W-114.14 explain tools read, besides the payslip service: the caller's own pay run rows (for the
+     * salary version), the loss-of-pay pricing, the year's TDS record and the stored tax recalculations.
+     */
+    record ExplainSources(
+            EmployeePayRunRepository payRuns,
+            PayFigureExplanationService figures,
+            EmployeeTdsService tds,
+            TaxRecalculationService recalculations,
+            PermissionService permissions) {
+
+        ExplainSources {
+            Objects.requireNonNull(permissions, "permissions must not be null");
+            Objects.requireNonNull(payRuns, "payRuns must not be null");
+            Objects.requireNonNull(figures, "figures must not be null");
+            Objects.requireNonNull(tds, "tds must not be null");
+            Objects.requireNonNull(recalculations, "recalculations must not be null");
+        }
+    }
+
     @Autowired
+    public PayrollAiToolProvider(
+            PayslipService payslipService,
+            TaxDeclarationService taxDeclarationService,
+            TaxSummaryService taxSummaryService,
+            EmployeeService employeeService,
+            TenantClock tenantClock,
+            PlatformTransactionManager transactionManager,
+            EmployeePayRunRepository payRuns,
+            PayFigureExplanationService figures,
+            EmployeeTdsService tds,
+            TaxRecalculationService recalculations,
+            PermissionService permissions) {
+        this(
+                payslipService,
+                taxDeclarationService,
+                taxSummaryService,
+                employeeService,
+                tenantClock,
+                readOnly(transactionManager),
+                new TransactionTemplate(transactionManager),
+                new ExplainSources(payRuns, figures, tds, recalculations, permissions));
+    }
+
+    /** The W-114.7 tools only, without the explain tools (tests that predate W-114.14). */
     public PayrollAiToolProvider(
             PayslipService payslipService,
             TaxDeclarationService taxDeclarationService,
@@ -129,7 +191,8 @@ public class PayrollAiToolProvider implements AiToolProvider {
                 employeeService,
                 tenantClock,
                 readOnly(transactionManager),
-                new TransactionTemplate(transactionManager));
+                new TransactionTemplate(transactionManager),
+                null);
     }
 
     PayrollAiToolProvider(
@@ -140,6 +203,26 @@ public class PayrollAiToolProvider implements AiToolProvider {
             TenantClock tenantClock,
             TransactionOperations readOnlyTx,
             TransactionOperations tx) {
+        this(
+                payslipService,
+                taxDeclarationService,
+                taxSummaryService,
+                employeeService,
+                tenantClock,
+                readOnlyTx,
+                tx,
+                null);
+    }
+
+    PayrollAiToolProvider(
+            PayslipService payslipService,
+            TaxDeclarationService taxDeclarationService,
+            TaxSummaryService taxSummaryService,
+            EmployeeService employeeService,
+            TenantClock tenantClock,
+            TransactionOperations readOnlyTx,
+            TransactionOperations tx,
+            ExplainSources explain) {
         this.payslipService = Objects.requireNonNull(payslipService, "payslipService must not be null");
         this.taxDeclarationService =
                 Objects.requireNonNull(taxDeclarationService, "taxDeclarationService must not be null");
@@ -148,7 +231,13 @@ public class PayrollAiToolProvider implements AiToolProvider {
         this.tenantClock = Objects.requireNonNull(tenantClock, "tenantClock must not be null");
         this.readOnlyTx = Objects.requireNonNull(readOnlyTx, "readOnlyTx must not be null");
         this.tx = Objects.requireNonNull(tx, "tx must not be null");
-        this.tools = List.of(myPayslips(), myPayslip(), myTaxDeclaration(), myTaxSummary());
+        this.explain = explain;
+        List<AiTool> list = new ArrayList<>(List.of(myPayslips(), myPayslip(), myTaxDeclaration(), myTaxSummary()));
+        if (explain != null) {
+            list.add(explainPayslip());
+            list.add(explainTds());
+        }
+        this.tools = List.copyOf(list);
     }
 
     private static TransactionOperations readOnly(PlatformTransactionManager transactionManager) {
@@ -257,6 +346,268 @@ public class PayrollAiToolProvider implements AiToolProvider {
                     }
                     return PayrollAiToolResults.taxSummary(taxSummaryService.summaryOwn(fy.label()));
                 });
+    }
+
+    // ---- W-114.14: explain my payslip and my TDS ----
+
+    static final String NO_ADVICE = "The helper explains; it gives no tax advice.";
+
+    /**
+     * {@code GET /api/v1/me/payslips} and {@code /{payrunId}} for this month and the month before -
+     * {@code payslip/PayslipController.java:47-61} - plus the caller's own pay figure,
+     * {@code payrun/PayRunExplainController.java:35-36}, which an own-data caller may read only for their own row.
+     */
+    private AiTool explainPayslip() {
+        return new PayrollTool(
+                "payroll.explain_payslip",
+                "What changed on one of the signed-in user's own paid payslips since the previous regular month, and"
+                        + " why where the stored data proves it. Each line has this month's amount, previousAmount,"
+                        + " the difference (ready-made: quote it, do not compute) and reasons, codes from a fixed"
+                        + " list: LOSS_OF_PAY (with PAID_DAYS_CHANGED and JOINED_THIS_MONTH on that line when the days"
+                        + " moved or the user joined this month; salary lines are full-month amounts), LOSS_OF_PAY_REFUNDED"
+                        + " (loss of pay given back), MONTH_ONLY_ENTRY (overtime, a reimbursement, a one-off payout or"
+                        + " deduction entered for that month), NEW_COMPONENT, ENDED_COMPONENT, SALARY_REVISED,"
+                        + " FOLLOWS_EARNINGS (a statutory deduction that moved"
+                        + " with earnings), TAX_SEE_TDS (use payroll.explain_tds), FIRST_PAYSLIP, NOT_KNOWN (say the"
+                        + " data does not show why; never guess). Lines no longer paid are in gone. Also both months'"
+                        + " days and totals, and the loss-of-pay working when there is any. An off-cycle payslip (offCycle) is"
+                        + " never compared with a regular month: say its note. Amounts are text in INR. "
+                        + NO_ADVICE
+                        + " Optional period, the month as YYYY-MM; the latest paid month when left out.",
+                schema(Map.of("period", periodProperty())),
+                "payroll.payslip.read_own",
+                true,
+                (ctx, input) -> {
+                    YearMonth period = period(input);
+                    Optional<PayslipResponse> current = monthsPayslip(period);
+                    if (current.isEmpty()) {
+                        return PayrollAiToolResults.none(
+                                period == null ? null : period.toString(), period == null ? NO_PAYSLIPS : NO_PAYSLIP);
+                    }
+                    PayslipResponse now = current.get();
+                    PayslipResponse before = offCycle(now)
+                            ? null
+                            : previousRegular(YearMonth.parse(now.run().period()))
+                                    .orElse(null);
+                    boolean revised = before != null
+                            && salaryRevised(
+                                    ctx.employeeId(),
+                                    now.run().payrunId(),
+                                    before.run().payrunId());
+                    PayslipComparison.Result result = PayslipComparison.compare(now, before, revised);
+                    return PayrollAiToolResults.explainPayslip(result, lossOfPay(now, ctx.employeeId()));
+                });
+    }
+
+    /**
+     * {@code GET /api/v1/me/tds/{fy}} - {@code tds/EmployeeTdsController.java:110-121} - with the two payslips' TDS
+     * lines and the caller's own tax history ({@code taxcalc/recalc/MyTaxHistoryController.java:38-41}).
+     */
+    private AiTool explainTds() {
+        return new PayrollTool(
+                "payroll.explain_tds",
+                "Why the signed-in user's TDS (income tax deducted from pay) is what it is in one paid month: this"
+                        + " month's and last month's TDS and the difference (ready-made: quote it, do not compute),"
+                        + " the financial year's tax record as it stands today (regime, where it came from, annual gross,"
+                        + " taxable income, annual tax, the month it applies from, deducted so far on paid payslips,"
+                        + " remaining), each stored tax"
+                        + " recalculation between the two payslips with its cause (DECLARATION_SUBMITTED,"
+                        + " SALARY_REVISION, SALARY_DEFAULT, PROOF_VERIFIED, OFFICER) and the annual tax before and"
+                        + " after, and the rule for a month's TDS. Say a recalculation happened between the payslips,"
+                        + " not that it caused the change. Amounts are text in INR. "
+                        + NO_ADVICE
+                        + " Optional period, the month as YYYY-MM; the latest paid month when left out.",
+                schema(Map.of("period", periodProperty())),
+                "payroll.tax_declaration.read_own",
+                true,
+                (ctx, input) -> {
+                    YearMonth period = period(input);
+                    // The TDS figures come from payslips: without the payslip action it answers as if none (rule 8).
+                    if (!explain.permissions().holds(PAYSLIP_READ_OWN)) {
+                        return PayrollAiToolResults.none(
+                                period == null ? null : period.toString(), period == null ? NO_PAYSLIPS : NO_PAYSLIP);
+                    }
+                    Optional<PayslipResponse> current = monthsPayslip(period);
+                    if (current.isPresent() && offCycle(current.get())) {
+                        // An off-cycle run deducts no TDS (TaxLineContributor): a named month says so; left out, the
+                        // newest regular payslip is the one explained.
+                        if (period != null) {
+                            return PayrollAiToolResults.none(period.toString(), NO_TDS_OFF_CYCLE);
+                        }
+                        current = previousRegular(
+                                YearMonth.parse(current.get().run().period()).plusMonths(1));
+                    }
+                    if (current.isEmpty()) {
+                        return PayrollAiToolResults.none(
+                                period == null ? null : period.toString(), period == null ? NO_PAYSLIPS : NO_PAYSLIP);
+                    }
+                    PayslipResponse now = current.get();
+                    YearMonth month = YearMonth.parse(now.run().period());
+                    Optional<PayslipResponse> before = previousRegular(month);
+                    FinancialYear financialYear = TdsExplanation.financialYearOf(month);
+                    String fy = financialYear.label();
+                    TdsExplanation.YearRecord year = explain.tds()
+                            .active(ctx.employeeId(), fy)
+                            .map(record -> yearRecord(record, paidTdsThisYear(financialYear)))
+                            .orElse(null);
+                    List<TdsExplanation.Recalculation> history = new ArrayList<>();
+                    for (TaxComputationRecordResponse r :
+                            explain.recalculations().historyOwn(fy)) {
+                        if (r.computedAt() != null) {
+                            history.add(new TdsExplanation.Recalculation(
+                                    tenantClock.dateOf(r.computedAt()), r.computedAt(), r.trigger(), r.annualTax()));
+                        }
+                    }
+                    TdsExplanation.Result result = TdsExplanation.explain(
+                            month,
+                            before.map(b -> YearMonth.parse(b.run().period())).orElse(null),
+                            TdsExplanation.tdsOf(now),
+                            before.map(TdsExplanation::tdsOf).orElse(null),
+                            year,
+                            history);
+                    return PayrollAiToolResults.explainTds(result);
+                });
+    }
+
+    /**
+     * The year's record as it stands today (founder 2026-11-26), with "deducted so far" from paid payslips only: the
+     * TDS screen's figure ({@code EmployeeTdsService.yearToDate}) also counts computed and approved runs, which have
+     * deducted nothing yet (founder 2026-11-26, "paid runs only").
+     */
+    private TdsExplanation.YearRecord yearRecord(EmployeeTds record, BigDecimal deducted) {
+        TdsSpread spread = explain.tds().spread(record, deducted);
+        return new TdsExplanation.YearRecord(
+                record.getFinancialYear(),
+                record.getRegime() == null ? null : record.getRegime().name(),
+                record.getSource() == null ? null : record.getSource().name(),
+                record.getAnnualGross(),
+                record.getAnnualTaxableIncome(),
+                record.getAnnualTax(),
+                record.getEffectiveFromPeriod(),
+                spread.deductedSoFar(),
+                spread.remaining());
+    }
+
+    /** The month's regular payslip (or its only one), from the caller's own paid list; empty when there is none. */
+    private Optional<PayslipResponse> monthsPayslip(YearMonth period) {
+        List<PayslipSummaryResponse> found = findOwn(period);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        List<PayslipResponse> slips = new ArrayList<>(found.size());
+        for (PayslipSummaryResponse slip : found) {
+            slips.add(payslipService.own(slip.payrunId()));
+        }
+        PayslipResponse main = regularFirst(slips);
+        return main.run() == null || main.run().period() == null ? Optional.empty() : Optional.of(main);
+    }
+
+    /** The TDS on every paid payslip of the caller in {@code fy} (April to March), off-cycle ones included. */
+    private BigDecimal paidTdsThisYear(FinancialYear fy) {
+        String first = YearMonth.of(fy.startYear(), 4).toString();
+        String last = YearMonth.of(fy.startYear() + 1, 3).toString();
+        BigDecimal total = BigDecimal.ZERO;
+        for (int page = 0; page < SEARCH_MAX_PAGES; page++) {
+            Page<PayslipSummaryResponse> slips = payslipService.listOwn(PageRequest.of(page, SEARCH_PAGE_SIZE));
+            for (PayslipSummaryResponse slip : slips.getContent()) {
+                if (slip.period() == null || slip.period().compareTo(last) > 0) {
+                    continue;
+                }
+                if (slip.period().compareTo(first) < 0) {
+                    return total;
+                }
+                total = total.add(TdsExplanation.tdsOf(payslipService.own(slip.payrunId())));
+            }
+            if (!slips.hasNext()) {
+                break;
+            }
+        }
+        return total;
+    }
+
+    private static boolean offCycle(PayslipResponse slip) {
+        return slip.run() != null
+                && PayRunType.OFF_CYCLE.name().equals(slip.run().type());
+    }
+
+    /** The newest regular paid payslip of the caller before {@code month} (rule 3): never an off-cycle one. */
+    private Optional<PayslipResponse> previousRegular(YearMonth month) {
+        String wanted = month.toString();
+        for (int page = 0; page < SEARCH_MAX_PAGES; page++) {
+            Page<PayslipSummaryResponse> slips = payslipService.listOwn(PageRequest.of(page, SEARCH_PAGE_SIZE));
+            for (PayslipSummaryResponse slip : slips.getContent()) {
+                if (slip.period() == null || slip.period().compareTo(wanted) >= 0) {
+                    continue;
+                }
+                PayslipResponse full = payslipService.own(slip.payrunId());
+                if (full.run() != null
+                        && PayRunType.REGULAR.name().equals(full.run().type())) {
+                    return Optional.of(full);
+                }
+            }
+            if (!slips.hasNext()) {
+                break;
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Whether the caller's own rows of the two runs carry different salary versions (rule 7: only the yes or no). */
+    private boolean salaryRevised(UUID employeeId, UUID currentRun, UUID previousRun) {
+        UUID tenantId = TenantContext.require();
+        Map<UUID, UUID> versions = new LinkedHashMap<>();
+        for (int page = 0; page < SEARCH_MAX_PAGES && versions.size() < 2; page++) {
+            Page<EmployeePayRun> rows =
+                    explain.payRuns().findOwnPaidRuns(tenantId, employeeId, PageRequest.of(page, SEARCH_PAGE_SIZE));
+            for (EmployeePayRun row : rows.getContent()) {
+                if (row.getPayrunId().equals(currentRun) || row.getPayrunId().equals(previousRun)) {
+                    versions.put(row.getPayrunId(), row.getSalaryVersionId());
+                }
+            }
+            if (!rows.hasNext()) {
+                break;
+            }
+        }
+        UUID now = versions.get(currentRun);
+        UUID before = versions.get(previousRun);
+        return now != null && before != null && !now.equals(before);
+    }
+
+    /** The month's loss-of-pay working, when it has any; {@code null} otherwise or when it cannot be read. */
+    private PayrollAiToolResults.LossOfPay lossOfPay(PayslipResponse slip, UUID employeeId) {
+        boolean hasLop = slip.days() != null
+                && slip.days().lopDays() != null
+                && slip.days().lopDays().signum() > 0;
+        // A refund (LOP_REVERSAL, an earning) is pay given back, never a loss of pay this month.
+        if (!hasLop && slip.deductions() != null) {
+            hasLop = slip.deductions().stream().anyMatch(l -> "LOP".equals(l.source()) && !PayslipComparison.refund(l));
+        }
+        if (!hasLop) {
+            return null;
+        }
+        try {
+            PayFigureExplanationResponse figure =
+                    explain.figures().explain(slip.run().payrunId(), employeeId);
+            return new PayrollAiToolResults.LossOfPay(
+                    figure.lopDays(),
+                    figure.lopAmount(),
+                    figure.payDivisor(),
+                    figure.workingDayBasis() == null
+                            ? null
+                            : figure.workingDayBasis().name());
+        } catch (RuntimeException e) {
+            log.info(
+                    "AI explain_payslip: loss-of-pay working not read ({})",
+                    e.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private static ObjectNode periodProperty() {
+        return NODES.objectNode()
+                .put("type", "string")
+                .put("pattern", "^[0-9]{4}-[0-9]{2}$")
+                .put("description", "The pay month, YYYY-MM. Defaults to the latest paid payslip.");
     }
 
     // ---- running a tool ----
