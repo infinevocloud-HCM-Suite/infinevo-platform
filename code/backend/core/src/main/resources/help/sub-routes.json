@@ -26,5 +26,21 @@
   {
     "path": "/payroll/settings/tax-declaration",
     "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/settings/pay-schedule",
+    "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/settings/epf",
+    "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/settings/esi",
+    "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/settings/professional-tax",
+    "parent": "/payroll/settings"
   }
 ]

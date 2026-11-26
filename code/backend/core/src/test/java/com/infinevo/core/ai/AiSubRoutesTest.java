@@ -13,14 +13,19 @@ class AiSubRoutesTest {
     private final AiSubRoutes subRoutes = new AiSubRoutes(new HelpLibrary());
 
     @Test
-    @DisplayName("the shipped list: /employees/new only when /employees is in the feed; tax declaration under settings")
+    @DisplayName("the shipped list: /employees/new needs /employees; five pages sit under payroll settings")
     void allowedFor() {
         assertThat(subRoutes.allowedFor(Set.of("/employees"))).containsExactly("/employees/import", "/employees/new");
         assertThat(subRoutes.allowedFor(Set.of("/me")))
                 .doesNotContain("/employees/new")
                 .contains("/me/leave");
         assertThat(subRoutes.allowedFor(Set.of("/payroll/settings")))
-                .containsExactly("/payroll/settings/tax-declaration");
+                .containsExactly(
+                        "/payroll/settings/epf",
+                        "/payroll/settings/esi",
+                        "/payroll/settings/pay-schedule",
+                        "/payroll/settings/professional-tax",
+                        "/payroll/settings/tax-declaration");
         assertThat(subRoutes.allowedFor(Set.of())).isEmpty();
         assertThat(subRoutes.allowedFor(null)).isEmpty();
     }

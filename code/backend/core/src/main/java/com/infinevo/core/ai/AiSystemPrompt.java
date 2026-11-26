@@ -42,6 +42,9 @@ public class AiSystemPrompt {
             + " line 'The user is on the screen', from core.find_screen, or the screen or route a help tool returned."
             + " Never make up a path.";
 
+    static final String SETUP_RULE = "For a question about what is left to set up, call core.setup_status and list the"
+            + " steps it returns, not-done first. Do not add steps of your own.";
+
     static final String MORE_ARTICLES = "More articles exist - use core.search_help.";
 
     static final String INSTRUCTIONS = String.join(
@@ -59,6 +62,7 @@ public class AiSystemPrompt {
             "Keep answers short and plain. Write dates as they appear in the tool results.",
             HELP_RULE,
             ROLE_RULE,
+            SETUP_RULE,
             LINK_RULE);
 
     /** Null in a context without help (the unit tests that predate W-114.11): no catalogue is listed. */

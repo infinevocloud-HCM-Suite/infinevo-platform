@@ -6,6 +6,12 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-114.16 AI helper setup guide
+
+- Tool `core.setup_status` (needs `core.tenant.read`) reads `SetupChecklistService.getChecklist`, the call the Setup screen makes, and lists each step as `DONE`, `REVIEW` (country template, never saved), `SKIPPED` or `NOT_DONE`. `code/backend/core/src/main/java/com/infinevo/core/ai/help/SetupAiToolProvider.java`.
+- `SetupStepScreens` maps each step to its menu item and path (the frontend's `stepLinks.js` pairs). A screen is given only when the caller's menu holds that item; four `/payroll/settings/...` pages joined `help/sub-routes.json`. A test fails when a step has no entry.
+- Read only: skipping stays on the Setup screen. Built by Claude. No migration.
+
 ## 2026-11-26 — W-114.13b AI helper off in act-as
 
 - Found while reading `.13`: during act-as the permission check takes the target user's actions, so `core.ai.use` passed and staff could chat, read the target's history and confirm actions in their name.

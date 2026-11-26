@@ -137,7 +137,7 @@ None. **Routes added:** none.
 |---|---|---|
 | Unit | `core/src/test/.../ai/help/SetupStepScreensTest.java` | Every code in `SetupStepCatalogue.DEFAULT_STEPS` has an entry; every path starts with `/`; every path is a menu item's path or an entry of `sub-routes.json` whose parent is that step's menu item |
 | Unit | `core/src/test/.../ai/help/SetupAiToolProviderTest.java` | The four states; counts equal the service's; a step whose menu key is not in the caller's feed has no `screen`; no id or timestamp in the result |
-| Unit | `core/src/test/.../ai/AiToolRegistryTest.java` (extend) | The tool is not offered to a caller without `core.tenant.read` |
+| Unit | `core/src/test/.../ai/help/SetupAiToolProviderTest.java` | `requiredAction` is `core.tenant.read`; `AiToolRegistry` already withholds a tool whose action the caller lacks (`AiToolRegistryTest`), so no new registry case |
 | Test | `app/src/test/.../help/HelpArticlesMatchTheMenuTest.java` (extend, `W-114.11`) | Every menu key in `SetupStepScreens` is in the full menu; every path starts with that item's path |
 
 **Break the guard once:** remove one entry from `SetupStepScreens` and see
@@ -153,9 +153,9 @@ cd code/backend && ./mvnw -B -pl core,app -am verify
 |---|---|---|
 | `core.setup_status {}` as a tenant admin of a new customer with Payroll | 8 steps, the same states `GET /api/v1/setup-checklist` returns, `total` 8 | not run |
 | Same for a customer without Payroll | 2 steps: Work location, Employee | not run |
-| A step filled by the country template and never saved | `state: REVIEW` | not run |
-| As an employee (no `core.tenant.read`) | The tool is not in the list sent to the model | not run |
-| As HR on a customer with Payroll (holds `core.tenant.read`, not `payroll.settings.manage`) | Payroll steps listed with no `screen` | not run |
+| A step filled by the country template and never saved | `state: REVIEW` | `SetupAiToolProviderTest.statesAndCounts` |
+| As an employee (no `core.tenant.read`) | The tool is not in the list sent to the model | by `requiredAction` (`SetupAiToolProviderTest.shape`) and the registry |
+| As HR on a customer with Payroll (holds `core.tenant.read`, not `payroll.settings.manage`) | Payroll steps listed with no `screen` | `SetupAiToolProviderTest.screenOnlyWhenTheMenuHoldsIt` |
 
 ## Risks
 
