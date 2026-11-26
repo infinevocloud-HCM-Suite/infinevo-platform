@@ -283,6 +283,12 @@ class RoleCatalogueIT {
                 assertThat(holds(conn, tenant, "hr", "core.pay_input.read"))
                         .as("D-140 (V189): core.pay_input.read granted to hr")
                         .isTrue();
+                assertThat(holds(conn, tenant, "payroll-officer", "payroll.tax.view"))
+                        .as("W-89 (V226): payroll.tax.view granted to payroll-officer")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "payroll-officer", "payroll.tax.manage"))
+                        .as("W-89 (V226): payroll.tax.manage granted to payroll-officer")
+                        .isTrue();
             }
         }
     }

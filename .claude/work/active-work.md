@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-89 quarterly TDS return on `main`
+
+| Ticket | What | Where |
+|---|---|---|
+| `W-89` | Payroll › **Quarterly TDS return**: record challans (whole rupees), allocate each to employees' TDS on paid runs of its quarter (capped by the TDS and by the challan), see what is not covered and every reason the portal file is blocked, download the statement CSV and the **Form 138** `.txt` (Q1–Q3, FVU 1.2 layout), mark the quarter filed with its 15-digit token (locks it; reopen for corrections). Q4: the year's salary statement CSV. Payroll › Settings › **TDS deductor**: TAN, PAN, signatory and the file's contact details | `payroll/challan/`, `payroll/compliance/form24q/` (`Form138File`, `Form138DeductorResolver`, `Form138States`), `V225`–`V227`, `form24q/Form24QPage.jsx`, `form24q/ChallanAllocationDrawer.jsx`, `settings/TdsDeductorSettings.jsx` |
+
+- Rebuilt from mohit's `feature/mohit-branch-2-w89-specs` after review; his 24Q FVU formatter was replaced, not fixed (founder: Form 138 now).
+- A pay run belongs to the quarter of the day it was paid (Form 138 refuses a payment date outside the quarter); Annexure II stays on salary months, like Form 16.
+- **Left:** the Form 138 Q4 file (layout unpublished); correction and nil statements; government book-entry deductors; run the `.txt` through Protean's FVU before the first upload.
+
 ## 2026-11-25 — W-114.10 AI helper 30-day chat deletion on `main`
 
 - A nightly worker job (`0 30 2 * * *`, ShedLock `ai_chat_retention_sweep`) deletes AI chat data older than 30 days: messages by their own age, action intents by age whatever their status, sessions by last activity. `code/backend/worker/src/main/java/com/infinevo/worker/retention/AiChatRetention*.java`.
@@ -14,6 +24,7 @@
 - Deleting an old message under a recent intent clears the intent's `message_id` (the existing `ON DELETE SET NULL`); an IT proves it as `retention_user`.
 - Built by Claude; one independent read (one Medium fixed by that IT; one Low accepted: the sweep does not restore a tenant bound before it ran, as the job never has one).
 - **Next:** `W-114.11`–`.16` and `.22`, one after another (they share the chat code).
+
 ## 2026-11-25 — W-88.2 bank file templates on `main` (`237fbec2`)
 
 | Ticket | What | Where |

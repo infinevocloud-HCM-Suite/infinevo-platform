@@ -68,6 +68,11 @@ export const SETTINGS_MENU_ITEMS = [
     icon: <CompassOutlined />,
     label: 'Guided Setup Wizard',
   },
+  {
+    key: '/payroll/settings/tds-deductor',
+    icon: <AuditOutlined />,
+    label: 'TDS deductor',
+  },
 ];
 
 export function SettingsLayout({ children }) {

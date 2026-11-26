@@ -48,6 +48,7 @@ export const NAV_LABELS = {
   'nav.payroll.runs': 'Payroll runs',
   'nav.payroll.settings': 'Payroll settings',
   'nav.payroll.tax_recalc_failures': 'Tax recalculation failures',
+  'nav.payroll.tds_return': 'Quarterly TDS return',
   'nav.people': 'People',
   'nav.roles': 'Roles',
   'nav.settings': 'Settings',

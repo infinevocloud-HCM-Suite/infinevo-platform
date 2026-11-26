@@ -36,6 +36,8 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/tax/form-16',
       '/payroll/form-16',
       '/payroll/settings/form-16',
+      '/payroll/tax/tds-return',
+      '/payroll/settings/tds-deductor',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
   });
@@ -59,6 +61,12 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
 
     const mainForm16 = routes.find((r) => r.path === '/payroll/tax/form-16');
     expect(mainForm16.mountWith).toEqual(['/payroll/runs', '/payroll/dashboard', '/payroll/settings']);
+  });
+
+  it('W-89: the quarterly TDS return is its own payroll screen, and the deductor is a settings page', () => {
+    expect(routes.find((r) => r.path === '/payroll/tax/tds-return')).toBeTruthy();
+    const deductor = routes.find((r) => r.path === '/payroll/settings/tds-deductor');
+    expect(deductor.element.props.children).toBeTruthy();
   });
 
   it('registers the payrun, tax, salary, and settings slices', () => {

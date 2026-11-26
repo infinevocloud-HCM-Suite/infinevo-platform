@@ -67,6 +67,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.lop",
             "com.infinevo.core.job",
             "com.infinevo.core.employee",
+            "com.infinevo.core.org",
             "com.infinevo.core.setup"
         })
 public class PayrollTestApp {

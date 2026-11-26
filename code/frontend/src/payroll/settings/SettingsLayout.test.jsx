@@ -21,10 +21,11 @@ describe('SettingsLayout component (W-47.1b §5, §5a, §7)', () => {
     expect(screen.getByRole('menuitem', { name: /epf/i })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: /esi/i })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: /professional tax/i })).toBeDefined();
-    expect(screen.getByRole('menuitem', { name: /tds/i })).toBeDefined();
+    expect(screen.getByRole('menuitem', { name: /(^|\s)tds$/i })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: /flexible benefit plan/i })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: /tax declaration/i })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: /form 16/i })).toBeDefined();
+    expect(screen.getByRole('menuitem', { name: /tds deductor/i })).toBeDefined();
   });
 
   it('D-141: TDS sits right after Professional Tax and before the Flexible Benefit Plan', () => {

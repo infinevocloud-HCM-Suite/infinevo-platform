@@ -55,6 +55,27 @@ public class TaxDeductor {
     @Column(name = "signatory_designation", nullable = false, length = 120)
     private String signatoryDesignation;
 
+    @Column(name = "deductor_type", length = 1)
+    private String deductorType;
+
+    @Column(name = "email", length = 75)
+    private String email;
+
+    @Column(name = "phone", length = 10)
+    private String phone;
+
+    @Column(name = "gstin", length = 15)
+    private String gstin;
+
+    @Column(name = "responsible_pan", length = 10)
+    private String responsiblePan;
+
+    @Column(name = "responsible_email", length = 75)
+    private String responsibleEmail;
+
+    @Column(name = "responsible_phone", length = 10)
+    private String responsiblePhone;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -135,6 +156,62 @@ public class TaxDeductor {
 
     public void setSignatoryParentName(String signatoryParentName) {
         this.signatoryParentName = signatoryParentName;
+    }
+
+    public String getDeductorType() {
+        return deductorType;
+    }
+
+    public void setDeductorType(String deductorType) {
+        this.deductorType = deductorType;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getGstin() {
+        return gstin;
+    }
+
+    public void setGstin(String gstin) {
+        this.gstin = gstin;
+    }
+
+    public String getResponsiblePan() {
+        return responsiblePan;
+    }
+
+    public void setResponsiblePan(String responsiblePan) {
+        this.responsiblePan = responsiblePan;
+    }
+
+    public String getResponsibleEmail() {
+        return responsibleEmail;
+    }
+
+    public void setResponsibleEmail(String responsibleEmail) {
+        this.responsibleEmail = responsibleEmail;
+    }
+
+    public String getResponsiblePhone() {
+        return responsiblePhone;
+    }
+
+    public void setResponsiblePhone(String responsiblePhone) {
+        this.responsiblePhone = responsiblePhone;
     }
 
     public String getSignatoryDesignation() {
