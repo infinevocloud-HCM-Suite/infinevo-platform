@@ -41,7 +41,7 @@ import org.springframework.stereotype.Component;
  * <p>From W-114.12 it also loads the role duty guides, {@code help/roles/*.md}, and the plain names of the menu's
  * screens, {@code help/screens.json}. A guide stops the application when its role code is unknown or is not the file
  * name, a line has not exactly one {@code {screen:}} marker, a screen has no name in {@code screens.json}, an
- * {@code {article:}} is not a loaded article, or its body is over {@value #MAX_GUIDE} characters.
+ * {@code {article:}} is not a loaded article, an {@code {action:}} is not an action code, or its body is over {@value #MAX_GUIDE} characters.
  */
 @Component
 public class HelpLibrary {
@@ -68,6 +68,7 @@ public class HelpLibrary {
             Set.of("platform-admin", "tenant-admin", "hr", "manager", "payroll-officer", "finance", "employee");
 
     private static final Pattern ID = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
+    private static final Pattern ACTION = Pattern.compile("^[a-z]+(\\.[a-z_]+)+$");
     private static final Pattern MARKER = Pattern.compile("\\{([a-z]+):([^}]*)}");
     private static final List<String> FIELDS =
             List.of("id", "title", "summary", "roles", "screen", "route", "action", "module", "keywords");
@@ -383,6 +384,7 @@ public class HelpLibrary {
     private static RoleGuide.Line guideLine(String file, String row, Set<String> articleIds, Set<String> screenKeys) {
         String screen = null;
         String article = null;
+        String action = null;
         Matcher m = MARKER.matcher(row);
         while (m.find()) {
             String kind = m.group(1);
@@ -403,6 +405,14 @@ public class HelpLibrary {
                     throw badGuide(file, "article '" + value + "' is not a help article");
                 }
                 article = value;
+            } else if ("action".equals(kind)) {
+                if (action != null) {
+                    throw badGuide(file, "line '" + row + "' names more than one {action:}");
+                }
+                if (!ACTION.matcher(value).matches()) {
+                    throw badGuide(file, "action '" + value + "' is not an action code");
+                }
+                action = value;
             } else {
                 throw badGuide(file, "unknown marker {" + kind + ":} in line '" + row + "'");
             }
@@ -415,7 +425,7 @@ public class HelpLibrary {
         if (words.isEmpty()) {
             throw badGuide(file, "a line has no words");
         }
-        return new RoleGuide.Line(words, screen, article);
+        return new RoleGuide.Line(words, screen, article, action);
     }
 
     private static IllegalStateException badGuide(String file, String problem) {

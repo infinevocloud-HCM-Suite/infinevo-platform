@@ -137,13 +137,21 @@ class HelpArticlesMatchTheMenuTest {
     }
 
     @Test
-    @DisplayName("W-114.12: every screen a role guide line names is a key in the full menu")
+    @DisplayName("W-114.12: every screen a role guide line names is a leaf of the full menu; every action is declared")
     void everyGuideScreenIsInTheMenu() {
         assertThat(LIBRARY.guides()).hasSize(6);
         LIBRARY.guides().values().forEach(g -> g.sections()
-                .forEach(s -> s.lines().forEach(l -> assertThat(KEYS)
-                        .as("screen of a line in the %s guide", g.role())
-                        .contains(l.screen()))));
+                .forEach(s -> s.lines().forEach(l -> {
+                    // A group key would pass startup but never match the caller's leaves, so the line would never show.
+                    assertThat(LEAF_KEYS)
+                            .as("screen of a line in the %s guide", g.role())
+                            .contains(l.screen());
+                    if (l.action() != null) {
+                        assertThat(ACTIONS)
+                                .as("action of a line in the %s guide", g.role())
+                                .contains(l.action());
+                    }
+                })));
     }
 
     @Test

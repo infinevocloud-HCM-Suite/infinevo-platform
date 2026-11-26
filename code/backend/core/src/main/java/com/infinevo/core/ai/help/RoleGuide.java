@@ -35,6 +35,14 @@ public record RoleGuide(String role, String title, List<Section> sections) {
      * @param text the words, with the markers taken out
      * @param screen the menu key the duty needs, for example {@code core.leave.requests}
      * @param article the how-to article id, or {@code null}
+     * @param action an action the duty needs beyond opening the screen (approving on a screen anyone with read can
+     *     open), or {@code null}; never returned to the model
      */
-    public record Line(String text, String screen, String article) {}
+    public record Line(String text, String screen, String article, String action) {
+
+        /** A line needing no extra action. */
+        public Line(String text, String screen, String article) {
+            this(text, screen, article, null);
+        }
+    }
 }

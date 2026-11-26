@@ -57,6 +57,11 @@ class RoleGuideLoadTest {
         assertThat(line.text()).isEqualTo("Review the leave types.");
         assertThat(line.screen()).isEqualTo("core.leave.types");
         assertThat(line.article()).isEqualTo("leave-types");
+        assertThat(line.action()).isNull();
+        RoleGuide marked = parse(
+                "hr.md", guide("hr", "## Day\n- Publish. {screen:core.leave.types} {action:core.holiday.manage}\n"));
+        assertThat(marked.sections().get(0).lines().get(0).action()).isEqualTo("core.holiday.manage");
+        assertThat(marked.sections().get(0).lines().get(0).text()).isEqualTo("Publish.");
     }
 
     @Test
@@ -78,6 +83,9 @@ class RoleGuideLoadTest {
                 .hasMessageContaining("more than one {screen:}");
         assertThatThrownBy(() -> parse("hr.md", guide("hr", "## Day\n- A. {screen:core.leave.types} {link:x}\n")))
                 .hasMessageContaining("unknown marker");
+        assertThatThrownBy(
+                        () -> parse("hr.md", guide("hr", "## Day\n- A. {screen:core.leave.types} {action:Bad Code}\n")))
+                .hasMessageContaining("is not an action code");
         assertThatThrownBy(() -> parse("hr.md", guide("hr", "- A. {screen:core.leave.types}\n")))
                 .hasMessageContaining("before the first ## heading");
         assertThatThrownBy(() -> parse("hr.md", guide("hr", "## Day\nJust words.\n")))

@@ -18,11 +18,11 @@ title: HR
 - Enter each employee's loss of pay days for the month. {screen:hrms.loss_of_pay} {article:loss-of-pay}
 
 ## When someone joins
-- Add the new employee. {screen:core.employee} {article:add-employee}
-- Add many employees at once from a file. {screen:core.employee} {article:import-employees}
+- Add the new employee. {screen:core.employee} {article:add-employee} {action:core.employee.create}
+- Add many employees at once from a file. {screen:core.employee} {article:import-employees} {action:core.employee.create}
 
 ## Once a year
 - Review the leave types and their rules. {screen:core.leave.types} {article:leave-types}
 - Give everyone the new year's leave. {screen:core.leave.allocations} {article:leave-allocations}
-- Publish the year's holidays. {screen:hrms.holidays} {article:holidays}
+- Publish the year's holidays. {screen:hrms.holidays} {article:holidays} {action:core.holiday.manage}
 - Review the work-from-home policies. {screen:core.wfh.policies} {article:wfh-policies}

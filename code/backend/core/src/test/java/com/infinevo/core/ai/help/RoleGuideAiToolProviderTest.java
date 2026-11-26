@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.ai.AiTool;
 import com.infinevo.core.ai.AiToolContext;
 import com.infinevo.core.ai.AiToolResult;
+import com.infinevo.shared.entitlement.PlatformModule;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,15 @@ class RoleGuideAiToolProviderTest {
             List.of(new RoleGuide.Section(
                     "Every month", List.of(new RoleGuide.Line("Run the payroll.", "payroll.runs", "run-payroll")))));
 
+    private static final RoleGuide FINANCE = new RoleGuide(
+            "finance",
+            "Finance",
+            List.of(new RoleGuide.Section(
+                    "Every month",
+                    List.of(
+                            new RoleGuide.Line("Approve the pay run.", "payroll.runs", null, "payroll.run.approve"),
+                            new RoleGuide.Line("Read your payslip.", "core.me", "view-payslip", null)))));
+
     private static final Map<String, String> NAMES = Map.of(
             "core.leave.requests", "Leave requests",
             "core.leave.types", "Leave types",
@@ -61,8 +71,19 @@ class RoleGuideAiToolProviderTest {
             List.of(
                     article("leave-requests-review", "/leave/requests"),
                     article("leave-types", "/leave/types"),
-                    article("run-payroll", "/payroll/runs")),
-            List.of(HR, MANAGER, PAYROLL),
+                    article("run-payroll", "/payroll/runs"),
+                    new HelpArticle(
+                            "view-payslip",
+                            "See my payslip",
+                            "Summary.",
+                            List.of("employee"),
+                            "/me",
+                            null,
+                            "payroll.payslip.read_own",
+                            List.of("payslip"),
+                            "1. Open My Payslips.",
+                            PlatformModule.PAYROLL)),
+            List.of(HR, MANAGER, PAYROLL, FINANCE),
             NAMES);
 
     private static Map<String, String> leaves(String... keyThenPath) {
@@ -184,6 +205,30 @@ class RoleGuideAiToolProviderTest {
         JsonNode own = run(tool(auditor), "{\"role\":\"auditor\"}");
         assertThat(own.path("hasGuide").asBoolean()).isFalse();
         assertThat(own.path("sections")).isEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "a duty is dropped when its action is not held or its article is hidden (no Payroll), even on a held screen")
+    void dutyTheCallerCannotDo() throws Exception {
+        Map<String, String> feed = leaves("payroll.runs", "/payroll/runs", "core.me", "/me");
+        HelpViewer cannot = new HelpViewer(Set.copyOf(feed.values()), Set.of(), Set.of("finance"), Set.of(), feed);
+        HelpViewer can = new HelpViewer(
+                Set.copyOf(feed.values()),
+                Set.of("payroll.run.approve", "payroll.payslip.read_own"),
+                Set.of("finance"),
+                Set.of(PlatformModule.PAYROLL),
+                feed);
+
+        JsonNode none = run(tool(cannot), "{\"role\":\"finance\"}");
+        assertThat(none.path("sections")).isEmpty();
+        assertThat(run(tool(cannot), "{}").path("guides").get(0).path("sections"))
+                .isEmpty();
+
+        JsonNode both = run(tool(can), "{\"role\":\"finance\"}");
+        assertThat(both.findValuesAsText("text")).containsExactly("Approve the pay run.", "Read your payslip.");
+        noCodesNoIds(both);
+        assertThat(both.toString()).doesNotContain("payroll.run.approve");
     }
 
     @Test

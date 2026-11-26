@@ -114,8 +114,7 @@ public class RoleGuideAiToolProvider implements AiToolProvider {
                 ObjectNode entry = guides.addObject().put("role", code);
                 ArrayNode sections = entry.putArray("sections");
                 g.sections().stream()
-                        .filter(s ->
-                                s.lines().stream().anyMatch(l -> viewer.leaves().containsKey(l.screen())))
+                        .filter(s -> s.lines().stream().anyMatch(l -> keeps(l, viewer)))
                         .forEach(s -> sections.add(s.heading()));
             });
         }
@@ -149,7 +148,19 @@ public class RoleGuideAiToolProvider implements AiToolProvider {
         return AiToolResult.success(guideJson(guide.get(), viewer, true));
     }
 
-    /** {@code own}: only lines whose screen is in the caller's feed, with links; otherwise every line, no links. */
+    /**
+     * Whether the caller can do this duty: its screen is a leaf of their feed, its extra action (when the line names
+     * one) is held, and its help article (when it has one) is one they may see - which also checks the article's
+     * module, so a customer without Payroll is not told to read a payslip on My self-service.
+     */
+    private boolean keeps(RoleGuide.Line line, HelpViewer viewer) {
+        return viewer.leaves().containsKey(line.screen())
+                && (line.action() == null || viewer.actions().contains(line.action()))
+                && (line.article() == null
+                        || library.find(line.article(), viewer).isPresent());
+    }
+
+    /** {@code own}: only the duties the caller can do, with links; otherwise every line, no links. */
     private ObjectNode guideJson(RoleGuide guide, HelpViewer viewer, boolean own) {
         ObjectNode out = NODES.objectNode()
                 .put("role", guide.role())
@@ -160,7 +171,7 @@ public class RoleGuideAiToolProvider implements AiToolProvider {
             ArrayNode lines = NODES.arrayNode();
             for (RoleGuide.Line line : section.lines()) {
                 String path = viewer.leaves().get(line.screen());
-                if (own && path == null) {
+                if (own && !keeps(line, viewer)) {
                     continue;
                 }
                 ObjectNode row = lines.addObject().put("text", line.text());
@@ -168,8 +179,7 @@ public class RoleGuideAiToolProvider implements AiToolProvider {
                         .put("name", library.screenNames().get(line.screen()));
                 if (own) {
                     screen.put("path", path);
-                    if (line.article() != null
-                            && library.find(line.article(), viewer).isPresent()) {
+                    if (line.article() != null) {
                         row.put("article", line.article());
                     }
                 } else {
