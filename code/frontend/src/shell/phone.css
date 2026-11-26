@@ -44,3 +44,50 @@
     padding-right: 12px;
   }
 }
+
+/* ── Print: payslip-only A4 output (D-156) ────────────────────────────────
+ * When the user prints from /me/payslips/:payrunId or the public payslip
+ * link, the full app chrome must vanish and only the payslip document fills
+ * an A4 page.  window.print() captures the live DOM including the fixed
+ * sidebar and header; these rules hide them and set the correct page size.
+ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  /* Hide the sidebar (fixed-position, zIndex 100 — always rendered) */
+  .ant-layout-sider,
+  .shell-nav-drawer {
+    display: none !important;
+  }
+
+  /* Hide the top header */
+  .ant-layout-header {
+    display: none !important;
+  }
+
+  /* Hide the floating assistant launcher button */
+  [data-testid="assistant-launcher"] {
+    display: none !important;
+  }
+
+  /* Remove the left margin that the sidebar normally occupies */
+  .ant-layout > .ant-layout {
+    margin-left: 0 !important;
+  }
+
+  /* Full-width, no-chrome content area */
+  .ant-layout-content {
+    padding: 0 !important;
+    background: white !important;
+    min-height: auto !important;
+  }
+
+  /* Strip the saas page wrapper padding so the payslip fills the page */
+  .saas-page-container {
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}
