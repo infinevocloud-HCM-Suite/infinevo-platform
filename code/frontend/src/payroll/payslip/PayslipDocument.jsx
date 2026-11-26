@@ -118,18 +118,18 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
       }}
     >
-      {/* Centered Infinity Watermark */}
+      {/* Centered Infinity Watermark Overlay */}
       <div
         className="payslip-watermark"
         style={{
           position: 'absolute',
-          top: '52%',
+          top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '440px',
-          opacity: 0.12,
+          width: '420px',
+          opacity: 0.08,
           pointerEvents: 'none',
-          zIndex: 0,
+          zIndex: 10,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
