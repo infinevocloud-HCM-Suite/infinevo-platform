@@ -58,6 +58,8 @@ function reply(config) {
   let data = { content: [], totalElements: 0 };
   if (config.url === '/v1/tenants') data = [globex];
   else if (config.url === '/v1/tenants/tenant-globex') data = globex;
+  else if (config.url === '/v1/ai/status')
+    data = { enabled: true, monthlyRequestCap: 100, usedThisMonth: 0, month: '2026-11' };
   return Promise.resolve({ data, status: 200, statusText: 'OK', headers: {}, config });
 }
 
@@ -135,10 +137,12 @@ describe('AppShell admin routes during impersonation (W-65.3)', () => {
     renderShell('/employees', { withSession: true });
     await screen.findByText('Employees');
     expect(sent('/v1/ai/status')).toEqual([]);
+    expect(screen.queryByLabelText('Ask the AI helper')).toBeNull();
   });
 
-  it('W-114.13b: without a session the AI helper asks for its status', async () => {
+  it('W-114.13b: without a session the AI helper asks for its status and shows its button', async () => {
     renderShell('/employees', { withSession: false });
     await waitFor(() => expect(sent('/v1/ai/status')).toHaveLength(1));
+    expect(await screen.findByLabelText('Ask the AI helper')).toBeDefined();
   });
 });

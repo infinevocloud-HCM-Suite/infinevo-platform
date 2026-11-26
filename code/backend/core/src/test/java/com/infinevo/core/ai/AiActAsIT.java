@@ -92,7 +92,7 @@ class AiActAsIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("acting as a user with core.ai.use: status, sessions, history, a question, delete: 403 AI_DISABLED")
+    @DisplayName("acting as a user with core.ai.use: every AI endpoint, actions too, is 403 AI_DISABLED")
     void actingAs_everyAiCallRefused() throws Exception {
         String impersonation = openSession();
         List<MockHttpServletRequestBuilder> calls = List.of(
@@ -104,6 +104,8 @@ class AiActAsIT extends AbstractIntegrationTest {
                 post("/api/v1/ai/sessions").content(json.writeValueAsString(Map.of("title", "x"))),
                 delete("/api/v1/ai/sessions/{id}", targetSession),
                 post("/api/v1/ai/actions/{id}/confirm", UUID.randomUUID()),
+                post("/api/v1/ai/actions/{id}/cancel", UUID.randomUUID()),
+                get("/api/v1/ai/actions/{id}", UUID.randomUUID()),
                 get("/api/v1/ai/link-targets"));
 
         for (MockHttpServletRequestBuilder call : calls) {
