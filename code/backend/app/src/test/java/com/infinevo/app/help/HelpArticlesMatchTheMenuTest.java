@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.infinevo.core.ai.help.HelpArticle;
 import com.infinevo.core.ai.help.HelpLibrary;
 import com.infinevo.core.navigation.NavigationCatalogue;
+import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.hrms.navigation.HrmsNavigation;
 import com.infinevo.payroll.navigation.PayrollNavigation;
 import com.infinevo.shared.authz.RequiresAction;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -18,6 +20,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -48,10 +51,13 @@ class HelpArticlesMatchTheMenuTest {
         ClassPathScanningCandidateComponentProvider panels = new ClassPathScanningCandidateComponentProvider(false);
         panels.addIncludeFilter(new AssignableTypeFilter(PortalPanelProvider.class));
         for (BeanDefinition bean : panels.findCandidateComponents("com.infinevo")) {
-            PortalPanelProvider panel = (PortalPanelProvider) Class.forName(bean.getBeanClassName())
-                    .getDeclaredConstructor()
-                    .newInstance();
-            ACTIONS.add(panel.panel(UUID.randomUUID()).requiredAction());
+            PanelDescriptor descriptor =
+                    newPanel(Class.forName(bean.getBeanClassName())).panel(UUID.randomUUID());
+            // A panel that reads data (W-102 onboarding) answers nothing for an unknown employee; it declares no
+            // action an article could name.
+            if (descriptor != null && descriptor.requiredAction() != null) {
+                ACTIONS.add(descriptor.requiredAction());
+            }
         }
 
         ClassPathScanningCandidateComponentProvider controllers =
@@ -64,6 +70,15 @@ class HelpArticlesMatchTheMenuTest {
                 addRequired(method.getAnnotation(RequiresAction.class));
             }
         }
+    }
+
+    /** A panel built with its first constructor, every argument a Mockito mock. */
+    private static PortalPanelProvider newPanel(Class<?> type) throws Exception {
+        Constructor<?> constructor = type.getDeclaredConstructors()[0];
+        Object[] args = Arrays.stream(constructor.getParameterTypes())
+                .map(Mockito::mock)
+                .toArray();
+        return (PortalPanelProvider) constructor.newInstance(args);
     }
 
     private static void collect(List<NavigationCatalogue.ItemDefinition> items) {
