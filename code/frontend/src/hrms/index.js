@@ -76,6 +76,17 @@ const OfferList = lazy(() =>
   import('./hiring/offers/OfferList.jsx').then((m) => ({ default: m.OfferList }))
 );
 
+// W-110: Surveys & Polls
+const SurveyList = lazy(() =>
+  import('./surveys/SurveyList.jsx').then((m) => ({ default: m.SurveyList }))
+);
+const SurveyAnalytics = lazy(() =>
+  import('./surveys/SurveyAnalytics.jsx').then((m) => ({ default: m.SurveyAnalytics }))
+);
+const MySurveys = lazy(() =>
+  import('../shell/portal/panels/MySurveys.jsx').then((m) => ({ default: m.MySurveys }))
+);
+
 // HRMS module entry point (W-45 §5, W-48.2 §5). The week grid sits beneath `/hrms/timesheets`, the menu path
 // the feed carries (`hrms.timesheets`), so it mounts with it.
 export const routes = [
@@ -111,10 +122,17 @@ export const routes = [
   { path: '/hrms/hiring/candidates', element: React.createElement(CandidateList) },
   { path: '/hrms/hiring/interviews', element: React.createElement(InterviewList) },
   { path: '/hrms/hiring/offers', element: React.createElement(OfferList) },
+  // W-110: Surveys & Polls
+  { path: '/hrms/surveys', element: React.createElement(SurveyList) },
+  { path: '/hrms/surveys/:id/results', element: React.createElement(SurveyAnalytics) },
+  { path: '/me/surveys', element: React.createElement(MySurveys) },
 ];
 
 export const reducers = {};
 
 // Components the `/me` portal mounts by panel code (W-48.2 §5). Lazy, so the portal renders them inside its
 // Suspense boundary, as for payroll's.
-export const portalPanels = [{ code: 'timesheet', component: MyTimesheetPanel }];
+export const portalPanels = [
+  { code: 'timesheet', component: MyTimesheetPanel },
+  { code: 'surveys', component: MySurveys },
+];

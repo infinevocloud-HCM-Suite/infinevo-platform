@@ -122,9 +122,9 @@ public final class HrmsProjectTestSchema {
                         executeResource(conn, "db/migration/" + script);
                     }
                 }
-                if (!tableExists(conn, "hrms", "job_opening")) {
+                if (!tableExists(conn, "hrms", "survey")) {
                     for (String script :
-                            new String[] {"hrms/V233__hiring_schema.sql", "core/V234__hiring_permissions.sql"}) {
+                            new String[] {"hrms/V235__surveys_schema.sql", "core/V236__surveys_permissions.sql"}) {
                         executeResource(conn, "db/migration/" + script);
                     }
                 }

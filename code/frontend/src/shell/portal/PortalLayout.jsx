@@ -11,6 +11,7 @@ import {
   AppstoreOutlined,
   GiftOutlined,
   HomeOutlined,
+  FormOutlined,
 } from '@ant-design/icons';
 import { portalService } from './portalService.js';
 import { MyProfile } from './panels/MyProfile.jsx';
@@ -33,6 +34,7 @@ const PANEL_ICONS = {
   taxDeclaration: <FileTextOutlined />,
   claims: <WalletOutlined />,
   fbp: <GiftOutlined />,
+  surveys: <FormOutlined />,
 };
 
 const PANEL_COMPONENTS = {
