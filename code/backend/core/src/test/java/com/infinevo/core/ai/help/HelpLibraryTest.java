@@ -80,6 +80,8 @@ class HelpLibraryTest {
         assertRefused(GOOD + "x".repeat(HelpLibrary.MAX_BODY), "add-employee.md", "body is");
         assertRefused(GOOD.replace("title: Add an employee", "title: " + "t".repeat(81)), "add-employee.md", "title");
         assertRefused(GOOD.replace("keywords:", "colour: red\nkeywords:"), "add-employee.md", "'colour'");
+        assertRefused(
+                GOOD.replace("keywords:", "module: core\nkeywords:"), "add-employee.md", "must be hrms or payroll");
     }
 
     @Test

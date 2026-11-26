@@ -18,7 +18,8 @@ class AiSystemPromptTest {
     @Test
     @DisplayName("an employee's prompt lists apply-leave, not leave-types, and holds no article body")
     void employeeCatalogue() {
-        HelpViewer employee = new HelpViewer(Set.of("/me", "/hrms/attendance"), Set.of(), Set.of("employee"));
+        HelpViewer employee =
+                new HelpViewer(Set.of("/me", "/hrms/attendance"), Set.of("core.leave.read_own"), Set.of("employee"));
 
         String prompt = new AiSystemPrompt(library, HelpAccess.fixed(employee)).build(TODAY, "Asha");
 

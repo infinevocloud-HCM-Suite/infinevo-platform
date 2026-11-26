@@ -10,6 +10,7 @@ import com.infinevo.core.navigation.NavigationItemResponse;
 import com.infinevo.core.navigation.NavigationResponse;
 import com.infinevo.core.navigation.NavigationService;
 import com.infinevo.shared.authz.RoleSource;
+import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.List;
 import java.util.Set;
@@ -60,7 +61,7 @@ class HelpAccessTest {
                                 List.of(new NavigationItemResponse(
                                         "core.leave.requests", "nav.leave.requests", "/leave/requests")))),
                         Set.of("core.leave.manage"),
-                        Set.of(),
+                        Set.of(PlatformModule.HRMS),
                         "Co",
                         "/leave/types"));
         RoleSource roles = mock(RoleSource.class);
@@ -71,6 +72,7 @@ class HelpAccessTest {
         assertThat(viewer.screens()).containsExactlyInAnyOrder("/leave/types", "/leave/requests");
         assertThat(viewer.actions()).containsExactly("core.leave.manage");
         assertThat(viewer.roles()).containsExactly("hr");
+        assertThat(viewer.modules()).containsExactly(PlatformModule.HRMS);
     }
 
     @Test
@@ -119,6 +121,29 @@ class HelpAccessTest {
         assertThat(library.search("payslip", without)).isEmpty();
         assertThat(library.find("view-payslip", with)).isPresent();
         assertThat(library.search("payslip", with)).extracting(HelpArticle::id).containsExactly("view-payslip");
+    }
+
+    @Test
+    @DisplayName("an article's module is honoured: a held action is not enough when the customer lacks the module")
+    void moduleHonoured() {
+        HelpLibrary payslip = HelpLibrary.of(List.of(new HelpArticle(
+                "view-payslip",
+                "See my payslip",
+                "Summary.",
+                List.of("employee"),
+                "/me",
+                null,
+                "payroll.payslip.read_own",
+                List.of("payslip"),
+                "1. Open My Payslips.",
+                PlatformModule.PAYROLL)));
+        Set<String> held = Set.of("payroll.payslip.read_own");
+        HelpViewer hrmsOnly = new HelpViewer(Set.of("/me"), held, Set.of(), Set.of(PlatformModule.HRMS));
+        HelpViewer withPayroll = new HelpViewer(Set.of("/me"), held, Set.of(), Set.of(PlatformModule.PAYROLL));
+
+        assertThat(payslip.find("view-payslip", hrmsOnly)).isEmpty();
+        assertThat(payslip.search("payslip", hrmsOnly)).isEmpty();
+        assertThat(payslip.find("view-payslip", withPayroll)).isPresent();
     }
 
     @SuppressWarnings("unchecked")

@@ -6,6 +6,7 @@ roles: employee
 screen: /me
 route: /me/payslips
 action: payroll.payslip.read_own
+module: payroll
 keywords: payslip, pay slip, salary slip, download payslip, net pay, salary statement
 ---
 Who can do this: any employee with payslips.

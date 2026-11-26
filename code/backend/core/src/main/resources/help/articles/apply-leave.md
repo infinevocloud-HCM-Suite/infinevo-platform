@@ -5,6 +5,7 @@ summary: Ask for leave from your self-service page and follow it until it is app
 roles: employee
 screen: /me
 route: /me/leave
+action: core.leave.read_own
 keywords: apply leave, request leave, take leave, day off, holiday request, sick day, vacation, time off
 ---
 Who can do this: any employee with a self-service page.

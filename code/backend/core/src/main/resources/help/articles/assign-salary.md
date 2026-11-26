@@ -5,6 +5,7 @@ summary: Set up or revise an employee's annual CTC and how it splits into earnin
 roles: payroll-officer
 screen: /employees
 action: payroll.salary.manage
+module: payroll
 keywords: salary, ctc, set salary, assign salary, revise salary, increment, pay structure, salary revision
 ---
 Who can do this: the payroll officer, or anyone whose role lets them manage salaries.

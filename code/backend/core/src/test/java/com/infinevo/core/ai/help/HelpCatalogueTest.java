@@ -3,6 +3,7 @@ package com.infinevo.core.ai.help;
 import static com.infinevo.core.ai.help.TestArticles.article;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.infinevo.shared.entitlement.PlatformModule;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,7 +25,8 @@ class HelpCatalogueTest {
                 actions.add(a.action());
             }
         }
-        return new HelpViewer(screens, actions, Set.of("tenant-admin"));
+        return new HelpViewer(
+                screens, actions, Set.of("tenant-admin"), Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
     }
 
     @Test
@@ -32,7 +34,10 @@ class HelpCatalogueTest {
     void hrAndEmployee() {
         HelpViewer hr = new HelpViewer(Set.of("/leave/types", "/leave/requests", "/employees"), Set.of(), Set.of("hr"));
         HelpViewer employee = new HelpViewer(
-                Set.of("/me", "/hrms/attendance", "/holidays"), Set.of("payroll.payslip.read_own"), Set.of("employee"));
+                Set.of("/me", "/hrms/attendance", "/holidays"),
+                Set.of("payroll.payslip.read_own", "core.leave.read_own"),
+                Set.of("employee"),
+                Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
 
         assertThat(shipped.catalogueFor(hr).lines())
                 .extracting(HelpCatalogue.Line::id)
@@ -44,15 +49,25 @@ class HelpCatalogueTest {
     }
 
     @Test
-    @DisplayName("a customer without Payroll has no Payroll screens in the feed, so no run-payroll line")
+    @DisplayName(
+            "a customer without Payroll: no Payroll screen line, and no payslip, tax or salary line on a shared screen")
     void noPayroll() {
         Set<String> screens = new HashSet<>(everything().screens());
         screens.removeIf(s -> s.startsWith("/payroll"));
-        HelpViewer noPayroll = new HelpViewer(screens, Set.of(), Set.of("tenant-admin"));
+        // The feed's actions are not filtered by module, so a Payroll action can still be held.
+        HelpViewer noPayroll =
+                new HelpViewer(screens, everything().actions(), Set.of("tenant-admin"), Set.of(PlatformModule.HRMS));
 
         assertThat(shipped.catalogueFor(noPayroll).lines())
                 .extracting(HelpCatalogue.Line::id)
-                .doesNotContain("run-payroll", "salary-components", "statutory-settings");
+                .contains("apply-leave", "add-employee")
+                .doesNotContain(
+                        "run-payroll",
+                        "salary-components",
+                        "statutory-settings",
+                        "view-payslip",
+                        "tax-declaration",
+                        "assign-salary");
     }
 
     @Test

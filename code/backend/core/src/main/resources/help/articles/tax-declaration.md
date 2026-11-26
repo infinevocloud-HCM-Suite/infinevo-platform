@@ -6,6 +6,7 @@ roles: employee
 screen: /me
 route: /me/taxDeclaration
 action: payroll.tax_declaration.read_own
+module: payroll
 keywords: tax declaration, investment declaration, 80c, hra, rent, home loan, tax regime, old regime, new regime, tds
 ---
 Who can do this: any employee asked to declare their tax savings.

@@ -1,5 +1,6 @@
 package com.infinevo.core.ai.help;
 
+import com.infinevo.shared.entitlement.PlatformModule;
 import java.util.List;
 import java.util.Objects;
 
@@ -15,6 +16,8 @@ import java.util.Objects;
  * @param action one more action the reader must hold, or {@code null}
  * @param keywords words a user might type, lower case
  * @param body the numbered steps, at most 6,000 characters
+ * @param module the module the customer must hold, for an article on a shared screen whose tab or panel belongs to
+ *     that module (the payslip on {@code /me}, the Salary tab on {@code /employees}); {@code null} for none
  */
 public record HelpArticle(
         String id,
@@ -25,7 +28,8 @@ public record HelpArticle(
         String route,
         String action,
         List<String> keywords,
-        String body) {
+        String body,
+        PlatformModule module) {
 
     public HelpArticle {
         Objects.requireNonNull(id, "id must not be null");
@@ -35,5 +39,19 @@ public record HelpArticle(
         Objects.requireNonNull(body, "body must not be null");
         roles = roles == null ? List.of() : List.copyOf(roles);
         keywords = keywords == null ? List.of() : List.copyOf(keywords);
+    }
+
+    /** An article needing no module. */
+    public HelpArticle(
+            String id,
+            String title,
+            String summary,
+            List<String> roles,
+            String screen,
+            String route,
+            String action,
+            List<String> keywords,
+            String body) {
+        this(id, title, summary, roles, screen, route, action, keywords, body, null);
     }
 }

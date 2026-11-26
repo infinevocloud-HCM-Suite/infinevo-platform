@@ -59,7 +59,7 @@ public class HelpAccess {
     static HelpViewer fromFeed(NavigationResponse feed, RoleSource roleSource) {
         Set<String> paths = new HashSet<>();
         collect(feed.items(), paths);
-        return new HelpViewer(paths, feed.actions(), roles(roleSource));
+        return new HelpViewer(paths, feed.actions(), roles(roleSource), feed.modules());
     }
 
     private static void collect(List<NavigationItemResponse> items, Set<String> into) {

@@ -5,6 +5,7 @@ summary: Ask for one or more work-from-home days from your self-service page.
 roles: employee
 screen: /me
 route: /me/wfh
+action: core.wfh.read_own
 keywords: wfh, work from home, remote, apply wfh, request wfh, home office
 ---
 Who can do this: any employee with a self-service page and a work-from-home quota.

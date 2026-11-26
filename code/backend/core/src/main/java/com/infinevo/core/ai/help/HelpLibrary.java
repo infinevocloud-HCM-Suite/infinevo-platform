@@ -2,6 +2,7 @@ package com.infinevo.core.ai.help;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.infinevo.shared.entitlement.PlatformModule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -30,7 +31,7 @@ import org.springframework.stereotype.Component;
  * <p>Every file under {@code help/articles/*.md} is read and checked here; a broken file stops the application, naming
  * the file and what is wrong: missing front matter or required field, an {@code id} that is not the file name, a
  * duplicate {@code id}, an unknown role code, a {@code route} that is not in {@code help/sub-routes.json} under the
- * article's {@code screen}, or a body over {@value #MAX_BODY} characters. Whether {@code screen} and {@code action}
+ * article's {@code screen}, a {@code module} that is not {@code hrms} or {@code payroll}, or a body over {@value #MAX_BODY} characters. Whether {@code screen} and {@code action}
  * exist in the full menu is checked by {@code HelpArticlesMatchTheMenuTest} in {@code app}, where all modules are seen.
  *
  * <p>Access is never decided from {@code roles}: callers pass a {@link HelpViewer} built by {@link HelpAccess}.
@@ -56,7 +57,7 @@ public class HelpLibrary {
 
     private static final Pattern ID = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
     private static final List<String> FIELDS =
-            List.of("id", "title", "summary", "roles", "screen", "route", "action", "keywords");
+            List.of("id", "title", "summary", "roles", "screen", "route", "action", "module", "keywords");
     private static final List<String> REQUIRED = List.of("id", "title", "summary", "roles", "screen", "keywords");
 
     private final Map<String, HelpArticle> articles;
@@ -283,7 +284,16 @@ public class HelpLibrary {
         }
         String action = blankToNull(fields.get("action"));
         List<String> keywords = list(fields.get("keywords"));
-        return new HelpArticle(id, title, summary, roles, screen, route, action, keywords, body);
+        String moduleName = blankToNull(fields.get("module"));
+        PlatformModule module = null;
+        if (moduleName != null) {
+            try {
+                module = PlatformModule.valueOf(moduleName.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw bad(file, "module '" + moduleName + "' must be hrms or payroll");
+            }
+        }
+        return new HelpArticle(id, title, summary, roles, screen, route, action, keywords, body, module);
     }
 
     private static List<String> list(String value) {
