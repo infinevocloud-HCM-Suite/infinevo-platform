@@ -3,6 +3,7 @@ package com.infinevo.payroll.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -21,12 +22,17 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.tenant.TenantClock;
+import com.infinevo.payroll.payrun.EmployeePayRun;
+import com.infinevo.payroll.payrun.EmployeePayRunRepository;
+import com.infinevo.payroll.payrun.PayFigureExplanationService;
 import com.infinevo.payroll.payslip.PayslipController;
 import com.infinevo.payroll.payslip.PayslipLineResponse;
 import com.infinevo.payroll.payslip.PayslipNotFoundException;
 import com.infinevo.payroll.payslip.PayslipResponse;
 import com.infinevo.payroll.payslip.PayslipService;
 import com.infinevo.payroll.payslip.PayslipSummaryResponse;
+import com.infinevo.payroll.taxcalc.recalc.MyTaxHistoryController;
+import com.infinevo.payroll.taxcalc.recalc.TaxRecalculationService;
 import com.infinevo.payroll.taxdeclaration.DeclarationStatus;
 import com.infinevo.payroll.taxdeclaration.EmployeeInvestmentDeclaration;
 import com.infinevo.payroll.taxdeclaration.MyTaxDeclarationController;
@@ -34,6 +40,7 @@ import com.infinevo.payroll.taxdeclaration.TaxDeclarationService;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse;
 import com.infinevo.payroll.taxdeclaration.summary.MyTaxSummaryController;
 import com.infinevo.payroll.taxdeclaration.summary.TaxSummaryService;
+import com.infinevo.payroll.tds.EmployeeTdsService;
 import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresAction;
@@ -482,6 +489,121 @@ class PayrollAiToolProviderTest {
         assertThat(registry.toolsFor(caller))
                 .extracting(AiToolDescriptor::name)
                 .containsExactly("payroll.my_payslips", "payroll.my_payslip");
+    }
+
+    // ---- W-114.14: explain my payslip and my TDS ----
+
+    private PayrollAiToolProvider.ExplainSources explainSources() {
+        return new PayrollAiToolProvider.ExplainSources(
+                mock(EmployeePayRunRepository.class),
+                mock(PayFigureExplanationService.class),
+                mock(EmployeeTdsService.class),
+                mock(TaxRecalculationService.class));
+    }
+
+    private PayrollAiToolProvider withExplain(PayrollAiToolProvider.ExplainSources sources) {
+        return new PayrollAiToolProvider(
+                payslips, declarations, summaries, employees, tenantClock, readOnlyTx, tx, sources);
+    }
+
+    @Test
+    @DisplayName("W-114.14: the two explain tools, guarded as their screens are, each saying it gives no tax advice")
+    void explainTools_shape() throws Exception {
+        PayrollAiToolProvider full = withExplain(explainSources());
+        Map<String, AiTool> byName = new java.util.HashMap<>();
+        full.tools().forEach(t -> byName.put(t.name(), t));
+
+        assertThat(byName).containsKeys("payroll.explain_payslip", "payroll.explain_tds");
+        assertThat(byName.get("payroll.explain_payslip").requiredAction())
+                .isEqualTo(action(PayslipController.class, "own", UUID.class));
+        assertThat(byName.get("payroll.explain_tds").requiredAction())
+                .isEqualTo(action(MyTaxHistoryController.class, "historyOwn", String.class));
+        for (String name : List.of("payroll.explain_payslip", "payroll.explain_tds")) {
+            AiTool tool = byName.get(name);
+            assertThat(tool.description()).as(name).contains("The helper explains; it gives no tax advice.");
+            assertThat(tool.needsEmployee()).isTrue();
+            assertThat(tool.inputSchema().path("properties").has("period")).isTrue();
+            assertThat(tool.inputSchema().path("properties").size()).isEqualTo(1);
+        }
+        assertThat(provider.tools()).extracting(AiTool::name).doesNotContain("payroll.explain_payslip");
+    }
+
+    @Test
+    @DisplayName("W-114.14: neither explain tool is offered without Payroll; explain_tds not without read_own")
+    void explainTools_gated() {
+        signIn();
+        PayrollAiToolProvider full = withExplain(explainSources());
+        PermissionService permissions = mock(PermissionService.class);
+        when(permissions.holds(anyString()))
+                .thenAnswer(inv -> !"payroll.tax_declaration.read_own".equals(inv.getArgument(0)));
+        EntitlementService entitlements = mock(EntitlementService.class);
+        when(entitlements.holds(any(PlatformModule.class))).thenReturn(true);
+        AiToolRegistry registry = new AiToolRegistry(permissions, entitlements, List.of(full));
+
+        assertThat(registry.toolsFor(caller))
+                .extracting(AiToolDescriptor::name)
+                .contains("payroll.explain_payslip")
+                .doesNotContain("payroll.explain_tds");
+
+        when(entitlements.holds(PlatformModule.PAYROLL)).thenReturn(false);
+        assertThat(registry.toolsFor(caller)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("W-114.14: explain_payslip compares October with September's regular payslip; a revised salary shows")
+    void explainPayslip_comparesWithPreviousRegular() throws Exception {
+        signIn();
+        PayrollAiToolProvider.ExplainSources sources = explainSources();
+        PayrollAiToolProvider full = withExplain(sources);
+        UUID offCycle = UUID.randomUUID();
+        when(payslips.listOwn(any()))
+                .thenReturn(new PageImpl<>(List.of(
+                        new PayslipSummaryResponse(octoberRun, "2026-10", null, new BigDecimal("41500")),
+                        new PayslipSummaryResponse(offCycle, "2026-09", null, new BigDecimal("5000")),
+                        new PayslipSummaryResponse(septemberRun, "2026-09", null, new BigDecimal("40000")))));
+        when(payslips.own(octoberRun)).thenReturn(explainSlip(octoberRun, "2026-10", "REGULAR", "45000"));
+        when(payslips.own(offCycle)).thenReturn(explainSlip(offCycle, "2026-09", "OFF_CYCLE", "5000"));
+        when(payslips.own(septemberRun)).thenReturn(explainSlip(septemberRun, "2026-09", "REGULAR", "43500"));
+        EmployeePayRun oct = mock(EmployeePayRun.class);
+        when(oct.getPayrunId()).thenReturn(octoberRun);
+        when(oct.getSalaryVersionId()).thenReturn(UUID.randomUUID());
+        EmployeePayRun sep = mock(EmployeePayRun.class);
+        when(sep.getPayrunId()).thenReturn(septemberRun);
+        when(sep.getSalaryVersionId()).thenReturn(UUID.randomUUID());
+        when(sources.payRuns().findOwnPaidRuns(eq(tenantId), eq(employeeId), any()))
+                .thenReturn(new PageImpl<>(List.of(oct, sep)));
+
+        AiToolResult result = full.tools().stream()
+                .filter(t -> t.name().equals("payroll.explain_payslip"))
+                .findFirst()
+                .orElseThrow()
+                .execute(caller, json.readTree("{\"period\":\"2026-10\"}"));
+
+        assertThat(result.ok()).as(result.error()).isTrue();
+        JsonNode out = result.data();
+        assertThat(out.path("comparedWith").asText()).isEqualTo("2026-09");
+        JsonNode basic = out.path("lines").get(0);
+        assertThat(basic.path("difference").asText()).isEqualTo("1500.00");
+        assertThat(basic.path("reasons").get(0).asText()).isEqualTo("SALARY_REVISED");
+        assertThat(ANY_UUID.matcher(out.toString()).find()).isFalse();
+        assertThat(readOnlyTx.calls).isEqualTo(1);
+    }
+
+    private static PayslipResponse explainSlip(UUID run, String period, String type, String basic) {
+        BigDecimal amount = new BigDecimal(basic);
+        return new PayslipResponse(
+                new PayslipResponse.RunSummary(run, type, period, null, null, "PAID"),
+                null,
+                new PayslipResponse.EmployeeSummary(
+                        UUID.randomUUID(), "E1", "Asha", null, null, LocalDate.of(2020, 1, 6), null, "PF123", "UAN123"),
+                new PayslipResponse.DaysSummary(
+                        new BigDecimal("30"), new BigDecimal("30"), BigDecimal.ZERO, BigDecimal.ZERO),
+                List.of(new PayslipLineResponse("BASIC", "Basic", amount, "STRUCTURE", true)),
+                List.of(),
+                List.of(),
+                List.of(),
+                new PayslipResponse.TotalsSummary(amount, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, amount),
+                null);
     }
 
     // ---- helpers ----

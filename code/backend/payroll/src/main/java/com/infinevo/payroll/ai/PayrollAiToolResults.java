@@ -184,6 +184,139 @@ final class PayrollAiToolResults {
         return AiToolResults.withoutIds(out);
     }
 
+    // ---- W-114.14: what changed, and why ----
+
+    /** The loss of pay of this month, as {@code PayFigureExplanationService.explain} prices it. */
+    record LossOfPay(BigDecimal days, BigDecimal amount, BigDecimal divisor, String dayBasis) {}
+
+    /** {@code payroll.explain_payslip}: the comparison, every amount as two-decimal text, reasons as codes. */
+    static JsonNode explainPayslip(PayslipComparison.Result r, LossOfPay lossOfPay) {
+        ObjectNode out = NODES.objectNode();
+        out.put("currency", CURRENCY);
+        put(out, "period", r.period());
+        if (r.comparedWith() == null) {
+            out.putNull("comparedWith");
+        } else {
+            out.put("comparedWith", r.comparedWith());
+        }
+        if (r.firstPayslip()) {
+            out.put("firstPayslip", true);
+        }
+        ObjectNode days = out.putObject("days");
+        days.set("thisMonth", days(r.days()));
+        if (r.previousDays() != null) {
+            days.set("lastMonth", days(r.previousDays()));
+        }
+        ArrayNode lines = out.putArray("lines");
+        r.lines().forEach(l -> lines.add(comparedLine(l)));
+        ArrayNode gone = out.putArray("gone");
+        r.gone().forEach(l -> gone.add(comparedLine(l)));
+        ObjectNode totals = out.putObject("totals");
+        totals.set("thisMonth", totals(r.totals()));
+        if (r.previousTotals() != null) {
+            totals.set("lastMonth", totals(r.previousTotals()));
+            ObjectNode diff = totals.putObject("difference");
+            putAmount(
+                    diff,
+                    "gross",
+                    PayslipComparison.difference(
+                            r.totals().gross(), r.previousTotals().gross()));
+            putAmount(
+                    diff,
+                    "deductions",
+                    PayslipComparison.difference(
+                            r.totals().deductions(), r.previousTotals().deductions()));
+            putAmount(
+                    diff,
+                    "net",
+                    PayslipComparison.difference(
+                            r.totals().net(), r.previousTotals().net()));
+        }
+        if (lossOfPay != null) {
+            ObjectNode lop = out.putObject("lossOfPay");
+            putAmount(lop, "days", lossOfPay.days());
+            putAmount(lop, "amount", lossOfPay.amount());
+            putAmount(lop, "divisor", lossOfPay.divisor());
+            put(lop, "dayBasis", lossOfPay.dayBasis());
+        }
+        return AiToolResults.withoutIds(out);
+    }
+
+    /** {@code payroll.explain_tds}: the two months' TDS, the year's record and the recalculations between. */
+    static JsonNode explainTds(TdsExplanation.Result r) {
+        ObjectNode out = NODES.objectNode();
+        out.put("currency", CURRENCY);
+        out.put("period", r.period());
+        out.put("financialYear", r.financialYear());
+        putAmount(out, "tdsThisMonth", r.tdsThisMonth());
+        if (r.tdsLastMonth() != null) {
+            putAmount(out, "tdsLastMonth", r.tdsLastMonth());
+            putAmount(out, "difference", r.difference());
+        }
+        TdsExplanation.YearRecord y = r.yearRecord();
+        if (y == null) {
+            out.put("noRecord", true);
+            out.put("message", TdsExplanation.NO_RECORD);
+        } else {
+            ObjectNode year = out.putObject("yearRecord");
+            put(year, "financialYear", y.financialYear());
+            put(year, "regime", y.regime());
+            put(year, "source", y.source());
+            putAmount(year, "annualGross", y.annualGross());
+            putAmount(year, "annualTaxableIncome", y.annualTaxableIncome());
+            putAmount(year, "annualTax", y.annualTax());
+            put(year, "appliesFrom", y.effectiveFrom());
+            putAmount(year, "deductedSoFar", y.deductedSoFar());
+            putAmount(year, "remaining", y.remaining());
+        }
+        ArrayNode recalcs = out.putArray("recalculations");
+        for (TdsExplanation.Listed l : r.recalculations()) {
+            ObjectNode row = recalcs.addObject();
+            put(row, "date", l.on());
+            put(row, "cause", l.cause());
+            putAmount(row, "annualTaxBefore", l.annualTaxBefore());
+            putAmount(row, "annualTaxAfter", l.annualTaxAfter());
+        }
+        out.put("rule", TdsExplanation.RULE);
+        return AiToolResults.withoutIds(out);
+    }
+
+    private static ObjectNode comparedLine(PayslipComparison.Line l) {
+        ObjectNode row = NODES.objectNode();
+        put(row, "kind", l.kind());
+        put(row, "code", l.code());
+        put(row, "name", l.name());
+        putAmount(row, "amount", l.amount());
+        if (l.previousAmount() == null) {
+            row.putNull("previousAmount");
+        } else {
+            putAmount(row, "previousAmount", l.previousAmount());
+        }
+        if (l.difference() != null) {
+            putAmount(row, "difference", l.difference());
+        }
+        ArrayNode reasons = row.putArray("reasons");
+        l.reasons().forEach(reason -> reasons.add(reason.name()));
+        return row;
+    }
+
+    private static ObjectNode days(PayslipComparison.Days d) {
+        ObjectNode out = NODES.objectNode();
+        putAmount(out, "payable", d.payable());
+        putAmount(out, "paid", d.paid());
+        putAmount(out, "lossOfPay", d.lossOfPay());
+        putAmount(out, "unpaid", d.unpaid());
+        return out;
+    }
+
+    private static ObjectNode totals(PayslipComparison.Totals t) {
+        ObjectNode out = NODES.objectNode();
+        putAmount(out, "gross", t.gross());
+        putAmount(out, "deductions", t.deductions());
+        putAmount(out, "net", t.net());
+        return out;
+    }
+
     // ---- writing ----
 
     /** An amount as text at two decimals, the payslip's rounding: {@code 45000} is {@code "45000.00"}. */
