@@ -293,6 +293,14 @@ public final class NavigationCatalogue {
                                     "/api/v1/tenants/current/profile",
                                     null,
                                     "core.tenant.read"),
+                            // W-102: onboarding checklist templates
+                            new ItemDefinition(
+                                    "core.settings.onboarding",
+                                    "nav.settings.onboarding",
+                                    "/settings/onboarding",
+                                    "/api/v1/onboarding/templates",
+                                    null,
+                                    "core.onboarding.manage"),
                             new ItemDefinition(
                                     "core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"))),
             new ItemDefinition(

@@ -14,6 +14,27 @@
 
 ---
 
+## 0. As built (2026-11-25, `dev-claude-w102`)
+
+Carved from `feature/krushna-specs` onto its own branch from `main`; krushna's later commits had closed most §11 gaps. Where the build differs from the text below, this table wins.
+
+| Item | As built | Why |
+|---|---|---|
+| Migrations | `V201__employee_onboarding_tasks.sql` (the spec's `V192`) and `V206__onboarding_role_check_and_grants.sql` (adds the `assigned_role` CHECK) | Renumbered on krushna's branch to clear `main`'s versions |
+| Create hook | `EmployeeServiceImpl.create()` publishes `EmployeeCreatedEvent`; `OnboardingServiceImpl.onEmployeeCreated` assigns the checklist in the same transaction | A required constructor argument made a circular dependency (`OnboardingServiceImpl` needs `EmployeeService`); the event keeps `employee` free of `onboarding` and a failed assignment still rolls the create back |
+| `platform-admin` grants | Kept | `RoleCatalogueIT` holds the platform admin to every action but two (W-11.3, W-65.2); removing three would break that rule |
+| Portal panel order | 9, after every other panel | 4 is payslips; `PortalPanelOrderTest` now includes onboarding |
+| Panel with no tenant bound | Hidden | Same as with no tasks |
+| Employee page "Onboarding" tab | Shown with `core.onboarding.manage` only | The employee works their own checklist on `/me`; the API still lets the primary manager read a report's tasks |
+| Upload refusal | `EMPLOYEE_DOCUMENT` upload without `core.onboarding.update_own` is refused as `core.document.upload` | Keeps the existing refusal code that `DocumentGuardIT` checks |
+| Settings menu | `core.settings.onboarding` → `/settings/onboarding`, label "Onboarding templates" | |
+| Document label | One of `core.document`'s six labels (`ID_PROOF` … `OTHER`), because the upload endpoint takes only those; service and a check constraint refuse anything else. Seeds use `ID_PROOF` and `CERTIFICATE` | Independent read 2026-11-26 |
+| HR new joiner | An HR user's own `PENDING → SUBMITTED` on a document task runs the employee rules (document must be theirs) | Independent read 2026-11-26 |
+| Bulk import | Imported employees get no checklist (they are already at work); HR can assign one by hand | Independent read 2026-11-26 |
+| Sort order, double assign | A new template goes after the last; list ties break by `created_at`. Unique `(tenant_id, employee_id, template_id)` index; a second assign at once is `409` | Independent read 2026-11-26 |
+
+---
+
 ## Size cap
 
 | Axis | This spec | Limit | Status |

@@ -239,6 +239,10 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "ai_session")) {
                         executeResource(conn, "db/migration/core/V200__ai_chat.sql");
                     }
+                    if (!tableExists(conn, "core", "onboarding_task_template")) {
+                        executeResource(conn, "db/migration/core/V201__employee_onboarding_tasks.sql");
+                        executeResource(conn, "db/migration/core/V206__onboarding_role_check_and_grants.sql");
+                    }
                 }
 
             } catch (Exception e) {

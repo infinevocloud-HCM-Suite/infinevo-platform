@@ -17,8 +17,16 @@ import java.util.UUID;
  */
 public interface EmployeeService {
 
-    /** Creates an employee in the bound tenant. */
+    /** Creates an employee in the bound tenant, with their onboarding checklist (W-102). */
     EmployeeResponse create(EmployeeRequest request);
+
+    /**
+     * Creates an employee in the bound tenant. {@code startOnboarding} false is for bulk import, which loads
+     * people already at work: they get no checklist (W-102 spec section 2); HR can still assign one by hand.
+     */
+    default EmployeeResponse create(EmployeeRequest request, boolean startOnboarding) {
+        return create(request);
+    }
 
     /** The employee with this id in the bound tenant. Soft-deleted rows are not found. */
     EmployeeResponse get(UUID id);

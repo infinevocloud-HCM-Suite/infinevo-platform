@@ -210,7 +210,7 @@ class EmployeeImportServiceTest {
                         Instant.now())));
         AtomicReference<String> actingAs = new AtomicReference<>();
         UUID employeeId = UUID.randomUUID();
-        when(employeeService.create(any(EmployeeRequest.class))).thenAnswer(i -> {
+        when(employeeService.create(any(EmployeeRequest.class), eq(false))).thenAnswer(i -> {
             actingAs.set(SecurityContextHolder.getContext().getAuthentication().getName());
             return employee(employeeId);
         });
@@ -312,7 +312,7 @@ class EmployeeImportServiceTest {
     void importCreatesTwoAndCarriesCreatesRefusal() {
         when(limitGuard.usage()).thenReturn(new EmployeeLimitGuard.Usage(3, 1));
         UUID first = UUID.randomUUID();
-        when(employeeService.create(any(EmployeeRequest.class)))
+        when(employeeService.create(any(EmployeeRequest.class), eq(false)))
                 .thenReturn(employee(first))
                 // Someone was added between the dry run and the import: create's own check refuses the second.
                 .thenThrow(new EmployeeService.EmployeeLimitReachedException(3, 3));
@@ -324,7 +324,7 @@ class EmployeeImportServiceTest {
         List<ImportRowResult> results =
                 service.importRows(EmployeeImportParser.parse(csv.toString()), actor, percent -> {});
 
-        verify(employeeService, times(2)).create(any(EmployeeRequest.class));
+        verify(employeeService, times(2)).create(any(EmployeeRequest.class), eq(false));
         assertThat(results.get(0).status()).isEqualTo(ImportRowResult.Status.OK);
         assertThat(results.get(1).status()).isEqualTo(ImportRowResult.Status.ERROR);
         assertThat(results.get(1).message())

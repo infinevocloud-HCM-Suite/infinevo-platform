@@ -67,6 +67,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.leave",
             "com.infinevo.core.lop",
             "com.infinevo.core.navigation",
+            "com.infinevo.core.onboarding",
             "com.infinevo.core.org",
             "com.infinevo.core.portal",
             "com.infinevo.core.setup",
@@ -90,6 +91,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.invitation",
             "com.infinevo.core.leave",
             "com.infinevo.core.lop",
+            "com.infinevo.core.onboarding",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
@@ -108,6 +110,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.invitation",
             "com.infinevo.core.leave",
             "com.infinevo.core.lop",
+            "com.infinevo.core.onboarding",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
@@ -127,6 +130,12 @@ public class PermissionGuardTestApp {
     @Bean
     public PayInputService payInputService() {
         return Mockito.mock(PayInputService.class);
+    }
+
+    /** W-102: the onboarding service checks a submitted document; {@code core.document} is not scanned here. */
+    @Bean
+    public com.infinevo.core.document.DocumentRepository documentRepository() {
+        return Mockito.mock(com.infinevo.core.document.DocumentRepository.class);
     }
 
     @Bean

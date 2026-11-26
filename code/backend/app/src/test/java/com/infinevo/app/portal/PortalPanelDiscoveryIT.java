@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.core.onboarding.EmployeeOnboardingTaskRepository;
+import com.infinevo.core.portal.OnboardingPanelProvider;
 import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.PortalPanelService;
@@ -86,14 +88,18 @@ class PortalPanelDiscoveryIT {
     @MockBean
     private EmployeeService employeeService;
 
+    // W-102: the onboarding panel counts the employee's tasks; this test runs without JPA.
+    @MockBean
+    private EmployeeOnboardingTaskRepository onboardingTaskRepository;
+
     // The hrms portal package now holds the real MyTimesheetController (W-42.1), which needs this.
     @MockBean
     private TimesheetService timesheetService;
 
     @Test
-    @DisplayName("PortalPanelService discovers all 9 providers including module providers from payroll and hrms")
+    @DisplayName("PortalPanelService discovers all 10 providers including module providers from payroll and hrms")
     void discoversAllEightProviders() {
-        assertThat(providers).hasSize(9);
+        assertThat(providers).hasSize(10);
 
         List<String> codes = providers.stream().map(PortalPanelProvider::code).toList();
         assertThat(codes)
@@ -106,8 +112,11 @@ class PortalPanelDiscoveryIT {
                         "taxDeclaration",
                         "timesheet",
                         "claims",
-                        "fbp");
+                        "fbp",
+                        "onboarding");
 
+        assertThat(providers.stream().anyMatch(p -> p instanceof OnboardingPanelProvider))
+                .isTrue();
         assertThat(providers.stream().anyMatch(p -> p instanceof PayslipPanelProvider))
                 .isTrue();
         assertThat(providers.stream().anyMatch(p -> p instanceof TaxDeclarationPanelProvider))

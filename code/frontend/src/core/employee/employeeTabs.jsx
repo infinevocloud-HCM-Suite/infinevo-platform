@@ -2,6 +2,7 @@ import { OverviewTab } from './tabs/OverviewTab.jsx';
 import { SectionTab } from './tabs/SectionTab.jsx';
 import { ReportingLineTab } from './tabs/ReportingLineTab.jsx';
 import { DocumentsTab } from './tabs/DocumentsTab.jsx';
+import { OnboardingTab } from './tabs/OnboardingTab.jsx';
 
 /**
  * Registerable tabs for EmployeePage (W-46.1 Decision 2).
@@ -62,6 +63,13 @@ export const employeeTabs = [
     label: 'Documents',
     render: ({ employee }) => (
       <DocumentsTab employeeId={employee.id} />
+    ),
+  },
+  {
+    key: 'onboarding',
+    label: 'Onboarding',
+    render: ({ employee }) => (
+      <OnboardingTab employeeId={employee.id} />
     ),
   },
 ];

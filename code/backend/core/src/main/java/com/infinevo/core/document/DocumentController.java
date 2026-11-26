@@ -89,6 +89,7 @@ public class DocumentController {
             value = "core.document.upload",
             anyOf = {
                 "core.leave.apply",
+                "core.onboarding.update_own",
                 "payroll.reimbursement_claim.submit_own",
                 "payroll.tax_declaration.submit",
                 "payroll.proof.submit_own",
@@ -136,6 +137,12 @@ public class DocumentController {
                 if (!permissionService.holds("payroll.tax_declaration.submit")
                         && !permissionService.holds("payroll.proof.submit_own")) {
                     throw new PermissionDeniedException("payroll.tax_declaration.submit");
+                }
+            }
+            case EMPLOYEE_DOCUMENT -> {
+                // W-102: a new joiner uploads their own onboarding documents.
+                if (!permissionService.holds("core.onboarding.update_own")) {
+                    throw new PermissionDeniedException("core.document.upload");
                 }
             }
             default -> throw new PermissionDeniedException("core.document.upload");
