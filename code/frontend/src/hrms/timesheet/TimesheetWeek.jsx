@@ -46,9 +46,142 @@ import {
 } from './weekGrid.js';
 import { statusLabel } from '@shared/ui/format.js';
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const weekPath = (weekStart) => `/hrms/timesheets/week/${weekStart}`;
+
+/**
+ * D-157: Read-only card layout for locked (approved/submitted) timesheets.
+ * Renders one card per project+task row with a vertical Day/Date/Hours/Description table,
+ * matching the HR "Timesheet Details" view style.
+ */
+function LockedTimesheetView({ rows, dates, projectName, taskName, statuses, formatHours, formatHundredths, rowTotal, gridTotal }) {  const { token } = theme.useToken();
+
+  const dayColumns = [
+    {
+      title: 'Day',
+      dataIndex: 'day',
+      key: 'day',
+      width: 110,
+      render: (val) => <Text strong style={{ textTransform: 'uppercase' }}>{val}</Text>,
+    },
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+      width: 140,
+      render: (val) => <Text type="secondary">{val}</Text>,
+    },
+    {
+      title: 'Hours',
+      dataIndex: 'hours',
+      key: 'hours',
+      width: 80,
+      align: 'center',
+      render: (val) => (
+        <Text strong style={{ color: val === '-' ? token.colorTextDisabled : token.colorPrimary }}>
+          {val}
+        </Text>
+      ),
+    },
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
+      render: (val) =>
+        val ? (
+          <Text style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{val}</Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+  ];
+
+  const totalHours = formatHundredths(gridTotal(rows));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {rows.map((row) => {
+        const proj = projectName(row.projectId);
+        const task = taskName(row.projectId, row.taskId);
+        const status = statuses[row.projectId];
+        const tableData = dates.map((date) => {
+          const cell = row.cells[date] || { hours: '', description: '' };
+          const isWeekend = dayjs(date).day() === 0 || dayjs(date).day() === 6;
+          const hoursVal = cell.hours !== '' && cell.hours != null ? formatHours(cell.hours) : '-';
+          return {
+            key: date,
+            day: dayjs(date).format('dddd'),
+            date: dayjs(date).format('DD MMM YYYY'),
+            hours: hoursVal,
+            description: cell.description || '',
+            isWeekend,
+          };
+        });
+
+        return (
+          <Card
+            key={row.key}
+            size="small"
+            style={{ borderRadius: token.borderRadiusLG, border: `1px solid ${token.colorBorderSecondary}` }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <Space size={8} wrap>
+                <Title level={5} style={{ margin: 0 }}>{proj}</Title>
+                {status && (
+                  <Tag color={STATUS_COLOR[status.status]}>
+                    {STATUS_LABEL[status.status] || statusLabel(status.status)}
+                  </Tag>
+                )}
+              </Space>
+              <Text type="secondary" style={{ fontWeight: 600 }}>Task: {task}</Text>
+              <Text strong>Total: {formatHundredths(rowTotal(row))} hrs</Text>
+            </div>
+            <Table
+              rowKey="key"
+              size="small"
+              columns={dayColumns}
+              dataSource={tableData}
+              pagination={false}
+              rowClassName={(record) => record.isWeekend ? 'timesheet-locked-weekend-row' : ''}
+              onRow={(record) => ({
+                style: record.isWeekend
+                  ? { background: token.colorBgLayout, color: token.colorTextSecondary }
+                  : {},
+              })}
+            />
+          </Card>
+        );
+      })}
+
+      {/* Week total summary */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        padding: '12px 16px',
+        background: token.colorBgContainer,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+      }}>
+        <Text strong style={{ fontSize: 16 }}>
+          Total Hours for Week: <span style={{ color: token.colorPrimary, fontSize: 20 }}>{totalHours}</span>
+        </Text>
+      </div>
+    </div>
+  );
+}
+
+LockedTimesheetView.propTypes = {
+  rows: PropTypes.array.isRequired,
+  dates: PropTypes.array.isRequired,
+  projectName: PropTypes.func.isRequired,
+  taskName: PropTypes.func.isRequired,
+  statuses: PropTypes.object.isRequired,
+  formatHours: PropTypes.func.isRequired,
+  formatHundredths: PropTypes.func.isRequired,
+  rowTotal: PropTypes.func.isRequired,
+  gridTotal: PropTypes.func.isRequired,
+};
 
 /** A rejected call as `{ message, fieldErrors }`, from the flattened envelope `apiClient` rejects with. */
 function readError(err, fallback) {
@@ -543,16 +676,34 @@ function WeekGrid({ weekStart }) {
       )}
 
       <Card variant="borderless" className="saas-card saas-page-container">
-        <Table
-          rowKey="key"
-          size="small"
-          columns={columns}
-          dataSource={rows}
-          pagination={false}
-          scroll={{ x: true }}
-          summary={summary}
-          locale={{ emptyText: anyEditable ? 'No rows yet. Add a project and task below.' : 'No hours this week.' }}
-        />
+        {mode === 'locked' ? (
+          rows.length === 0 ? (
+            <Text type="secondary">No hours logged this week.</Text>
+          ) : (
+            <LockedTimesheetView
+              rows={rows}
+              dates={dates}
+              projectName={projectName}
+              taskName={taskName}
+              statuses={statuses}
+              formatHours={formatHours}
+              formatHundredths={formatHundredths}
+              rowTotal={rowTotal}
+              gridTotal={gridTotal}
+            />
+          )
+        ) : (
+          <Table
+            rowKey="key"
+            size="small"
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            summary={summary}
+            locale={{ emptyText: anyEditable ? 'No rows yet. Add a project and task below.' : 'No hours this week.' }}
+          />
+        )}
 
         {anyEditable && (
           <Space wrap style={{ marginTop: 16 }}>

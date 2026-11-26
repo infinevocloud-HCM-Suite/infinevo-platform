@@ -130,15 +130,23 @@ export function PublicPayslip({ token: propToken }) {
           @media print {
             body {
               background: white !important;
+              margin: 0 !important;
+              padding: 0 !important;
             }
             .no-print {
               display: none !important;
             }
             .print-container {
               max-width: 100% !important;
+              width: 100% !important;
               margin: 0 !important;
               padding: 0 !important;
               box-shadow: none !important;
+            }
+            /* Remove card shadow and border on the payslip document itself */
+            #payslip-to-print {
+              box-shadow: none !important;
+              page-break-inside: avoid;
             }
           }
         `}
