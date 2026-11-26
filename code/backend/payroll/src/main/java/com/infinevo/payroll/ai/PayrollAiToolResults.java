@@ -202,6 +202,10 @@ final class PayrollAiToolResults {
         if (r.firstPayslip()) {
             out.put("firstPayslip", true);
         }
+        if (r.offCycle()) {
+            out.put("offCycle", true);
+            out.put("note", PayslipComparison.OFF_CYCLE_NOTE);
+        }
         ObjectNode days = out.putObject("days");
         days.set("thisMonth", days(r.days()));
         if (r.previousDays() != null) {
@@ -259,6 +263,8 @@ final class PayrollAiToolResults {
             out.put("message", TdsExplanation.NO_RECORD);
         } else {
             ObjectNode year = out.putObject("yearRecord");
+            year.put("asItStands", "today");
+            year.put("note", TdsExplanation.RECORD_NOTE);
             put(year, "financialYear", y.financialYear());
             put(year, "regime", y.regime());
             put(year, "source", y.source());

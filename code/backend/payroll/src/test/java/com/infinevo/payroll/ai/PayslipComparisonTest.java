@@ -80,7 +80,8 @@ class PayslipComparisonTest {
         PayslipComparison.Result r = PayslipComparison.compare(oct, sep, false);
 
         assertThat(r.comparedWith()).isEqualTo("2026-09");
-        assertThat(find(r, "LOP").reasons()).containsExactly(Reason.LOSS_OF_PAY);
+        // Paid days went from 30 to 28: that shows on the loss-of-pay line, the one line days move.
+        assertThat(find(r, "LOP").reasons()).containsExactly(Reason.LOSS_OF_PAY, Reason.PAID_DAYS_CHANGED);
         assertThat(find(r, "OT").reasons()).containsExactly(Reason.MONTH_ONLY_ENTRY);
         assertThat(find(r, "TRAVEL").reasons()).contains(Reason.NEW_COMPONENT);
         assertThat(find(r, "TDS").reasons()).containsExactly(Reason.TAX_SEE_TDS);
@@ -136,23 +137,33 @@ class PayslipComparisonTest {
                 "37000",
                 List.of(line("BASIC", "40000", "STRUCTURE")),
                 List.of());
+        // A structure line is a full-month amount: fewer days never move it, so nothing stored proves why it moved.
         assertThat(find(PayslipComparison.compare(fewerDays, sep, false), "BASIC")
                         .reasons())
-                .containsExactly(Reason.PAID_DAYS_CHANGED);
+                .containsExactly(Reason.NOT_KNOWN);
     }
 
     @Test
-    @DisplayName("joined this month is proven by the joining date inside the payslip's month")
+    @DisplayName("joined this month is proven by the joining date inside the month, and shows on the loss-of-pay line")
     void joinedThisMonth() {
+        PayslipResponse aug =
+                slip("2026-08", LONG_AGO, "30", "0", "1", "1", List.of(line("BASIC", "1", "STRUCTURE")), List.of());
         PayslipResponse sep = slip(
                 "2026-09",
                 LocalDate.of(2026, 9, 15),
                 "15",
-                "0",
+                "15",
                 "20000",
                 "19000",
-                List.of(line("BASIC", "20000", "STRUCTURE")),
-                List.of());
+                List.of(line("BASIC", "40000", "STRUCTURE")),
+                List.of(line("LOP", "20000", "LOP")));
+
+        PayslipComparison.Result r = PayslipComparison.compare(sep, aug, false);
+
+        assertThat(find(r, "LOP").reasons())
+                .containsExactly(Reason.LOSS_OF_PAY, Reason.PAID_DAYS_CHANGED, Reason.JOINED_THIS_MONTH);
+        assertThat(find(r, "BASIC").reasons()).containsExactly(Reason.NOT_KNOWN);
+
         PayslipResponse oct = slip(
                 "2026-10",
                 LocalDate.of(2026, 9, 15),
@@ -162,24 +173,79 @@ class PayslipComparisonTest {
                 "38000",
                 List.of(line("BASIC", "40000", "STRUCTURE")),
                 List.of());
+        PayslipComparison.Result next = PayslipComparison.compare(oct, sep, false);
+        assertThat(find(next, "BASIC").reasons()).isEmpty();
+        assertThat(next.gone()).singleElement().satisfies(l -> assertThat(l.reasons())
+                .containsExactly(Reason.LOSS_OF_PAY));
+    }
 
-        // October: a full month after joining in September - the days changed; joining is not this month.
-        assertThat(find(PayslipComparison.compare(oct, sep, false), "BASIC").reasons())
-                .containsExactly(Reason.PAID_DAYS_CHANGED);
-        PayslipResponse sepAgain = slip(
+    @Test
+    @DisplayName(
+            "a loss-of-pay refund is LOSS_OF_PAY_REFUNDED, never LOSS_OF_PAY; a new statutory line is not NEW_COMPONENT")
+    void refundAndNewStatutory() {
+        PayslipResponse sep = slip(
                 "2026-09",
-                LocalDate.of(2026, 9, 15),
-                "15",
+                LONG_AGO,
+                "30",
                 "0",
-                "20000",
-                "19000",
-                List.of(line("BASIC", "20000", "STRUCTURE")),
+                "40000",
+                "38000",
+                List.of(line("BASIC", "40000", "STRUCTURE")),
                 List.of());
-        PayslipResponse aug =
-                slip("2026-08", LONG_AGO, "30", "0", "0", "0", List.of(line("BASIC", "1", "STRUCTURE")), List.of());
-        assertThat(find(PayslipComparison.compare(sepAgain, aug, false), "BASIC")
-                        .reasons())
-                .contains(Reason.JOINED_THIS_MONTH);
+        PayslipResponse oct = slip(
+                "2026-10",
+                LONG_AGO,
+                "30",
+                "0",
+                "42000",
+                "39000",
+                List.of(line("BASIC", "40000", "STRUCTURE"), line("LOP_REVERSAL", "2000", "LOP")),
+                List.of(line("PF", "1800", "STATUTORY")));
+
+        PayslipComparison.Result r = PayslipComparison.compare(oct, sep, false);
+
+        assertThat(find(r, "LOP_REVERSAL").reasons()).containsExactly(Reason.LOSS_OF_PAY_REFUNDED);
+        assertThat(find(r, "PF").reasons()).containsExactly(Reason.FOLLOWS_EARNINGS);
+        PayslipComparison.Result back = PayslipComparison.compare(sep, oct, false);
+        assertThat(back.gone())
+                .filteredOn(l -> l.code().equals("LOP_REVERSAL"))
+                .singleElement()
+                .satisfies(l -> assertThat(l.reasons()).containsExactly(Reason.LOSS_OF_PAY_REFUNDED));
+    }
+
+    @Test
+    @DisplayName("an off-cycle payslip is never compared: no comparedWith, nothing gone, its entries MONTH_ONLY_ENTRY")
+    void offCycleStandsAlone() {
+        PayslipResponse sep = slip(
+                "2026-09",
+                LONG_AGO,
+                "30",
+                "0",
+                "40000",
+                "38000",
+                List.of(line("BASIC", "40000", "STRUCTURE")),
+                List.of());
+        PayslipResponse regular = slip(
+                "2026-10", LONG_AGO, "30", "0", "5000", "5000", List.of(line("BONUS", "5000", "PAY_INPUT")), List.of());
+        PayslipResponse bonus = new PayslipResponse(
+                new PayslipResponse.RunSummary(UUID.randomUUID(), "OFF_CYCLE", "2026-10", null, null, "PAID"),
+                regular.employer(),
+                regular.employee(),
+                regular.days(),
+                regular.earnings(),
+                regular.deductions(),
+                regular.reimbursements(),
+                regular.benefits(),
+                regular.totals(),
+                regular.link());
+
+        PayslipComparison.Result r = PayslipComparison.compare(bonus, sep, false);
+
+        assertThat(r.offCycle()).isTrue();
+        assertThat(r.comparedWith()).isNull();
+        assertThat(r.gone()).isEmpty();
+        assertThat(find(r, "BONUS").reasons()).containsExactly(Reason.MONTH_ONLY_ENTRY);
+        assertThat(find(r, "BONUS").previousAmount()).isNull();
     }
 
     @Test

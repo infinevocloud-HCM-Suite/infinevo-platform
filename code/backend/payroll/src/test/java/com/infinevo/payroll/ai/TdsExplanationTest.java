@@ -8,14 +8,53 @@ import com.infinevo.payroll.payslip.PayslipLineResponse;
 import com.infinevo.payroll.payslip.PayslipResponse;
 import com.infinevo.payroll.taxcalc.recalc.TaxTrigger;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /** W-114.14: the TDS answer lists only the recalculations between the two payslips, and re-derives nothing. */
 class TdsExplanationTest {
+
+    private static Instant noon(LocalDate day) {
+        return day.atTime(12, 0).toInstant(ZoneOffset.UTC);
+    }
+
+    @Test
+    @DisplayName("two recalculations on one day keep their order: before and after follow the instant, not the list")
+    void sameDayOrder() {
+        LocalDate day = LocalDate.of(2026, 10, 5);
+        List<Recalculation> newestFirst = List.of(
+                new Recalculation(
+                        day,
+                        day.atTime(15, 0).toInstant(ZoneOffset.UTC),
+                        TaxTrigger.PROOF_VERIFIED,
+                        new BigDecimal("60000")),
+                new Recalculation(
+                        day,
+                        day.atTime(10, 0).toInstant(ZoneOffset.UTC),
+                        TaxTrigger.DECLARATION_SUBMITTED,
+                        new BigDecimal("50000")),
+                new Recalculation(
+                        LocalDate.of(2026, 4, 2),
+                        noon(LocalDate.of(2026, 4, 2)),
+                        TaxTrigger.SALARY_DEFAULT,
+                        new BigDecimal("40000")));
+
+        TdsExplanation.Result r = TdsExplanation.explain(
+                YearMonth.of(2026, 10), YearMonth.of(2026, 9), BigDecimal.TEN, BigDecimal.ONE, null, newestFirst);
+
+        assertThat(r.recalculations()).hasSize(2);
+        assertThat(r.recalculations().get(0).cause()).isEqualTo(TaxTrigger.DECLARATION_SUBMITTED);
+        assertThat(r.recalculations().get(0).annualTaxBefore()).isEqualByComparingTo("40000");
+        assertThat(r.recalculations().get(0).annualTaxAfter()).isEqualByComparingTo("50000");
+        assertThat(r.recalculations().get(1).cause()).isEqualTo(TaxTrigger.PROOF_VERIFIED);
+        assertThat(r.recalculations().get(1).annualTaxBefore()).isEqualByComparingTo("50000");
+        assertThat(r.recalculations().get(1).annualTaxAfter()).isEqualByComparingTo("60000");
+    }
 
     private static final TdsExplanation.YearRecord YEAR = new TdsExplanation.YearRecord(
             "2026-2027",
@@ -29,10 +68,26 @@ class TdsExplanationTest {
             new BigDecimal("30000"));
 
     private static final List<Recalculation> HISTORY = List.of(
-            new Recalculation(LocalDate.of(2026, 9, 10), TaxTrigger.DECLARATION_SUBMITTED, new BigDecimal("50000")),
-            new Recalculation(LocalDate.of(2026, 4, 2), TaxTrigger.SALARY_DEFAULT, new BigDecimal("45000")),
-            new Recalculation(LocalDate.of(2026, 10, 3), TaxTrigger.SALARY_REVISION, new BigDecimal("60000")),
-            new Recalculation(LocalDate.of(2026, 11, 2), TaxTrigger.OFFICER, new BigDecimal("61000")));
+            new Recalculation(
+                    LocalDate.of(2026, 9, 10),
+                    noon(LocalDate.of(2026, 9, 10)),
+                    TaxTrigger.DECLARATION_SUBMITTED,
+                    new BigDecimal("50000")),
+            new Recalculation(
+                    LocalDate.of(2026, 4, 2),
+                    noon(LocalDate.of(2026, 4, 2)),
+                    TaxTrigger.SALARY_DEFAULT,
+                    new BigDecimal("45000")),
+            new Recalculation(
+                    LocalDate.of(2026, 10, 3),
+                    noon(LocalDate.of(2026, 10, 3)),
+                    TaxTrigger.SALARY_REVISION,
+                    new BigDecimal("60000")),
+            new Recalculation(
+                    LocalDate.of(2026, 11, 2),
+                    noon(LocalDate.of(2026, 11, 2)),
+                    TaxTrigger.OFFICER,
+                    new BigDecimal("61000")));
 
     @Test
     @DisplayName(

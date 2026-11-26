@@ -1,6 +1,7 @@
 package com.infinevo.payroll.ai;
 
 import com.infinevo.payroll.payrun.LineSource;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.payslip.PayslipLineResponse;
 import com.infinevo.payroll.payslip.PayslipResponse;
 import java.math.BigDecimal;
@@ -23,6 +24,7 @@ final class PayslipComparison {
     /** The closed list of reasons (spec "What the data can prove"). Nothing free-text is ever a reason (rule 6). */
     enum Reason {
         LOSS_OF_PAY,
+        LOSS_OF_PAY_REFUNDED,
         MONTH_ONLY_ENTRY,
         NEW_COMPONENT,
         ENDED_COMPONENT,
@@ -68,7 +70,12 @@ final class PayslipComparison {
             List<Line> gone,
             Totals totals,
             Totals previousTotals,
-            boolean firstPayslip) {}
+            boolean firstPayslip,
+            boolean offCycle) {}
+
+    /** Said with an off-cycle payslip, which is never compared with a regular month. */
+    static final String OFF_CYCLE_NOTE = "This is an off-cycle payslip: it pays only the entries made for it, so it"
+            + " is not compared with a regular month.";
 
     private PayslipComparison() {}
 
@@ -82,6 +89,25 @@ final class PayslipComparison {
         String period = current.run() == null ? null : current.run().period();
         Days days = days(current);
         Totals totals = totals(current);
+        if (current.run() != null
+                && PayRunType.OFF_CYCLE.name().equals(current.run().type())) {
+            // Off-cycle runs carry no structure, loss-of-pay or tax lines (StructureLineContributor,
+            // TaxLineContributor):
+            // beside a regular month every structure line would look ended. Its lines stand alone.
+            List<Line> lines = new ArrayList<>();
+            for (Item item : items(current).values()) {
+                Reason reason = source(item.line) == LineSource.PAY_INPUT ? Reason.MONTH_ONLY_ENTRY : Reason.NOT_KNOWN;
+                lines.add(new Line(
+                        item.kind,
+                        item.line.code(),
+                        item.line.name(),
+                        item.line.amount(),
+                        null,
+                        null,
+                        List.of(reason)));
+            }
+            return new Result(period, null, days, null, lines, List.of(), totals, null, false, true);
+        }
         if (previous == null) {
             List<Line> lines = new ArrayList<>();
             for (Map.Entry<String, Item> e : items(current).entrySet()) {
@@ -95,7 +121,7 @@ final class PayslipComparison {
                         null,
                         List.of(Reason.FIRST_PAYSLIP)));
             }
-            return new Result(period, null, days, null, lines, List.of(), totals, null, true);
+            return new Result(period, null, days, null, lines, List.of(), totals, null, true, false);
         }
 
         Days previousDays = days(previous);
@@ -137,7 +163,7 @@ final class PayslipComparison {
                     List.of(goneReason(old.line))));
         }
         String comparedWith = previous.run() == null ? null : previous.run().period();
-        return new Result(period, comparedWith, days, previousDays, lines, gone, totals, previousTotals, false);
+        return new Result(period, comparedWith, days, previousDays, lines, gone, totals, previousTotals, false, false);
     }
 
     /** Why a new or changed line is what it is; {@link Reason#NOT_KNOWN} when nothing stored proves a cause. */
@@ -151,15 +177,23 @@ final class PayslipComparison {
         LineSource source = source(line);
         List<Reason> out = new ArrayList<>();
         if (source == LineSource.LOP) {
-            out.add(Reason.LOSS_OF_PAY);
+            // Days move pay only through this line: structure lines are full-month amounts (StructureLineContributor).
+            if (refund(line)) {
+                out.add(Reason.LOSS_OF_PAY_REFUNDED);
+            } else {
+                out.add(Reason.LOSS_OF_PAY);
+                if (paidDaysChanged) {
+                    out.add(Reason.PAID_DAYS_CHANGED);
+                }
+                if (joined) {
+                    out.add(Reason.JOINED_THIS_MONTH);
+                }
+            }
         } else if (source == LineSource.PAY_INPUT) {
             out.add(Reason.MONTH_ONLY_ENTRY);
         } else if (source == LineSource.TAX) {
             out.add(Reason.TAX_SEE_TDS);
         } else if (source == LineSource.STATUTORY) {
-            if (isNew) {
-                out.add(Reason.NEW_COMPONENT);
-            }
             if (grossChanged) {
                 out.add(Reason.FOLLOWS_EARNINGS);
             }
@@ -169,12 +203,6 @@ final class PayslipComparison {
             }
             if (salaryRevised) {
                 out.add(Reason.SALARY_REVISED);
-            }
-            if (paidDaysChanged) {
-                out.add(Reason.PAID_DAYS_CHANGED);
-            }
-            if (joined) {
-                out.add(Reason.JOINED_THIS_MONTH);
             }
         }
         if (out.isEmpty()) {
@@ -192,12 +220,17 @@ final class PayslipComparison {
             return Reason.MONTH_ONLY_ENTRY;
         }
         if (source == LineSource.LOP) {
-            return Reason.LOSS_OF_PAY;
+            return refund(line) ? Reason.LOSS_OF_PAY_REFUNDED : Reason.LOSS_OF_PAY;
         }
         if (source == LineSource.TAX) {
             return Reason.TAX_SEE_TDS;
         }
         return Reason.NOT_KNOWN;
+    }
+
+    /** A loss of pay given back: {@code LOP_REVERSAL} and {@code LOP_BENEFIT_REVERSAL} (LopLineContributor). */
+    static boolean refund(PayslipLineResponse line) {
+        return line.code() != null && line.code().endsWith("_REVERSAL");
     }
 
     private static LineSource source(PayslipLineResponse line) {

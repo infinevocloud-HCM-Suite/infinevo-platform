@@ -494,11 +494,73 @@ class PayrollAiToolProviderTest {
     // ---- W-114.14: explain my payslip and my TDS ----
 
     private PayrollAiToolProvider.ExplainSources explainSources() {
+        PermissionService permissions = mock(PermissionService.class);
+        when(permissions.holds(anyString())).thenReturn(true);
+        return explainSources(permissions);
+    }
+
+    private PayrollAiToolProvider.ExplainSources explainSources(PermissionService permissions) {
         return new PayrollAiToolProvider.ExplainSources(
                 mock(EmployeePayRunRepository.class),
                 mock(PayFigureExplanationService.class),
                 mock(EmployeeTdsService.class),
-                mock(TaxRecalculationService.class));
+                mock(TaxRecalculationService.class),
+                permissions);
+    }
+
+    private static AiTool named(PayrollAiToolProvider p, String name) {
+        return p.tools().stream().filter(t -> t.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    @Test
+    @DisplayName("W-114.14: explain_tds without payroll.payslip.read_own answers as if there were no payslip")
+    void explainTds_needsPayslipAction() throws Exception {
+        signIn();
+        PermissionService permissions = mock(PermissionService.class);
+        when(permissions.holds(anyString())).thenReturn(true);
+        when(permissions.holds("payroll.payslip.read_own")).thenReturn(false);
+        PayrollAiToolProvider full = withExplain(explainSources(permissions));
+        when(payslips.listOwn(any()))
+                .thenReturn(new PageImpl<>(
+                        List.of(new PayslipSummaryResponse(octoberRun, "2026-10", null, new BigDecimal("41500")))));
+        when(payslips.own(octoberRun)).thenReturn(explainSlip(octoberRun, "2026-10", "REGULAR", "45000"));
+
+        AiToolResult result = named(full, "payroll.explain_tds").execute(caller, json.readTree("{}"));
+
+        assertThat(result.data().path("message").asText()).isEqualTo(PayrollAiToolProvider.NO_PAYSLIPS);
+        verify(payslips, never()).own(any());
+    }
+
+    @Test
+    @DisplayName("W-114.14: the newest paid payslip is off-cycle: explain_payslip does not compare it;"
+            + " explain_tds explains the newest regular one, and a named off-cycle month says it deducts no TDS")
+    void offCycleNewest() throws Exception {
+        signIn();
+        PayrollAiToolProvider full = withExplain(explainSources());
+        UUID bonus = UUID.randomUUID();
+        when(payslips.listOwn(any()))
+                .thenReturn(new PageImpl<>(List.of(
+                        new PayslipSummaryResponse(bonus, "2026-10", null, new BigDecimal("5000")),
+                        new PayslipSummaryResponse(septemberRun, "2026-09", null, new BigDecimal("40000")))));
+        when(payslips.own(bonus)).thenReturn(explainSlip(bonus, "2026-10", "OFF_CYCLE", "5000"));
+        when(payslips.own(septemberRun)).thenReturn(explainSlip(septemberRun, "2026-09", "REGULAR", "43500"));
+
+        JsonNode payslip = named(full, "payroll.explain_payslip")
+                .execute(caller, json.readTree("{}"))
+                .data();
+        assertThat(payslip.path("offCycle").asBoolean()).isTrue();
+        assertThat(payslip.path("comparedWith").isNull()).isTrue();
+        assertThat(payslip.path("gone")).isEmpty();
+
+        JsonNode tds = named(full, "payroll.explain_tds")
+                .execute(caller, json.readTree("{}"))
+                .data();
+        assertThat(tds.path("period").asText()).isEqualTo("2026-09");
+
+        JsonNode named = named(full, "payroll.explain_tds")
+                .execute(caller, json.readTree("{\"period\":\"2026-10\"}"))
+                .data();
+        assertThat(named.path("message").asText()).isEqualTo(PayrollAiToolProvider.NO_TDS_OFF_CYCLE);
     }
 
     private PayrollAiToolProvider withExplain(PayrollAiToolProvider.ExplainSources sources) {

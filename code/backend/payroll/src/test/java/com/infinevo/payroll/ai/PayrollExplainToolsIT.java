@@ -19,6 +19,7 @@ import com.infinevo.core.payinput.PayInputKind;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.core.tenant.TenantClock;
 import com.infinevo.payroll.PayrollTestApp;
+import com.infinevo.payroll.PayrollTestSchema;
 import com.infinevo.payroll.payrun.EmployeePayRunRepository;
 import com.infinevo.payroll.payrun.InProcessPayRunWorker;
 import com.infinevo.payroll.payrun.PayFigureExplanationService;
@@ -41,6 +42,8 @@ import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -151,6 +154,9 @@ class PayrollExplainToolsIT extends AbstractIntegrationTest {
         PayRunTestSchema.insertStructureLine(
                 "employee_earning", TENANT_A, after, catalogue.basic(), "45000.0000", null);
 
+        // B has a tax record for 2026-27, so June, July and the approved August each deduct TDS.
+        insertTaxRecord(employeeB);
+
         paid(JUNE);
         payInputService.record(new PayInputCommand(
                 employeeA,
@@ -171,6 +177,8 @@ class PayrollExplainToolsIT extends AbstractIntegrationTest {
         when(tenantClock.today()).thenReturn(LocalDate.of(2026, 11, 24));
         when(tenantClock.dateOf(any()))
                 .thenAnswer(inv -> LocalDate.ofInstant(inv.getArgument(0), TenantClock.DEFAULT_ZONE));
+        PermissionService permissions = mock(PermissionService.class);
+        when(permissions.holds(anyString())).thenReturn(true);
         PayrollAiToolProvider provider = new PayrollAiToolProvider(
                 payslipService,
                 taxDeclarationService,
@@ -181,9 +189,8 @@ class PayrollExplainToolsIT extends AbstractIntegrationTest {
                 employeePayRuns,
                 figures,
                 tdsService,
-                recalculations);
-        PermissionService permissions = mock(PermissionService.class);
-        when(permissions.holds(anyString())).thenReturn(true);
+                recalculations,
+                permissions);
         EntitlementService entitlements = mock(EntitlementService.class);
         when(entitlements.holds(any(PlatformModule.class))).thenReturn(true);
         registry = new AiToolRegistry(permissions, entitlements, List.of(provider));
@@ -217,7 +224,23 @@ class PayrollExplainToolsIT extends AbstractIntegrationTest {
         }
         assertThat(lopLine).as("the LOP line").isNotNull();
         assertThat(lopLine.path("reasons").toString()).contains("LOSS_OF_PAY");
+        for (JsonNode line : data.path("lines")) {
+            if (!line.path("code").asText().startsWith("LOP")) {
+                assertThat(line.path("reasons").toString())
+                        .as(line.path("code").asText())
+                        .doesNotContain("PAID_DAYS_CHANGED")
+                        .doesNotContain("JOINED_THIS_MONTH");
+            }
+        }
         String text = data.toString();
+        // B's Basic (40,000, then 45,000) never reaches A's lines; A's own gross happens to be 45,000, so lines only.
+        for (JsonNode line : data.path("lines")) {
+            assertThat(List.of(
+                            line.path("amount").asText(),
+                            line.path("previousAmount").asText()))
+                    .as(line.path("code").asText())
+                    .doesNotContain("40000.00", "45000.00");
+        }
         assertThat(ANY_UUID.matcher(text).find()).isFalse();
         if (slip.employee().uanNumber() != null) {
             assertThat(text).doesNotContain(slip.employee().uanNumber());
@@ -225,6 +248,25 @@ class PayrollExplainToolsIT extends AbstractIntegrationTest {
         if (slip.employee().pfNumber() != null) {
             assertThat(text).doesNotContain(slip.employee().pfNumber());
         }
+    }
+
+    @Test
+    @DisplayName(
+            "B, explain_tds: deducted so far is June + July (paid), not the approved August; record labelled today")
+    void deductedSoFar_paidOnly() throws Exception {
+        AiToolContext ctx = signIn(employeeB);
+
+        JsonNode tds = explain(ctx, "payroll.explain_tds", "2026-07");
+
+        BigDecimal july = new BigDecimal(tds.path("tdsThisMonth").asText());
+        BigDecimal june = new BigDecimal(tds.path("tdsLastMonth").asText());
+        assertThat(july.signum()).as("July deducted TDS").isPositive();
+        JsonNode year = tds.path("yearRecord");
+        assertThat(year.path("asItStands").asText()).isEqualTo("today");
+        assertThat(new BigDecimal(year.path("deductedSoFar").asText())).isEqualByComparingTo(june.add(july));
+        assertThat(new BigDecimal(year.path("remaining").asText()))
+                .isEqualByComparingTo(new BigDecimal(year.path("annualTax").asText()).subtract(june.add(july)));
+        assertThat(ANY_UUID.matcher(tds.toString()).find()).isFalse();
     }
 
     @Test
@@ -241,7 +283,8 @@ class PayrollExplainToolsIT extends AbstractIntegrationTest {
             }
         }
         assertThat(basic).isNotNull();
-        assertThat(basic.path("reasons").toString()).contains("SALARY_REVISED");
+        // Exactly the revision: a structure line is a full-month amount, so the days never add a reason.
+        assertThat(basic.path("reasons").toString()).isEqualTo("[\"SALARY_REVISED\"]");
         assertThat(basic.path("difference").asText()).isEqualTo("5000.00");
         assertThat(data.toString()).doesNotContain("\"LOP\"");
     }
@@ -263,6 +306,18 @@ class PayrollExplainToolsIT extends AbstractIntegrationTest {
     }
 
     // ---- helpers ----
+
+    private static void insertTaxRecord(UUID employeeId) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO payroll.employee_tds (tenant_id, employee_id,"
+                        + " financial_year, regime, source, annual_gross, annual_taxable_income, annual_tax,"
+                        + " effective_from_period, is_active, created_by, updated_by) VALUES (?, ?, '2026-2027', 'NEW',"
+                        + " 'OFFICER', 540000, 465000, 24000, '2026-04', true, 'it', 'it')")) {
+            ps.setObject(1, TENANT_A);
+            ps.setObject(2, employeeId);
+            ps.executeUpdate();
+        }
+    }
 
     private PayRunResponse paid(YearMonth month) {
         PayRunResponse run = payRunService.create(month);

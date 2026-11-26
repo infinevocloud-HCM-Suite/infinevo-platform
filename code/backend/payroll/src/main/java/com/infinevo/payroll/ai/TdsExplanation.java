@@ -5,6 +5,7 @@ import com.infinevo.payroll.payslip.PayslipResponse;
 import com.infinevo.payroll.taxcalc.recalc.TaxTrigger;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -22,6 +23,9 @@ final class TdsExplanation {
     static final String RULE =
             "Each month's TDS is the tax still to be deducted for the year, spread over the months left.";
     static final String NO_RECORD = "There is no tax record for this year yet.";
+    static final String RECORD_NOTE = "This is the year's tax record as it stands today, which may be later than the"
+            + " month asked about; the recalculations show what changed and when. Deducted so far counts paid payslips"
+            + " only.";
 
     /** The year's active tax record, as far as the answer needs it. */
     record YearRecord(
@@ -35,8 +39,11 @@ final class TdsExplanation {
             BigDecimal deductedSoFar,
             BigDecimal remaining) {}
 
-    /** One stored recalculation: the tenant-zone date it was made, its cause and the annual tax it gave. */
-    record Recalculation(LocalDate on, TaxTrigger cause, BigDecimal annualTax) {}
+    /**
+     * One stored recalculation: the tenant-zone date it was made, the instant (for the order: two on one day keep
+     * theirs), its cause and the annual tax it gave.
+     */
+    record Recalculation(LocalDate on, Instant at, TaxTrigger cause, BigDecimal annualTax) {}
 
     /** One listed recalculation with the annual tax before it (from the record before it) and after it. */
     record Listed(LocalDate on, TaxTrigger cause, BigDecimal annualTaxBefore, BigDecimal annualTaxAfter) {}
@@ -93,7 +100,7 @@ final class TdsExplanation {
         BigDecimal before = tdsLast == null ? BigDecimal.ZERO : tdsLast;
 
         List<Recalculation> sorted = new ArrayList<>(history == null ? List.of() : history);
-        sorted.sort(Comparator.comparing(Recalculation::on));
+        sorted.sort(Comparator.comparing(Recalculation::at));
         // After the previous payslip's month end, up to this payslip's month end; with no previous payslip, from the
         // start of the financial year.
         LocalDate from = previousPeriod != null

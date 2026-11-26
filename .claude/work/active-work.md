@@ -11,6 +11,8 @@
 - `payroll.explain_payslip` compares one of the caller's paid payslips with the newest earlier regular one (never an off-cycle): each line's amount, last month's, the difference and a reason code from a closed list (`LOSS_OF_PAY`, `MONTH_ONLY_ENTRY`, `NEW_COMPONENT`, `ENDED_COMPONENT`, `SALARY_REVISED`, `PAID_DAYS_CHANGED`, `JOINED_THIS_MONTH`, `FOLLOWS_EARNINGS`, `TAX_SEE_TDS`, `FIRST_PAYSLIP`, `NOT_KNOWN`). `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/PayslipComparison.java`.
 - `payroll.explain_tds` gives both months' TDS, the year's tax record (deducted so far, remaining) and each stored recalculation between the two payslips with its cause and the annual tax before and after. `TdsExplanation.java`.
 - Nothing is worked out again: every figure is a stored one. A salary revision is only "the two rows' versions differ"; no version id leaves. Amounts as two-decimal text. Both descriptions say the helper gives no tax advice.
+- Founder 2026-11-26: "deducted so far" counts paid payslips only (the TDS screen's figure also counts approved runs); the year's tax record is today's, labelled so.
+- One independent read (2 High, 4 Medium, 2 Low) all fixed: days and joining move only the loss-of-pay line, never a salary line; a loss-of-pay refund has its own reason; same-day recalculations keep their order; an off-cycle payslip is never compared; `explain_tds` also needs `payroll.payslip.read_own`.
 - Built by Claude. No migration.
 
 ## 2026-11-26 — W-114.15 AI helper explains my leave balance
