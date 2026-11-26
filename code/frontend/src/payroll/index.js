@@ -65,6 +65,12 @@ const ProofQueuePage = lazy(() =>
 const TaxRecalcFailuresPage = lazy(() =>
   import('./tax/TaxRecalcFailuresPage.jsx').then((m) => ({ default: m.TaxRecalcFailuresPage }))
 );
+const TdsDeductorSettings = lazy(() =>
+  import('./settings/TdsDeductorSettings.jsx').then((m) => ({ default: m.TdsDeductorSettings }))
+);
+const Form24QPage = lazy(() =>
+  import('./form24q/Form24QPage.jsx').then((m) => ({ default: m.Form24QPage }))
+);
 const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
 );
@@ -177,6 +183,14 @@ export const routes = [
     path: '/payroll/settings/form-16',
     element: React.createElement(Navigate, { to: '/payroll/tax/form-16', replace: true }),
     mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/tax/tds-return',
+    element: React.createElement(Form24QPage),
+  },
+  {
+    path: '/payroll/settings/tds-deductor',
+    element: React.createElement(SettingsLayout, null, React.createElement(TdsDeductorSettings)),
   },
 ];
 

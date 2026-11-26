@@ -106,12 +106,17 @@ public final class PayRunTestSchema {
             if (!PayrollTestSchema.tableExists(conn, "payroll", "bank_file_template")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V224__bank_file_templates.sql");
             }
+            // W-89: TDS challans, their allocation to pay run TDS, and filed quarters.
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "tds_challan")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V225__tds_challans.sql");
+            }
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DROP TABLE payroll.tax_deductor CASCADE");
                 }
             }
             PayrollTestSchema.executeResource(conn, "db/migration/payroll/V107__tax_deductor.sql");
+            PayrollTestSchema.executeResource(conn, "db/migration/payroll/V227__tax_deductor_return_contacts.sql");
             // W-20.1: notification templates and notifications for payslip link dispatch.
             if (!PayrollTestSchema.tableExists(conn, "core", "notification_template")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/core/V038__notification_template.sql");
@@ -135,6 +140,13 @@ public final class PayRunTestSchema {
     public static void clean() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
             // W-88.2: bank file exports reference payroll.payrun, so they go before the runs do.
+            if (PayrollTestSchema.tableExists(conn, "payroll", "tds_challan")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.tds_challan_allocation");
+                    st.execute("DELETE FROM payroll.tds_challan");
+                    st.execute("DELETE FROM payroll.tds_return");
+                }
+            }
             if (PayrollTestSchema.tableExists(conn, "payroll", "bank_file_export")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DELETE FROM payroll.bank_file_export");

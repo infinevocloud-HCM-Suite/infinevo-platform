@@ -287,7 +287,8 @@ class NavigationServiceTest {
                 .containsExactly("core.org.departments", "core.org.designations", "core.org.locations", "core.roles");
         assertThat(childKeys("core.wfh"))
                 .containsExactly("core.wfh.policies", "core.wfh.allocations", "core.wfh.requests", "core.wfh.import");
-        assertThat(childKeys("core.settings")).containsExactly("core.setup", "core.settings.company", "core.audit");
+        assertThat(childKeys("core.settings"))
+                .containsExactly("core.setup", "core.settings.company", "core.settings.onboarding", "core.audit");
         for (String group : List.of("core.people", "core.org", "core.settings")) {
             ItemDefinition def = group(group);
             assertThat(def.requiredAction())

@@ -113,6 +113,17 @@ public class TaxDeductorServiceImpl implements TaxDeductorService {
             }
         }
 
+        // W-89: what the quarterly TDS file needs; each optional here, checked when the file is made.
+        String deductorType = optional(request.deductorType(), "Deductor type", "^[ASDEGHLNKMPTJBQF]$", true);
+        String email = optional(request.email(), "Deductor email", EMAIL, false);
+        String phone = optional(request.phone(), "Deductor phone", "^[1-9][0-9]{5,9}$", false);
+        String gstin = optional(request.gstin(), "GSTIN", "^[0-9A-Z]{15}$", true);
+        String responsiblePan =
+                optional(request.responsiblePan(), "Responsible person's PAN", "^[A-Z]{5}[0-9]{4}[A-Z]$", true);
+        String responsibleEmail = optional(request.responsibleEmail(), "Responsible person's email", EMAIL, false);
+        String responsiblePhone =
+                optional(request.responsiblePhone(), "Responsible person's phone", "^[1-9][0-9]{5,9}$", false);
+
         String actor = currentActor();
         Instant now = Instant.now();
 
@@ -130,6 +141,13 @@ public class TaxDeductorServiceImpl implements TaxDeductorService {
         entity.setSignatoryName(signatoryName);
         entity.setSignatoryParentName(signatoryParentName);
         entity.setSignatoryDesignation(signatoryDesignation);
+        entity.setDeductorType(deductorType);
+        entity.setEmail(email);
+        entity.setPhone(phone);
+        entity.setGstin(gstin);
+        entity.setResponsiblePan(responsiblePan);
+        entity.setResponsibleEmail(responsibleEmail);
+        entity.setResponsiblePhone(responsiblePhone);
         entity.setUpdatedAt(now);
         entity.setUpdatedBy(actor);
 
@@ -157,5 +175,22 @@ public class TaxDeductorServiceImpl implements TaxDeductorService {
             return auth.getName();
         }
         return "system";
+    }
+
+    private static final String EMAIL = "^[^@\\s^]+@[^@\\s^]+\\.[^@\\s^]+$";
+
+    /** Trimmed (upper-cased when asked), null when blank; refused when it does not match. */
+    private static String optional(String value, String label, String pattern, boolean upper) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String v = value.trim();
+        if (upper) {
+            v = v.toUpperCase(java.util.Locale.ROOT);
+        }
+        if (v.length() > 75 || !v.matches(pattern)) {
+            throw new TaxDeductorValidationException("Invalid " + label + ": " + value);
+        }
+        return v;
     }
 }

@@ -9,7 +9,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,6 +25,7 @@ import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -537,11 +537,46 @@ class EmployeeServiceImplTest {
         // A later update of a leaver that keeps TERMINATED is not a second transition.
         service.update(id, withStatus(EmploymentStatus.TERMINATED, left));
 
-        ArgumentCaptor<EmployeeTerminatedEvent> event = ArgumentCaptor.forClass(EmployeeTerminatedEvent.class);
-        verify(publisher, times(1)).publishEvent(event.capture());
-        assertThat(event.getValue().tenantId()).isEqualTo(TENANT_A);
-        assertThat(event.getValue().employeeId()).isEqualTo(id);
-        assertThat(event.getValue().terminationDate()).isEqualTo(left);
+        // The create also published W-102's EmployeeCreatedEvent; only the termination events count here.
+        ArgumentCaptor<Object> events = ArgumentCaptor.forClass(Object.class);
+        verify(publisher, org.mockito.Mockito.atLeastOnce()).publishEvent(events.capture());
+        List<EmployeeTerminatedEvent> terminated = events.getAllValues().stream()
+                .filter(EmployeeTerminatedEvent.class::isInstance)
+                .map(EmployeeTerminatedEvent.class::cast)
+                .toList();
+        assertThat(terminated).hasSize(1);
+        assertThat(terminated.get(0).tenantId()).isEqualTo(TENANT_A);
+        assertThat(terminated.get(0).employeeId()).isEqualTo(id);
+        assertThat(terminated.get(0).terminationDate()).isEqualTo(left);
+    }
+
+    @Test
+    @DisplayName("W-102: create publishes EmployeeCreatedEvent once, with the tenant and the saved employee's id")
+    void createPublishesOneCreatedEvent() {
+        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        service = new EmployeeServiceImpl(
+                repository,
+                departmentRepository,
+                designationRepository,
+                workLocationRepository,
+                userAccountRepository,
+                userProfileSyncService,
+                employmentService,
+                limitGuard,
+                publisher);
+        UUID id = service.create(request("E-1")).id();
+        service.update(id, withStatus(EmploymentStatus.SUSPENDED, null));
+
+        ArgumentCaptor<Object> events = ArgumentCaptor.forClass(Object.class);
+        verify(publisher, org.mockito.Mockito.atLeastOnce()).publishEvent(events.capture());
+        List<EmployeeCreatedEvent> created = events.getAllValues().stream()
+                .filter(EmployeeCreatedEvent.class::isInstance)
+                .map(EmployeeCreatedEvent.class::cast)
+                .toList();
+        assertThat(created).singleElement().satisfies(e -> {
+            assertThat(e.tenantId()).isEqualTo(TENANT_A);
+            assertThat(e.employeeId()).isEqualTo(id);
+        });
     }
 
     @Test

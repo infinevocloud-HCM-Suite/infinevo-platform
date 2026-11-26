@@ -346,7 +346,7 @@ public class EmployeeImportServiceImpl implements EmployeeImportService {
     private ImportRowResult importOne(EmployeeImportRow row, Checked checked, UUID actorUserId) {
         try {
             return rowTransaction.execute(status -> {
-                EmployeeResponse employee = employeeService.create(checked.request());
+                EmployeeResponse employee = employeeService.create(checked.request(), false);
                 UUID invitationId = null;
                 if (checked.giveAccess()) {
                     EmployeeInvitationResponse invitation = invitationService.createEmployeeInvitation(

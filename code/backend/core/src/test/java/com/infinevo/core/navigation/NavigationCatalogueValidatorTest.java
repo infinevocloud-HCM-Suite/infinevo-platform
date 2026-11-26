@@ -111,6 +111,7 @@ class NavigationCatalogueValidatorTest {
                 "/api/v1/wfh-allocations",
                 "/api/v1/wfh-requests",
                 "/api/v1/wfh-imports",
+                "/api/v1/onboarding/templates",
                 "/api/v1/me/panels");
 
         assertThat(NavigationCatalogueValidator.missingEndpoints(

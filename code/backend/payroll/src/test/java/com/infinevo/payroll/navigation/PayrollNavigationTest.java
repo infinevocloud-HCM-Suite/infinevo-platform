@@ -75,6 +75,7 @@ class PayrollNavigationTest {
                         PayrollNavigation.DEDUCTIONS,
                         PayrollNavigation.PROOFS,
                         PayrollNavigation.TAX_RECALC_FAILURES,
+                        PayrollNavigation.TDS_RETURN,
                         PayrollNavigation.SETTINGS,
                         PayrollNavigation.COMPONENTS);
         assertThat(group.path()).isEqualTo(PayrollNavigation.DASHBOARD.path());
@@ -159,6 +160,24 @@ class PayrollNavigationTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(TaxRecalcFailureController.class
+                        .getAnnotation(RequestMapping.class)
+                        .value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(list.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
+    }
+
+    @Test
+    @DisplayName("W-89: payroll.tds_return targets TdsChallanController's list GET, behind payroll.tax.view")
+    void tdsReturnItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.TDS_RETURN;
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.tds_return");
+        assertThat(item.path()).isEqualTo("/payroll/tax/tds-return");
+        Method list = Arrays.stream(com.infinevo.payroll.challan.TdsChallanController.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && m.getAnnotation(GetMapping.class).value().length == 0)
+                .findFirst()
+                .orElseThrow();
+        assertThat(com.infinevo.payroll.challan.TdsChallanController.class
                         .getAnnotation(RequestMapping.class)
                         .value())
                 .containsExactly(item.targetEndpoint());

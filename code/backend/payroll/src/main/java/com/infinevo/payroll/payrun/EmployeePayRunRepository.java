@@ -1,5 +1,6 @@
 package com.infinevo.payroll.payrun;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,9 @@ public interface EmployeePayRunRepository extends JpaRepository<EmployeePayRun, 
 
     List<EmployeePayRun> findAllByTenantIdAndPayrunIdAndInclusionStatus(
             UUID tenantId, UUID payrunId, InclusionStatus inclusionStatus);
+
+    List<EmployeePayRun> findByTenantIdAndPayrunIdInAndInclusionStatus(
+            UUID tenantId, Collection<UUID> payrunIds, InclusionStatus inclusionStatus);
 
     Optional<EmployeePayRun> findByTenantIdAndPayrunIdAndEmployeeId(UUID tenantId, UUID payrunId, UUID employeeId);
 

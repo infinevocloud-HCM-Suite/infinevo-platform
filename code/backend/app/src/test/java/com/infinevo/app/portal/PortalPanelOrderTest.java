@@ -1,9 +1,14 @@
 package com.infinevo.app.portal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.infinevo.core.onboarding.EmployeeOnboardingTaskRepository;
 import com.infinevo.core.portal.DocumentPanelProvider;
 import com.infinevo.core.portal.LeavePanelProvider;
+import com.infinevo.core.portal.OnboardingPanelProvider;
 import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.ProfilePanelProvider;
@@ -12,6 +17,7 @@ import com.infinevo.payroll.portal.ClaimsPanelProvider;
 import com.infinevo.payroll.portal.FbpPanelProvider;
 import com.infinevo.payroll.portal.PayslipPanelProvider;
 import com.infinevo.payroll.portal.TaxDeclarationPanelProvider;
+import com.infinevo.shared.tenant.TenantContext;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -32,11 +38,24 @@ class PortalPanelOrderTest {
             new TimesheetPanelProvider(),
             new TaxDeclarationPanelProvider(),
             new ClaimsPanelProvider(),
-            new FbpPanelProvider());
+            new FbpPanelProvider(),
+            new OnboardingPanelProvider(withTasks()));
+
+    /** W-102: the onboarding panel shows only for an employee with tasks, so this one has some. */
+    private static EmployeeOnboardingTaskRepository withTasks() {
+        EmployeeOnboardingTaskRepository repo = mock(EmployeeOnboardingTaskRepository.class);
+        when(repo.countByTenantIdAndEmployeeId(any(), any())).thenReturn(1L);
+        return repo;
+    }
 
     private static List<PanelDescriptor> descriptors() {
         UUID employeeId = UUID.randomUUID();
-        return PROVIDERS.stream().map(p -> p.panel(employeeId)).toList();
+        TenantContext.set(UUID.randomUUID());
+        try {
+            return PROVIDERS.stream().map(p -> p.panel(employeeId)).toList();
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @Test
@@ -48,7 +67,7 @@ class PortalPanelOrderTest {
     }
 
     @Test
-    @DisplayName("tabs run profile, leave, documents, payslips, timesheet, tax declaration, claims, fbp")
+    @DisplayName("tabs run profile, leave, documents, payslips, timesheet, tax declaration, claims, fbp, onboarding")
     void tabOrderIsTheAgreedOne() {
         List<String> codes = descriptors().stream()
                 .sorted(Comparator.comparingInt(PanelDescriptor::displayOrder))
@@ -56,6 +75,14 @@ class PortalPanelOrderTest {
                 .toList();
         assertThat(codes)
                 .containsExactly(
-                        "profile", "leave", "documents", "payslips", "timesheet", "taxDeclaration", "claims", "fbp");
+                        "profile",
+                        "leave",
+                        "documents",
+                        "payslips",
+                        "timesheet",
+                        "taxDeclaration",
+                        "claims",
+                        "fbp",
+                        "onboarding");
     }
 }

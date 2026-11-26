@@ -268,6 +268,8 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "tax_deductor")) {
                 executeResource(conn, "db/migration/payroll/V107__tax_deductor.sql");
             }
+            // W-89: the deductor's contact details for the quarterly TDS file (idempotent).
+            executeResource(conn, "db/migration/payroll/V227__tax_deductor_return_contacts.sql");
             if (!tableExists(conn, "payroll", "prior_payroll_import_log")) {
                 executeResource(conn, "db/migration/payroll/V140__prior_payroll.sql");
             }

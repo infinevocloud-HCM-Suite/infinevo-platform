@@ -83,7 +83,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     /** W-84.2: the plan's employee limit, checked on create and on a reactivation from {@code TERMINATED}. */
     private final EmployeeLimitGuard limitGuard;
 
-    /** W-73.6: carries {@link EmployeeTerminatedEvent}; {@code null} only in a unit test built by hand. */
+    /** W-73.6, W-102: carries {@link EmployeeTerminatedEvent} and {@link EmployeeCreatedEvent}; {@code null} only in a unit test built by hand. */
     private final ApplicationEventPublisher publisher;
 
     public EmployeeServiceImpl(
@@ -137,6 +137,12 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeResponse create(EmployeeRequest request) {
+        return create(request, true);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeResponse create(EmployeeRequest request, boolean startOnboarding) {
         UUID tenantId = TenantContext.require();
         Fields fields = validate(request, null);
 
@@ -162,6 +168,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         assign(employee, request, tenantId);
         Employee saved = save(employee, fields.employeeNumber());
         writeEmploymentTerms(saved.getId(), request);
+        if (publisher != null && startOnboarding) {
+            // W-102: the new joiner's onboarding checklist, in this transaction.
+            publisher.publishEvent(new EmployeeCreatedEvent(tenantId, saved.getId(), currentActor()));
+        }
         return EmployeeResponse.from(saved);
     }
 

@@ -106,6 +106,9 @@ const RolesScreen = lazy(() =>
 const AuditLogScreen = lazy(() =>
   import('./audit/AuditLogScreen.jsx').then((m) => ({ default: m.AuditLogScreen }))
 );
+const OnboardingTemplateSettings = lazy(() =>
+  import('./onboarding/OnboardingTemplateSettings.jsx').then((m) => ({ default: m.OnboardingTemplateSettings }))
+);
 
 const CompanyProfile = lazy(() =>
   import('./settings/CompanyProfile.jsx').then((m) => ({ default: m.CompanyProfile }))
@@ -172,6 +175,8 @@ export const routes = [
   { path: '/wfh/import', element: React.createElement(WfhImport) },
   // W-73.1: mounted when the feed carries `core.settings.company`.
   { path: '/settings/company', element: React.createElement(CompanyProfile) },
+  // W-102: mounted when the feed carries `core.settings.onboarding`.
+  { path: '/settings/onboarding', element: React.createElement(OnboardingTemplateSettings) },
   // Platform staff only: mounted when the feed carries `core.admin.home` (W-73.2) or `core.tenants`
   // (W-65.1 §4, W-65.3 §5).
   { path: '/admin', element: React.createElement(PlatformHome) },

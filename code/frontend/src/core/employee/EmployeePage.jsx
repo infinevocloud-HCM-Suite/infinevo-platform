@@ -49,6 +49,8 @@ export function EmployeePage() {
   const canReadOrg = useCan('core.org.read');
   const canInvite = useCan('core.employee.create');
   const canReadDocuments = useCan('core.document.read');
+  // W-102: HR works the checklist here; the employee works their own on /me.
+  const canManageOnboarding = useCan('core.onboarding.manage');
   // D-86: the employee's leave and LOP history, mounted beneath /employees.
   const canReadLeave = useCan('core.leave.read');
   // D-66: tabs the modules contribute (Salary, FBP, Tax declaration...), already gated by the shell
@@ -226,6 +228,7 @@ export function EmployeePage() {
     if (tab.key === 'bank' && !canReadBank) return false;
     if (tab.key === 'reporting-line' && !canReadOrg) return false;
     if (tab.key === 'documents' && !canReadDocuments) return false;
+    if (tab.key === 'onboarding' && !canManageOnboarding) return false;
     return true;
   });
 
