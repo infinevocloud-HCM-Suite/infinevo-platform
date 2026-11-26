@@ -6,6 +6,13 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-114.15 AI helper explains my leave balance
+
+- Tool `core.explain_leave_balance` (needs `core.leave.read_own`): the caller's own balance per leave type, the same read as `GET /api/v1/me/leave-balances`, with the year's start and end and a `howItAddsUp` sentence built from the service's figures. `code/backend/core/src/main/java/com/infinevo/core/ai/LeaveBalanceAiToolProvider.java`, `LeaveBalanceExplanation.java`.
+- The response's `expired` is about the leave type, so the tool calls it `leaveTypeEnded` and adds `carryForwardExpired` (the day after the expiry date). Spec updated to match.
+- No opening balance and no days-lapsed figure: the data holds neither, and the tool description says so.
+- Built by Claude. No migration.
+
 ## 2026-11-26 — W-114.13 AI helper screen awareness and links on `main`
 
 - The chat drawer sends the route path with each question; the server matches it against the caller's own menu and adds `The user is on the screen "<name>" (<path>).` and its help article to the prompt. The client's text itself never reaches the prompt, a stored message or a log. `code/backend/core/src/main/java/com/infinevo/core/ai/AiScreenResolver.java`.
