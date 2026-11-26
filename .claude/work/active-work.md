@@ -6,6 +6,13 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-114.22 AI helper starters
+
+- `GET /api/v1/ai/starters` (`core.ai.use`; `403 AI_DISABLED` when off; no model call, not counted) returns up to six `{ id, label, prompt, kind }`. `code/backend/core/src/main/java/com/infinevo/core/ai/starter/`.
+- 28 starters in `AiStarterRegistry`, five roles. One is kept only when its tool is in `AiToolRegistry.toolsFor(caller)` and its menu key, when set, is in the caller's menu - so starters for `.17`-`.21` appear by themselves when those tools ship. Own-role first, roles in turn, at most six.
+- The drawer's empty chat shows them as chips, questions first, tasks under "Do it for me"; a click sends the prompt like a typed question. `code/frontend/src/shell/assistant/AssistantEmptyState.jsx`.
+- Built by Claude. No migration.
+
 ## 2026-11-26 — W-114.14 AI helper explains my payslip and my TDS
 
 - `payroll.explain_payslip` compares one of the caller's paid payslips with the newest earlier regular one (never an off-cycle): each line's amount, last month's, the difference and a reason code from a closed list (`LOSS_OF_PAY`, `MONTH_ONLY_ENTRY`, `NEW_COMPONENT`, `ENDED_COMPONENT`, `SALARY_REVISED`, `PAID_DAYS_CHANGED`, `JOINED_THIS_MONTH`, `FOLLOWS_EARNINGS`, `TAX_SEE_TDS`, `FIRST_PAYSLIP`, `NOT_KNOWN`). `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/PayslipComparison.java`.

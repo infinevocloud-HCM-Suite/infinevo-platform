@@ -285,7 +285,7 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
           ) : chatError ? (
             <Alert type="error" showIcon message={TEXT.chatNotLoaded} className="assistant-alert" />
           ) : messages.length === 0 && !pending ? (
-            <AssistantEmptyState />
+            <AssistantEmptyState onPick={pending || blocked ? undefined : onSend} />
           ) : (
             <MessageList
               messages={messages}

@@ -67,6 +67,7 @@ describe('AssistantDrawer', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(assistantService, 'linkTargets').mockResolvedValue([]);
+    vi.spyOn(assistantService, 'listStarters').mockResolvedValue([]);
   });
 
   it('shows the empty state and the usage line', () => {
@@ -307,5 +308,21 @@ describe('AssistantDrawer', () => {
     ask('Where?');
     await screen.findByText(/Go to \[New\]\(app:\/employees\/new\)/);
     expect(screen.queryAllByTestId('assistant-answer-link')).toEqual([]);
+  });
+
+  it('W-114.22: a starter chip sends its prompt, and the chips are gone once the chat has a message', async () => {
+    assistantService.listStarters.mockResolvedValue([
+      { id: 'leave-left', label: 'Leave left?', prompt: 'How many leave days do I have left?', kind: 'QUESTION' },
+    ]);
+    vi.spyOn(assistantService, 'createSession').mockResolvedValue({ id: 's1' });
+    const send = vi.spyOn(assistantService, 'sendMessage').mockResolvedValue(answer('12 days.'));
+    renderDrawer();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Leave left?' }));
+
+    await screen.findByText('12 days.');
+    expect(send).toHaveBeenCalledWith('s1', 'How many leave days do I have left?', expect.anything());
+    expect(screen.queryByRole('button', { name: 'Leave left?' })).toBeNull();
+    expect(screen.queryByTestId('assistant-empty')).toBeNull();
   });
 });

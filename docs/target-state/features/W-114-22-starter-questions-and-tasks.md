@@ -168,9 +168,9 @@ All under `code/backend/core/src/main/java/com/infinevo/core/ai/starter/`.
 |---|---|---|
 | Record | `AiStarter.java` | **New.** `id`, `label`, `prompt`, `kind`, `toolName`, `screenKey` (nullable), `roles` |
 | Registry | `AiStarterRegistry.java` | **New.** The list above as constants; the startup checks of rule 7 |
-| Service | `AiStarterService.java` | **New.** Rules 2 to 4. Uses `AiToolRegistry.toolsFor(caller)`, `NavigationService.navigation()`, `RoleSource.roleCodesOf` |
+| Service | `AiStarterService.java` | **New.** Rules 2 to 4. Uses `AiToolRegistry.toolsFor(caller)`, and `HelpAccess.currentViewer()` (`W-114.11`) for the menu keys and role codes - it wraps `NavigationService.navigation()` and `RoleSource.roleCodesOf`. With several roles the narrower one leads: tenant-admin, payroll-officer, hr, manager, employee |
 | Controller | `AiStarterController.java` | **New.** `GET /api/v1/ai/starters`, `@RequiresAction("core.ai.use")`. Declares the `AiDisabledException` handler and builds the body with `AiErrorResponses` (`code/backend/core/src/main/java/com/infinevo/core/ai/AiErrorResponses.java`), because handlers here are per controller |
-| DTO | `AiStarterResponse.java` | **New.** `id`, `label`, `prompt`, `kind` |
+| DTO | `AiStarterController.AiStarterResponse` | **New**, nested in the controller. `id`, `label`, `prompt`, `kind` |
 
 ## Database changes
 
@@ -219,9 +219,9 @@ cd code/frontend && npx vitest run src/shell/assistant && npm run lint && npm ru
 | `GET /api/v1/ai/starters` as an employee, with only `W-114.4` tools deployed | "How many leave days do I have left?" and "Which holidays are coming up?"; no payslip, WFH or approval starter | not run |
 | Same after `W-114.14` is deployed, customer holds Payroll | The two payslip starters appear with no change to this part | not run |
 | Same for a customer without Payroll | No payslip starter | not run |
-| As a user holding `hr` and `manager` | Six chips, alternating between the two roles' lists | not run |
-| As a tenant admin whose menu has no `payroll.settings` | "How do I set up statutory details?" absent | not run |
-| Helper switched off for the customer | `403 AI_DISABLED` | not run |
+| As a user holding `hr` and `manager` | Six chips, alternating between the two roles' lists | `AiStarterServiceTest.ordering` |
+| As a tenant admin whose menu has no `payroll.settings` | "How do I set up statutory details?" absent | `AiStarterServiceTest.screenKeyMustBeInTheMenu` |
+| Helper switched off for the customer | `403 AI_DISABLED` | `AiStarterControllerTest.off` |
 | Click a chip in the drawer | The prompt is sent, the answer shows, usage goes up by one, the chips are gone | not run |
 | A phone-width drawer with six chips | The input stays on screen | not run |
 
