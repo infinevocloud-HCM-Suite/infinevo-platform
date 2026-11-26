@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-114.13 AI helper screen awareness and links on `main`
+
+- The chat drawer sends the route path with each question; the server matches it against the caller's own menu and adds `The user is on the screen "<name>" (<path>).` and its help article to the prompt. The client's text itself never reaches the prompt, a stored message or a log. `code/backend/core/src/main/java/com/infinevo/core/ai/AiScreenResolver.java`.
+- New tool `core.find_screen` (up to five of the caller's own screens). New `GET /api/v1/ai/link-targets`: the fixed sub-routes (`help/sub-routes.json`, now checked at startup: no id segment, under its parent, at most 40) whose parent is in the caller's menu.
+- Answers show `[label](app:/path)` as a link only for the caller's own menu paths and those sub-routes; anything else stays text. `code/frontend/src/shell/assistant/answerLinks.js`.
+- No migration. Built by Claude.
+- **Next:** `W-114.14`.
+
 ## 2026-11-26 — W-114.12 AI helper role guide on `main`
 
 - New tool `core.my_role_guide`: the caller's roles, every screen of their menu (plain name and path), and the duty guide of each role. `code/backend/core/src/main/java/com/infinevo/core/ai/help/RoleGuideAiToolProvider.java`.

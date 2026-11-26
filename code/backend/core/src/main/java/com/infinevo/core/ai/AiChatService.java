@@ -22,5 +22,13 @@ public interface AiChatService {
      * @throws AiModelException when the model fails or the request runs out of time; the question stays stored and
      *     counted
      */
-    AiChatResponse send(UUID sessionId, String content);
+    default AiChatResponse send(UUID sessionId, String content) {
+        return send(sessionId, content, null);
+    }
+
+    /**
+     * The same, with the route path of the screen the user is on (W-114.13), or {@code null}. The path is matched
+     * against the caller's own feed only and is never stored; a path the caller may not open counts as none.
+     */
+    AiChatResponse send(UUID sessionId, String content, String screenPath);
 }

@@ -22,5 +22,9 @@
   {
     "path": "/me/taxDeclaration",
     "parent": "/me"
+  },
+  {
+    "path": "/payroll/settings/tax-declaration",
+    "parent": "/payroll/settings"
   }
 ]

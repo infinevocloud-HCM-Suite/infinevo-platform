@@ -185,7 +185,7 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     @Override
-    public AiChatResponse send(UUID sessionId, String content) {
+    public AiChatResponse send(UUID sessionId, String content, String screenPath) {
         String question = validate(content);
         if (sessionId == null) {
             throw new IllegalArgumentException("session id must be provided");
@@ -225,7 +225,7 @@ public class AiChatServiceImpl implements AiChatService {
         AiToolContext caller = new AiToolContext(tenantId, userId, setup.employeeId());
         List<AiToolDescriptor> tools = registry.toolsFor(caller);
         Set<String> offered = tools.stream().map(AiToolDescriptor::name).collect(Collectors.toSet());
-        String prompt = systemPrompt.build(setup.today(), setup.firstName());
+        String prompt = systemPrompt.build(setup.today(), setup.firstName(), screenPath);
 
         List<AiModelRequest.Message> conversation = new ArrayList<>();
         for (AiMessage m : setup.history()) {

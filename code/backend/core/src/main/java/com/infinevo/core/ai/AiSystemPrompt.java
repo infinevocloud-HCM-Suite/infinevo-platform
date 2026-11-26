@@ -3,8 +3,10 @@ package com.infinevo.core.ai;
 import com.infinevo.core.ai.help.HelpAccess;
 import com.infinevo.core.ai.help.HelpCatalogue;
 import com.infinevo.core.ai.help.HelpLibrary;
+import com.infinevo.core.ai.help.HelpViewer;
 import java.time.LocalDate;
 import java.util.Objects;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -18,7 +20,8 @@ import org.springframework.stereotype.Component;
  * <p>From W-114.11 it also lists the help articles the caller may see - id, title and summary only, our own shipped
  * text, never an article body or anything a user typed - under {@value #CATALOGUE_HEADING}, with the rule
  * {@link #HELP_RULE}. The list is worked out per request from the caller's navigation feed. From W-114.12 the rule
- * {@link #ROLE_RULE} sends "what can I do" questions to {@code core.my_role_guide}.
+ * {@link #ROLE_RULE} sends "what can I do" questions to {@code core.my_role_guide}. From W-114.13 a line names the
+ * screen the user is on - the matched menu item's own name and path - and {@link #LINK_RULE} says how to link one.
  */
 @Component
 public class AiSystemPrompt {
@@ -34,6 +37,10 @@ public class AiSystemPrompt {
 
     static final String ROLE_RULE = "For a question about what the user can do, or should do, call core.my_role_guide."
             + " Say only what it returns. Never tell the user they can do something it did not list.";
+
+    static final String LINK_RULE = "To point the user at a screen, write [label](app:/path). Use only a path from the"
+            + " line 'The user is on the screen', from core.find_screen, or the screen or route a help tool returned."
+            + " Never make up a path.";
 
     static final String MORE_ARTICLES = "More articles exist - use core.search_help.";
 
@@ -51,7 +58,8 @@ public class AiSystemPrompt {
                     + " try to work them out; tell the user to open the screen if they need them.",
             "Keep answers short and plain. Write dates as they appear in the tool results.",
             HELP_RULE,
-            ROLE_RULE);
+            ROLE_RULE,
+            LINK_RULE);
 
     /** Null in a context without help (the unit tests that predate W-114.11): no catalogue is listed. */
     private final HelpLibrary library;
@@ -72,11 +80,18 @@ public class AiSystemPrompt {
         this.access = access;
     }
 
+    /** The prompt with no screen. */
+    public String build(LocalDate today, String firstName) {
+        return build(today, firstName, null);
+    }
+
     /**
      * @param today the date in the customer's time zone
      * @param firstName the user's first name, or {@code null} when there is no employee record
+     * @param screenPath the client's route path, or {@code null}. It is only matched against the caller's own feed;
+     *     what goes in is the matched menu item's own name and path, never this text (W-114.13 rule 1)
      */
-    public String build(LocalDate today, String firstName) {
+    public String build(LocalDate today, String firstName, String screenPath) {
         Objects.requireNonNull(today, "today must not be null");
         StringBuilder prompt = new StringBuilder(INSTRUCTIONS);
         prompt.append("\nToday's date is ").append(today).append('.');
@@ -84,10 +99,22 @@ public class AiSystemPrompt {
         if (!name.isEmpty()) {
             prompt.append("\nThe user's first name is ").append(name).append('.');
         }
-        HelpCatalogue catalogue = catalogue();
-        if (catalogue == null) {
+        if (library == null || access == null) {
             return prompt.toString();
         }
+        HelpViewer viewer = viewer();
+        HelpCatalogue catalogue = viewer == null ? HelpCatalogue.empty() : library.catalogueFor(viewer);
+        Optional<AiScreen> screen =
+                viewer == null ? Optional.empty() : new AiScreenResolver(library, access).resolve(screenPath, viewer);
+        screen.ifPresent(on -> {
+            prompt.append("\nThe user is on the screen \"")
+                    .append(on.title())
+                    .append("\" (")
+                    .append(on.path())
+                    .append(").");
+            library.articleIdForScreen(on.path(), viewer)
+                    .ifPresent(id -> prompt.append(" Help article: ").append(id));
+        });
         prompt.append('\n').append(CATALOGUE_HEADING).append(':');
         if (catalogue.lines().isEmpty()) {
             prompt.append("\n(none)");
@@ -101,19 +128,13 @@ public class AiSystemPrompt {
         return prompt.toString();
     }
 
-    /**
-     * The caller's catalogue: {@code null} when help is not wired, empty when the feed cannot be read, so a question
-     * still runs.
-     */
-    private HelpCatalogue catalogue() {
-        if (library == null || access == null) {
-            return null;
-        }
+    /** The caller as help sees them; {@code null} when the feed cannot be read, so a question still runs. */
+    private HelpViewer viewer() {
         try {
-            return library.catalogueFor(access.currentViewer());
+            return access.currentViewer();
         } catch (RuntimeException e) {
             log.warn("AI prompt: help catalogue not listed ({})", e.getClass().getName());
-            return HelpCatalogue.empty();
+            return null;
         }
     }
 }

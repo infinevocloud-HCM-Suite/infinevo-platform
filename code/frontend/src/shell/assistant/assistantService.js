@@ -79,17 +79,18 @@ export const assistantService = {
   /**
    * `POST /api/v1/ai/sessions/{id}/messages` with `{ content }` → `{ message, proposedAction }` (W-114.4).
    *
-   * `context` - the screen the user is on - is the W-114.13 seam: it is accepted here and not sent yet.
+   * `context` - `{ path }`, the screen the user is on (W-114.13). The server matches the path against the
+   * caller's own menu and keeps nothing of it; a missing or odd path is the same as none.
    *
    * The shared client keeps no response headers on an error, so this one call lets a `429` through
    * as a response and rejects it itself in the client's error shape, adding `retryAfterSeconds` from
    * the `Retry-After` header that `AI_RATE_LIMITED` carries.
    */
   async sendMessage(sessionId, content, context) {
-    void context; // W-114.13 sends it.
+    const path = typeof context?.path === 'string' && context.path.startsWith('/') ? context.path : null;
     const res = await apiClient.post(
       `/v1/ai/sessions/${encodeURIComponent(sessionId)}/messages`,
-      { content },
+      path ? { content, context: { path } } : { content },
       { validateStatus: (status) => (status >= 200 && status < 300) || status === 429 },
     );
     if (res?.status === 429) {
@@ -104,6 +105,15 @@ export const assistantService = {
       };
     }
     return bodyOf(res);
+  },
+
+  /**
+   * `GET /api/v1/ai/link-targets` → the fixed sub-routes this caller may be linked to (W-114.13), as a list
+   * of paths. Menu paths are not in it: the drawer has those from the navigation feed.
+   */
+  async linkTargets() {
+    const body = bodyOf(await apiClient.get('/v1/ai/link-targets'));
+    return Array.isArray(body?.paths) ? body.paths.filter((p) => typeof p === 'string') : [];
   },
 
   /**

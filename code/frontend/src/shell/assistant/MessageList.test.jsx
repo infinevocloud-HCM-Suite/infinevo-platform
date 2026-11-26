@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { MessageList, THINKING_TEXT } from './MessageList.jsx';
 import { assistantService } from './assistantService.js';
 import { ActionCard, ACTION_TEXT } from './ActionCard.jsx';
@@ -120,5 +121,30 @@ describe('MessageList', () => {
     expect(within(expired).getByText(ACTION_TEXT.expired)).toBeDefined();
     expect(screen.queryByRole('button', { name: /Confirm/ })).toBeNull();
     expect(get.mock.calls.map((c) => c[0]).sort()).toEqual(['done-1', 'old-2']);
+  });
+
+  it('W-114.13: an allowed app: link renders as an anchor to that path; the markup case still creates no element', () => {
+    const attack = '<img src=x onerror="window.__aiPwned=3">';
+    render(
+      <MemoryRouter>
+        <MessageList
+          allowedPaths={new Set(['/leave/types'])}
+          messages={[
+            { id: 'a1', role: 'ASSISTANT', content: `Open [Leave types](app:/leave/types). ${attack}` },
+            { id: 'u1', role: 'USER', content: 'Is [Leave types](app:/leave/types) right?' },
+          ]}
+        />
+      </MemoryRouter>,
+    );
+
+    const links = screen.getAllByTestId('assistant-answer-link');
+    expect(links).toHaveLength(1);
+    expect(links[0].tagName).toBe('A');
+    expect(links[0].getAttribute('href')).toBe('/leave/types');
+    expect(links[0].textContent).toBe('Leave types');
+    const log = screen.getByRole('log');
+    expect(log.querySelector('img')).toBeNull();
+    expect(window.__aiPwned).toBeUndefined();
+    expect(screen.getByTestId('assistant-user-message').textContent).toContain('[Leave types](app:/leave/types)');
   });
 });

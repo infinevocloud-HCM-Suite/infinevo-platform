@@ -47,7 +47,7 @@ class AiMessageControllerTest {
     @DisplayName("200 { message, proposedAction: null }; any context is accepted and ignored")
     void answers() throws Exception {
         UUID messageId = UUID.randomUUID();
-        when(service.send(eq(sessionId), eq("How much leave?")))
+        when(service.send(eq(sessionId), eq("How much leave?"), any()))
                 .thenReturn(new AiChatResponse(
                         new AiChatResponse.Message(
                                 messageId, AiMessageRole.ASSISTANT, "12 days.", Instant.parse("2026-11-23T10:00:00Z")),
@@ -69,7 +69,7 @@ class AiMessageControllerTest {
     @Test
     @DisplayName("a model failure is 502 INTERNAL with the fixed message, not the cause")
     void modelFailure() throws Exception {
-        when(service.send(any(), any())).thenThrow(new AiModelException("The model answered HTTP 500"));
+        when(service.send(any(), any(), any())).thenThrow(new AiModelException("The model answered HTTP 500"));
 
         mvc.perform(post("/api/v1/ai/sessions/{id}/messages", sessionId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -82,10 +82,10 @@ class AiMessageControllerTest {
     @Test
     @DisplayName("403 AI_DISABLED, 429 AI_CAP_REACHED, 404, and 400 for bad content or a bad id")
     void errors() throws Exception {
-        when(service.send(any(), eq("off"))).thenThrow(new AiDisabledException());
-        when(service.send(any(), eq("cap"))).thenThrow(new AiCapReachedException(100));
-        when(service.send(any(), eq("gone"))).thenThrow(new AiSessionNotFoundException(sessionId));
-        when(service.send(any(), eq(""))).thenThrow(new IllegalArgumentException("content must not be empty"));
+        when(service.send(any(), eq("off"), any())).thenThrow(new AiDisabledException());
+        when(service.send(any(), eq("cap"), any())).thenThrow(new AiCapReachedException(100));
+        when(service.send(any(), eq("gone"), any())).thenThrow(new AiSessionNotFoundException(sessionId));
+        when(service.send(any(), eq(""), any())).thenThrow(new IllegalArgumentException("content must not be empty"));
 
         mvc.perform(body("off"))
                 .andExpect(status().isForbidden())
@@ -104,9 +104,9 @@ class AiMessageControllerTest {
     @Test
     @DisplayName("429 AI_RATE_LIMITED with Retry-After in whole seconds and the spec's message, for both limits")
     void rateLimited() throws Exception {
-        when(service.send(any(), eq("fast")))
+        when(service.send(any(), eq("fast"), any()))
                 .thenThrow(new AiRateLimitedException(AiRateLimitedException.Limit.MINUTE, 12));
-        when(service.send(any(), eq("many")))
+        when(service.send(any(), eq("many"), any()))
                 .thenThrow(new AiRateLimitedException(AiRateLimitedException.Limit.DAY, 3600));
 
         mvc.perform(body("fast"))

@@ -4,6 +4,22 @@ import { assistantService } from './assistantService.js';
 import { AssistantDrawer, TEXT, usageLine } from './AssistantDrawer.jsx';
 import { EMPTY_STATE_TEXT } from './AssistantEmptyState.jsx';
 import { THINKING_TEXT } from './MessageList.jsx';
+import PropTypes from 'prop-types';
+import { MemoryRouter } from 'react-router-dom';
+import { NavigationProvider } from '../navigation/useNavigation.js';
+
+const FEED = { items: [{ key: 'core.leave.types', labelKey: 'nav.leave.types', path: '/leave/types' }], actions: [] };
+
+/** The drawer reads the route and the menu (W-114.13). */
+function Shell({ children }) {
+  return (
+    <MemoryRouter initialEntries={['/leave/types']}>
+      <NavigationProvider value={FEED}>{children}</NavigationProvider>
+    </MemoryRouter>
+  );
+}
+
+Shell.propTypes = { children: PropTypes.node };
 
 const status = { enabled: true, monthlyRequestCap: 500, usedThisMonth: 1, month: '2026-11' };
 
@@ -16,6 +32,7 @@ function renderDrawer(props = {}) {
   const onAnswered = vi.fn();
   const utils = render(
     <AssistantDrawer open onClose={onClose} status={status} onAnswered={onAnswered} {...props} />,
+    { wrapper: Shell },
   );
   return { ...utils, onClose, onAnswered };
 }
@@ -40,6 +57,7 @@ function deferred() {
 describe('AssistantDrawer', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(assistantService, 'linkTargets').mockResolvedValue([]);
   });
 
   it('shows the empty state and the usage line', () => {
@@ -58,7 +76,7 @@ describe('AssistantDrawer', () => {
 
     expect(await screen.findByText('Diwali is on 1 Nov.')).toBeDefined();
     expect(create).toHaveBeenCalledWith('Which holidays are coming up?');
-    expect(send).toHaveBeenCalledWith('s1', 'Which holidays are coming up?');
+    expect(send).toHaveBeenCalledWith('s1', 'Which holidays are coming up?', { path: '/leave/types' });
     expect(create.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
     expect(screen.getByText('Which holidays are coming up?')).toBeDefined();
     expect(onAnswered).toHaveBeenCalledTimes(1);
@@ -68,7 +86,7 @@ describe('AssistantDrawer', () => {
     ask('How much leave do I have?');
     expect(await screen.findByText('You have 4 days left.')).toBeDefined();
     expect(create).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenLastCalledWith('s1', 'How much leave do I have?');
+    expect(send).toHaveBeenLastCalledWith('s1', 'How much leave do I have?', { path: '/leave/types' });
   });
 
   it('Shift+Enter does not send', () => {
@@ -201,7 +219,7 @@ describe('AssistantDrawer', () => {
 
     expect(await screen.findByText('Second time lucky')).toBeDefined();
     expect(send).toHaveBeenCalledTimes(2);
-    expect(send.mock.calls[1]).toEqual(['s1', 'Which holidays are coming up?']);
+    expect(send.mock.calls[1]).toEqual(['s1', 'Which holidays are coming up?', { path: '/leave/types' }]);
     expect(screen.getAllByText('Which holidays are coming up?')).toHaveLength(1);
     expect(screen.queryByText(TEXT.failed)).toBeNull();
   });
@@ -217,7 +235,7 @@ describe('AssistantDrawer', () => {
     expect(screen.getByText(EMPTY_STATE_TEXT)).toBeDefined();
 
     ask('Second');
-    await waitFor(() => expect(send).toHaveBeenLastCalledWith('s2', 'Second'));
+    await waitFor(() => expect(send).toHaveBeenLastCalledWith('s2', 'Second', { path: '/leave/types' }));
   });
 
   it('deleting the open chat from Past chats clears it', async () => {
@@ -250,4 +268,21 @@ describe('AssistantDrawer', () => {
     expect(usageLine({ usedThisMonth: 3, monthlyRequestCap: null })).toBe('3 this month');
     expect(usageLine(null)).toBeNull();
   });
+
+  it('W-114.13: answers link to menu paths and to the link targets; any other path stays text', async () => {
+    assistantService.linkTargets.mockResolvedValue(['/employees/new']);
+    vi.spyOn(assistantService, 'createSession').mockResolvedValue({ id: 's1' });
+    vi.spyOn(assistantService, 'sendMessage').mockResolvedValue(
+      answer('See [Leave types](app:/leave/types), [New](app:/employees/new) and [Pay](app:/payroll/runs).'),
+    );
+    renderDrawer();
+    await waitFor(() => expect(assistantService.linkTargets).toHaveBeenCalledTimes(1));
+
+    ask('Where?');
+
+    await screen.findByText(/and \[Pay\]\(app:\/payroll\/runs\)/);
+    const hrefs = screen.getAllByTestId('assistant-answer-link').map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/leave/types', '/employees/new']);
+  });
 });
+

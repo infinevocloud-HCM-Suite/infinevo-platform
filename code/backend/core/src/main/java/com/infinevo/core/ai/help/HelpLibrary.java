@@ -69,6 +69,11 @@ public class HelpLibrary {
 
     private static final Pattern ID = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
     private static final Pattern ACTION = Pattern.compile("^[a-z]+(\\.[a-z_]+)+$");
+    private static final Pattern SUB_ROUTE = Pattern.compile("^(/[A-Za-z0-9_-]+)+$");
+
+    /** W-114.13: the fixed sub-route list stays short. */
+    static final int MAX_SUB_ROUTES = 40;
+
     private static final Pattern MARKER = Pattern.compile("\\{([a-z]+):([^}]*)}");
     private static final List<String> FIELDS =
             List.of("id", "title", "summary", "roles", "screen", "route", "action", "module", "keywords");
@@ -223,8 +228,13 @@ public class HelpLibrary {
                         throw new IllegalStateException(
                                 "Help sub-routes " + resource.getFilename() + ": every entry needs path and parent");
                     }
+                    checkSubRoute(path, parent);
                     if (routes.putIfAbsent(path, parent) != null) {
                         throw new IllegalStateException("Help sub-routes: path " + path + " is listed twice");
+                    }
+                    if (routes.size() > MAX_SUB_ROUTES) {
+                        throw new IllegalStateException(
+                                "Help sub-routes: more than " + MAX_SUB_ROUTES + " entries; it must not become a menu");
                     }
                 }
             } catch (IOException e) {
@@ -232,6 +242,26 @@ public class HelpLibrary {
             }
         }
         return Map.copyOf(routes);
+    }
+
+    /**
+     * W-114.13: a sub-route is one fixed page under its parent menu item. Refused: a path not under {@code parent/}, any
+     * character other than letters, digits, {@code /}, {@code -} and {@code _} (so no {@code :id} or {@code {id}}), and
+     * a segment of digits only (a database key).
+     */
+    private static void checkSubRoute(String path, String parent) {
+        if (!SUB_ROUTE.matcher(path).matches() || !SUB_ROUTE.matcher(parent).matches()) {
+            throw new IllegalStateException(
+                    "Help sub-routes: path " + path + " may hold only letters, digits, /, - and _");
+        }
+        if (!path.startsWith(parent + "/")) {
+            throw new IllegalStateException("Help sub-routes: path " + path + " is not under its parent " + parent);
+        }
+        for (String segment : path.split("/")) {
+            if (!segment.isEmpty() && segment.chars().allMatch(Character::isDigit)) {
+                throw new IllegalStateException("Help sub-routes: path " + path + " has a segment of digits only");
+            }
+        }
     }
 
     private static Map<String, HelpArticle> loadArticles(

@@ -1,7 +1,10 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Alert, Button, Drawer, Space, Spin, Typography } from 'antd';
 import { HistoryOutlined, PlusOutlined } from '@ant-design/icons';
+import { useLocation } from 'react-router-dom';
+import { useNavigation } from '../navigation/useNavigation.js';
+import { feedPaths } from './answerLinks.js';
 import { assistantService, AI_RATE_LIMITED } from './assistantService.js';
 import { MessageList } from './MessageList.jsx';
 import { AssistantInput } from './AssistantInput.jsx';
@@ -64,6 +67,28 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
   const [chatError, setChatError] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
 
+  // W-114.13: the screen the user is on goes with each question; answers link only to the caller's own
+  // menu paths and the sub-routes the server allows them.
+  const { pathname } = useLocation();
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
+  const { items } = useNavigation();
+  const [linkTargets, setLinkTargets] = useState([]);
+  const linkTargetsAsked = useRef(false);
+  useEffect(() => {
+    if (!open || linkTargetsAsked.current) return;
+    linkTargetsAsked.current = true;
+    assistantService
+      .linkTargets()
+      .then((paths) => setLinkTargets(paths))
+      .catch(() => setLinkTargets([]));
+  }, [open]);
+  const allowedPaths = useMemo(() => {
+    const paths = feedPaths(items);
+    linkTargets.forEach((p) => paths.add(p));
+    return paths;
+  }, [items, linkTargets]);
+
   const inputRef = useRef(null);
   const sessionRef = useRef(null);
   const pendingRef = useRef(false);
@@ -87,7 +112,7 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
           sessionRef.current = id;
           setSessionId(id);
         }
-        const answer = await assistantService.sendMessage(id, question);
+        const answer = await assistantService.sendMessage(id, question, { path: pathRef.current });
         if (answer?.message) {
           setMessages((list) => [...list, { ...answer.message, proposedAction: answer.proposedAction ?? null }]);
         }
@@ -250,7 +275,12 @@ export function AssistantDrawer({ open, onClose, phone, status, onAnswered, onCl
           ) : messages.length === 0 && !pending ? (
             <AssistantEmptyState />
           ) : (
-            <MessageList messages={messages} pending={pending} />
+            <MessageList
+              messages={messages}
+              pending={pending}
+              allowedPaths={allowedPaths}
+              onNavigate={phone ? onClose : undefined}
+            />
           )}
           {failure && (
             <Alert

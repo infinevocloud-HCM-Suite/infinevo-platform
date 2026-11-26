@@ -155,6 +155,15 @@ class HelpArticlesMatchTheMenuTest {
     }
 
     @Test
+    @DisplayName("W-114.13: every parent in sub-routes.json is a path in the full menu")
+    void everySubRouteParentIsInTheMenu() {
+        assertThat(LIBRARY.subRoutes()).isNotEmpty();
+        LIBRARY.subRoutes()
+                .forEach((path, parent) ->
+                        assertThat(PATHS).as("parent of sub-route %s", path).contains(parent));
+    }
+
+    @Test
     @DisplayName("W-114.12: every leaf of the full menu has a name in screens.json, and every name is a menu key")
     void everyLeafHasAName() {
         assertThat(LEAF_KEYS).contains("core.leave.types", "payroll.runs", "hrms.attendance");

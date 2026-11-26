@@ -48,15 +48,32 @@ describe('assistantService', () => {
     expect(del).toHaveBeenCalledWith('/v1/ai/sessions/s1');
   });
 
-  it('sendMessage posts only the content; the context is not sent yet (W-114.13)', async () => {
+  it('sendMessage sends the screen path as context (W-114.13); no path or an odd one sends the content only', async () => {
     const post = vi.spyOn(apiClient, 'post').mockResolvedValue({
       status: 200,
       data: { message: { id: 'a1', role: 'ASSISTANT', content: 'Hi' }, proposedAction: null },
     });
-    const res = await assistantService.sendMessage('s1', 'Hello', { route: '/me' });
+    const res = await assistantService.sendMessage('s1', 'Hello', { path: '/leave/types' });
     expect(res.message.content).toBe('Hi');
     expect(post.mock.calls[0][0]).toBe('/v1/ai/sessions/s1/messages');
-    expect(post.mock.calls[0][1]).toEqual({ content: 'Hello' });
+    expect(post.mock.calls[0][1]).toEqual({ content: 'Hello', context: { path: '/leave/types' } });
+
+    await assistantService.sendMessage('s1', 'Hello', { route: '/me' });
+    await assistantService.sendMessage('s1', 'Hello', { path: 'https://evil.example' });
+    await assistantService.sendMessage('s1', 'Hello');
+    expect(post.mock.calls.slice(1).map((c) => c[1])).toEqual([
+      { content: 'Hello' },
+      { content: 'Hello' },
+      { content: 'Hello' },
+    ]);
+  });
+
+  it('linkTargets reads the paths list; anything else is an empty list', async () => {
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: { paths: ['/employees/new', 5] } });
+    expect(await assistantService.linkTargets()).toEqual(['/employees/new']);
+    expect(get).toHaveBeenCalledWith('/v1/ai/link-targets');
+    get.mockResolvedValueOnce({ data: {} });
+    expect(await assistantService.linkTargets()).toEqual([]);
   });
 
   it('sendMessage turns a 429 into the client error shape with the Retry-After seconds', async () => {
