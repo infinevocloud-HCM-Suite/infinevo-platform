@@ -27,10 +27,21 @@ final class LeaveBalanceExplanation {
     private LeaveBalanceExplanation() {}
 
     /** The allocation fields the answer needs, read before the transaction ends. */
-    record Year(LocalDate start, LocalDate end, BigDecimal proRateFactor, LocalDate lastAccruedOn) {
+    record Year(
+            LocalDate start, LocalDate end, BigDecimal proRateFactor, LocalDate lastAccruedOn, BigDecimal carriedIn) {
 
         static Year of(LeaveAllocation a) {
-            return new Year(a.getYearStartDate(), a.getYearEndDate(), a.getProRateFactor(), a.getLastAccruedOn());
+            return new Year(
+                    a.getYearStartDate(),
+                    a.getYearEndDate(),
+                    a.getProRateFactor(),
+                    a.getLastAccruedOn(),
+                    a.getCarriedForwardDays());
+        }
+
+        /** Days carried into the year before any expiry cut; the response holds only what still counts. */
+        boolean carriedSome() {
+            return carriedIn != null && carriedIn.signum() > 0;
         }
     }
 
@@ -69,9 +80,14 @@ final class LeaveBalanceExplanation {
         putDate(row, "carryForwardExpiresOn", b.carryForwardExpiresOn());
         putDate(row, "asOf", asOf);
         // The service's carried figure already stops counting the day after this date (LeaveDateUtils:130).
+        // Only a year that carried days in can have a carry-forward run out.
         row.put(
                 "carryForwardExpired",
-                b.carryForwardExpiresOn() != null && asOf != null && asOf.isAfter(b.carryForwardExpiresOn()));
+                year != null
+                        && year.carriedSome()
+                        && b.carryForwardExpiresOn() != null
+                        && asOf != null
+                        && asOf.isAfter(b.carryForwardExpiresOn()));
         // The response's "expired" is about the leave type (ended or switched off, W-77.1), not the carry-forward.
         row.put("leaveTypeEnded", b.expired());
         if (year != null) {

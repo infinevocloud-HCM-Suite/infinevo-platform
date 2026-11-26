@@ -31,6 +31,8 @@ class LeaveBalanceExplanationTest {
     private static final UUID EMPLOYEE = UUID.randomUUID();
     private static final UUID CL = UUID.randomUUID();
     private static final UUID SL = UUID.randomUUID();
+    private static final UUID XX = UUID.randomUUID();
+    private static final BigDecimal THREE = new BigDecimal("3.00");
 
     private static LeaveBalanceResponse balance(UUID type, String code, String name) {
         return new LeaveBalanceResponse(
@@ -60,7 +62,7 @@ class LeaveBalanceExplanationTest {
                 Map.of(
                         CL + "|2026",
                         new LeaveBalanceExplanation.Year(
-                                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), null, null)),
+                                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), null, null, THREE)),
                 LocalDate.of(2026, 3, 31));
 
         JsonNode cl = out.path("balances").get(0);
@@ -83,15 +85,88 @@ class LeaveBalanceExplanationTest {
     }
 
     @Test
-    @DisplayName("the day after the carry-forward expiry date it is expired; the leave type's end is its own flag")
+    @DisplayName("the day after the expiry date a carry-forward of 3 has run out; one of 0 never ran out")
     void carryForwardExpiry() {
-        JsonNode cl = LeaveBalanceExplanation.explain(
-                        List.of(balance(CL, "CL", "Casual Leave")), Map.of(), LocalDate.of(2026, 4, 1))
+        LocalDate april = LocalDate.of(2026, 4, 1);
+        JsonNode carried = one(balance(CL, "CL", "Casual Leave"), THREE, april);
+        assertThat(carried.path("carryForwardExpired").asBoolean()).isTrue();
+        assertThat(carried.path("leaveTypeEnded").asBoolean()).isFalse();
+
+        assertThat(one(balance(CL, "CL", "Casual Leave"), BigDecimal.ZERO, april)
+                        .path("carryForwardExpired")
+                        .asBoolean())
+                .isFalse();
+        JsonNode noYear = LeaveBalanceExplanation.explain(List.of(balance(CL, "CL", "Casual Leave")), Map.of(), april)
                 .path("balances")
                 .get(0);
-        assertThat(cl.path("carryForwardExpired").asBoolean()).isTrue();
-        assertThat(cl.path("leaveTypeEnded").asBoolean()).isFalse();
-        assertThat(cl.has("yearStart")).isFalse();
+        assertThat(noYear.path("carryForwardExpired").asBoolean()).isFalse();
+        assertThat(noYear.has("yearStart")).isFalse();
+    }
+
+    @Test
+    @DisplayName("a leave type switched off or past Valid To: leaveTypeEnded true")
+    void leaveTypeEnded() {
+        LeaveBalanceResponse b = balance(CL, "CL", "Casual Leave");
+        LeaveBalanceResponse ended = new LeaveBalanceResponse(
+                b.employeeId(),
+                b.leaveTypeId(),
+                b.leaveTypeCode(),
+                b.leaveTypeName(),
+                b.leaveYear(),
+                b.entitlementDays(),
+                b.accruedDays(),
+                b.carriedForwardDays(),
+                b.consumedDays(),
+                b.remainingDays(),
+                b.carryForwardExpiresOn(),
+                LocalDate.of(2026, 2, 28),
+                true,
+                b.pendingDays(),
+                b.availableDays());
+        assertThat(one(ended, THREE, LocalDate.of(2026, 3, 1))
+                        .path("leaveTypeEnded")
+                        .asBoolean())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("code wins over name: a type named SL loses to the type whose code is SL")
+    void codeBeforeName() {
+        List<LeaveBalanceResponse> all = List.of(balance(XX, "XX", "SL"), balance(SL, "SL", "Sick Leave"));
+        assertThat(LeaveBalanceAiToolProvider.match(all, "sl"))
+                .extracting(LeaveBalanceResponse::leaveTypeCode)
+                .containsExactly("SL");
+        assertThat(LeaveBalanceAiToolProvider.match(all, "sick leave"))
+                .extracting(LeaveBalanceResponse::leaveTypeCode)
+                .containsExactly("SL");
+    }
+
+    @Test
+    @DisplayName("no allocation at all: the no-allocation line, not the unknown-type one")
+    void noAllocations() throws Exception {
+        LeaveBalanceService balances = mock(LeaveBalanceService.class);
+        when(balances.getBalancesForEmployee(eq(TENANT), eq(EMPLOYEE), any())).thenReturn(List.of());
+        AiTool tool = provider(me(EMPLOYEE), balances).tools().get(0);
+        AiToolContext ctx = new AiToolContext(TENANT, UUID.randomUUID(), EMPLOYEE);
+        for (String input : new String[] {"{}", "{\"leaveType\":\"CL\"}"}) {
+            assertThat(tool.execute(ctx, JSON.readTree(input))
+                            .data()
+                            .path("message")
+                            .asText())
+                    .isEqualTo(LeaveBalanceAiToolProvider.NO_ALLOCATIONS);
+        }
+    }
+
+    private static JsonNode one(LeaveBalanceResponse b, BigDecimal carriedIn, LocalDate asOf) {
+        return LeaveBalanceExplanation.explain(
+                        List.of(b),
+                        Map.of(
+                                LeaveBalanceExplanation.key(b),
+                                new LeaveBalanceExplanation.Year(
+                                        LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), null, null, carriedIn)),
+                        asOf)
+                .path("balances")
+                .get(0);
     }
 
     private static LeaveBalanceAiToolProvider provider(EmployeeService employees, LeaveBalanceService balances) {

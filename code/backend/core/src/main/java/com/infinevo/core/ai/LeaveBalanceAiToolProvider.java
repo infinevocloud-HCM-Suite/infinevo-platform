@@ -47,6 +47,7 @@ public class LeaveBalanceAiToolProvider implements AiToolProvider {
     static final String NAME = "core.explain_leave_balance";
     static final String NO_EMPLOYEE = "No employee record is linked to your login.";
     static final String NO_SUCH_TYPE = "You have no allocation for that leave type.";
+    static final String NO_ALLOCATIONS = "You have no leave allocated for the leave year of that date.";
     static final int MAX_TYPE = 100;
 
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
@@ -156,6 +157,10 @@ public class LeaveBalanceAiToolProvider implements AiToolProvider {
                     List<LeaveBalanceResponse> all =
                             balances.getBalancesForEmployee(ctx.tenantId(), ctx.employeeId(), asOf);
                     List<LeaveBalanceResponse> chosen = type == null || type.isBlank() ? all : match(all, type);
+                    if (all.isEmpty()) {
+                        return AiToolResult.success(
+                                NODES.objectNode().put("found", false).put("message", NO_ALLOCATIONS));
+                    }
                     if (chosen.isEmpty()) {
                         return AiToolResult.success(noSuchType(all));
                     }
