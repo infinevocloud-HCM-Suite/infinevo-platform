@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-26 — W-102 employee onboarding tasks on `main` (`8af9d9fc`)
+
+| Ticket | What | Where |
+|---|---|---|
+| `W-102` | Settings › **Onboarding templates**; a checklist made when an employee is created; **Onboarding** tab on the employee page; **My Onboarding** panel in the portal (upload, mark done) | `code/backend/core/src/main/java/com/infinevo/core/onboarding/`, `code/frontend/src/core/onboarding/`, `code/frontend/src/shell/portal/panels/MyOnboarding.jsx`; V201, V206 |
+
+- Carved from krushna's `feature/krushna-specs`; one independent read (1 High, 3 Medium, 2 Low) all fixed; CI caught the portal panel reading outside a transaction.
+- Existing employees and bulk-imported ones get no checklist; HR can assign the default one by hand.
+- **Next:** `W-106.1` from krushna's branch.
+
 ## 2026-11-26 — W-89 quarterly TDS return on `main` (`e36f75c3`)
 
 | Ticket | What | Where |
