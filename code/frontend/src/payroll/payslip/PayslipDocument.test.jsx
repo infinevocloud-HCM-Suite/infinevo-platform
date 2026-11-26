@@ -92,5 +92,22 @@ describe('PayslipDocument component', () => {
     expect(deductions.getByText('Loan Recovery')).toBeDefined();
     expect(deductions.getByText('₹ 1,000.00')).toBeDefined();
   });
+
+  it('renders company logo in the header', () => {
+    render(<PayslipDocument payslip={basePayslip} testIdPrefix="test-payslip" />);
+    const logoEl = screen.getByTestId('test-payslip-logo');
+    expect(logoEl).toBeDefined();
+    expect(logoEl.getAttribute('alt')).toBe('Logo');
+  });
+
+  it('renders custom employer logo when provided', () => {
+    const customPayslip = {
+      ...basePayslip,
+      employer: { name: 'Acme Corp', logo_url: 'https://example.com/acme-logo.png' },
+    };
+    render(<PayslipDocument payslip={customPayslip} testIdPrefix="test-payslip" />);
+    const logoEl = screen.getByTestId('test-payslip-logo');
+    expect(logoEl.getAttribute('src')).toBe('https://example.com/acme-logo.png');
+  });
 });
 

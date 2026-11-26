@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import dayjs from 'dayjs';
 import { formatMoney, getAmountInWords, orEmpty } from '../../shared/ui/format.js';
+import infilogo from './assets/infilogo.png';
 
 function formatFullDate(value) {
   if (!value) return 'N/A';
@@ -27,6 +28,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
   const reimbursements = payslip.reimbursements || [];
 
   const companyName = employer.name || 'INFINEVOCLOUD TECHNOLOGY SOLUTIONS PVT LTD';
+  const companyLogo = employer.logo_url || infilogo;
   const payPeriodText = formatFullMonth(run.period);
   const payDateText = formatFullDate(run.pay_date);
   const joiningDateText = formatFullDate(employee.date_of_joining);
@@ -104,6 +106,8 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
       id="payslip-to-print"
       className="payslip-document-card"
       style={{
+        position: 'relative',
+        overflow: 'hidden',
         fontFamily: '"Ubuntu", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '14px',
         color: '#333333',
@@ -114,39 +118,76 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
       }}
     >
-      {/* Header */}
+      {/* Centered Infinity Watermark */}
       <div
+        className="payslip-watermark"
         style={{
+          position: 'absolute',
+          top: '52%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '440px',
+          opacity: 0.12,
+          pointerEvents: 'none',
+          zIndex: 0,
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'center',
           alignItems: 'center',
-          marginBottom: '20px',
-          borderBottom: '1px solid #f0f0f0',
-          paddingBottom: '16px',
         }}
       >
-        <div>
-          <h3 style={{ margin: 0, color: '#191970', fontWeight: 'bold' }}>{companyName}</h3>
-          <p style={{ margin: '4px 0 0', color: '#666666', fontSize: '13px' }}>HRMS &amp; Payroll Solutions</p>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <p style={{ margin: 0, color: '#666666', fontSize: '13px' }}>Payslip For the Month</p>
-          <h5 style={{ margin: '4px 0 0', fontWeight: 'bold', fontSize: '16px' }}>{payPeriodText}</h5>
-        </div>
+        <img
+          src={companyLogo}
+          alt="Watermark"
+          style={{
+            width: '100%',
+            height: 'auto',
+            objectFit: 'contain',
+          }}
+        />
       </div>
 
-      {/* EMPLOYEE SUMMARY Box */}
-      <div
-        className="employee-summary-box"
-        data-testid={`${testIdPrefix}-employee`}
-        style={{
-          backgroundColor: '#f8f9fa',
-          border: '1px solid #e9ecef',
-          borderRadius: '8px',
-          padding: '16px 20px',
-          marginBottom: '20px',
-        }}
-      >
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+            borderBottom: '1px solid #f0f0f0',
+            paddingBottom: '16px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img
+              src={companyLogo}
+              alt="Logo"
+              data-testid={`${testIdPrefix}-logo`}
+              style={{ height: '48px', width: 'auto', objectFit: 'contain' }}
+            />
+            <div>
+              <h3 style={{ margin: 0, color: '#191970', fontWeight: 'bold' }}>{companyName}</h3>
+              <p style={{ margin: '4px 0 0', color: '#666666', fontSize: '13px' }}>HRMS &amp; Payroll Solutions</p>
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ margin: 0, color: '#666666', fontSize: '13px' }}>Payslip For the Month</p>
+            <h5 style={{ margin: '4px 0 0', fontWeight: 'bold', fontSize: '16px' }}>{payPeriodText}</h5>
+          </div>
+        </div>
+
+        {/* EMPLOYEE SUMMARY Box */}
+        <div
+          className="employee-summary-box"
+          data-testid={`${testIdPrefix}-employee`}
+          style={{
+            backgroundColor: 'rgba(248, 249, 250, 0.75)',
+            border: '1px solid #e9ecef',
+            borderRadius: '8px',
+            padding: '16px 20px',
+            marginBottom: '20px',
+          }}
+        >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
           {/* Left Column */}
           <div style={{ flex: '1 1 320px', minWidth: '280px' }}>
@@ -261,7 +302,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
           border: '1px solid #dee2e6',
           borderRadius: '8px 8px 0 0',
           borderBottom: 'none',
-          backgroundColor: '#ffffff',
+          backgroundColor: 'rgba(255, 255, 255, 0.75)',
           overflow: 'hidden',
         }}
       >
@@ -361,7 +402,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
             border: '1px solid #dee2e6',
             borderTop: '1px solid #e9ecef',
             borderRadius: '0 0 8px 8px',
-            backgroundColor: '#f8f9fa',
+            backgroundColor: 'rgba(248, 249, 250, 0.75)',
             padding: '12px 16px',
             marginBottom: '20px',
           }}
@@ -450,7 +491,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
             alignItems: 'center',
             border: '1px solid #dee2e6',
             borderRadius: '8px',
-            backgroundColor: '#ffffff',
+            backgroundColor: 'rgba(255, 255, 255, 0.75)',
             padding: '14px 20px',
             marginBottom: '16px',
           }}
@@ -488,7 +529,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
       {Number(days.lop_days) > 0 && (
         <div
           style={{
-            backgroundColor: '#fff8f8',
+            backgroundColor: 'rgba(255, 248, 248, 0.85)',
             borderLeft: '3px solid #dc3545',
             padding: '8px 12px',
             marginBottom: '16px',
@@ -519,6 +560,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
       {/* System Generated Disclaimer */}
       <div style={{ textAlign: 'center', color: '#666666', fontSize: '12px' }}>
         This payslip is system-generated; therefore, a signature is not required.
+      </div>
       </div>
     </div>
   );
