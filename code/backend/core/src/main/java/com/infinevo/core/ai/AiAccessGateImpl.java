@@ -2,6 +2,7 @@ package com.infinevo.core.ai;
 
 import com.infinevo.core.subscription.Subscription;
 import com.infinevo.core.subscription.SubscriptionRepository;
+import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -45,6 +46,10 @@ public class AiAccessGateImpl implements AiAccessGate {
     public AiStatus status() {
         UUID tenantId = TenantContext.require();
         YearMonth month = currentMonth();
+        if (ActingAs.isActing()) {
+            // W-114.13b rule 2: off while acting as another user; nothing is read.
+            return new AiStatus(false, null, 0, month.toString());
+        }
         Optional<Subscription> subscription = subscriptionRepository.findByTenantId(tenantId);
         boolean enabled = subscription.map(Subscription::isAiEnabled).orElse(false);
         Integer cap = subscription.map(Subscription::getAiMonthlyRequestCap).orElse(null);
@@ -58,6 +63,9 @@ public class AiAccessGateImpl implements AiAccessGate {
     @Override
     @Transactional
     public int consume() {
+        if (ActingAs.isActing()) {
+            throw new AiDisabledException(AiActAsGuard.MESSAGE);
+        }
         UUID tenantId = TenantContext.require();
         Subscription subscription =
                 subscriptionRepository.findByTenantId(tenantId).orElseThrow(AiDisabledException::new);

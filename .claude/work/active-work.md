@@ -15,6 +15,12 @@
 - One independent read (2 High, 4 Medium, 2 Low) all fixed: days and joining move only the loss-of-pay line, never a salary line; a loss-of-pay refund has its own reason; same-day recalculations keep their order; an off-cycle payslip is never compared; `explain_tds` also needs `payroll.payslip.read_own`.
 - Built by Claude. No migration.
 
+## 2026-11-26 — W-114.13b AI helper off in act-as
+
+- Found while reading `.13`: during act-as the permission check takes the target user's actions, so `core.ai.use` passed and staff could chat, read the target's history and confirm actions in their name.
+- `AiActAsGuard` (`code/backend/core/src/main/java/com/infinevo/core/ai/`) answers every `/api/v1/ai/**` request `403 AI_DISABLED` while `ActingAs` is bound, before any controller, so nothing is stored or counted. `AiAccessGateImpl` says off and refuses too. `AppShell.jsx` does not mount the launcher in a session.
+- Built by Claude at the founder's word (2026-11-26, "own small part now"). No migration.
+
 ## 2026-11-26 — W-114.15 AI helper explains my leave balance
 
 - Tool `core.explain_leave_balance` (needs `core.leave.read_own`): the caller's own balance per leave type, the same read as `GET /api/v1/me/leave-balances`, with the year's start and end and a `howItAddsUp` sentence built from the service's figures. `code/backend/core/src/main/java/com/infinevo/core/ai/LeaveBalanceAiToolProvider.java`, `LeaveBalanceExplanation.java`.
