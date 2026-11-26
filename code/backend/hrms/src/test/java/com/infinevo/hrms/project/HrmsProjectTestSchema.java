@@ -128,6 +128,12 @@ public final class HrmsProjectTestSchema {
                         executeResource(conn, "db/migration/" + script);
                     }
                 }
+                if (!tableExists(conn, "hrms", "company_asset")) {
+                    for (String script :
+                            new String[] {"hrms/V237__asset_tracking_schema.sql", "core/V238__asset_permissions.sql"}) {
+                        executeResource(conn, "db/migration/" + script);
+                    }
+                }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
             }

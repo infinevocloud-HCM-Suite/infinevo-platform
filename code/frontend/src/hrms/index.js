@@ -87,6 +87,20 @@ const MySurveys = lazy(() =>
   import('../shell/portal/panels/MySurveys.jsx').then((m) => ({ default: m.MySurveys }))
 );
 
+// W-111: Asset Tracking
+const AssetList = lazy(() =>
+  import('./assets/AssetList.jsx').then((m) => ({ default: m.AssetList }))
+);
+const AssetDetail = lazy(() =>
+  import('./assets/AssetDetail.jsx').then((m) => ({ default: m.AssetDetail }))
+);
+const MyAssets = lazy(() =>
+  import('./assets/MyAssets.jsx').then((m) => ({ default: m.MyAssets }))
+);
+const AssetsTab = lazy(() =>
+  import('./assets/AssetsTab.jsx').then((m) => ({ default: m.AssetsTab }))
+);
+
 // HRMS module entry point (W-45 §5, W-48.2 §5). The week grid sits beneath `/hrms/timesheets`, the menu path
 // the feed carries (`hrms.timesheets`), so it mounts with it.
 export const routes = [
@@ -126,6 +140,10 @@ export const routes = [
   { path: '/hrms/surveys', element: React.createElement(SurveyList) },
   { path: '/hrms/surveys/:id/results', element: React.createElement(SurveyAnalytics) },
   { path: '/me/surveys', element: React.createElement(MySurveys) },
+  // W-111: Asset Tracking
+  { path: '/hrms/assets', element: React.createElement(AssetList) },
+  { path: '/hrms/assets/:id', element: React.createElement(AssetDetail) },
+  { path: '/me/assets', element: React.createElement(MyAssets) },
 ];
 
 export const reducers = {};
@@ -135,4 +153,15 @@ export const reducers = {};
 export const portalPanels = [
   { code: 'timesheet', component: MyTimesheetPanel },
   { code: 'surveys', component: MySurveys },
+  { code: 'assets', component: MyAssets },
+];
+
+export const employeeTabs = [
+  {
+    key: 'assets',
+    label: 'Assets',
+    action: 'hrms.asset.read',
+    component: AssetsTab,
+    render: (props) => React.createElement(AssetsTab, props),
+  },
 ];
