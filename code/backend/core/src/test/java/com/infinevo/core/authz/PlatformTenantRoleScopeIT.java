@@ -59,11 +59,9 @@ class PlatformTenantRoleScopeIT extends AbstractIntegrationTest {
         Set<String> held = AuthzTestSchema.actionsOfRole(AuthzTestSchema.roleId(PLATFORM, "platform-admin"));
 
         assertThat(held).doesNotContain("core.employee.read", "core.leave.read", "payroll.run.read");
-        assertThat(held).contains("core.tenant.provision", "core.tenant.impersonate", "core.audit.read");
         assertThat(held)
-                .allMatch(code -> code.startsWith("core.tenant.")
-                        || code.equals("core.audit.read")
-                        || code.equals("core.user.manage"));
+                .contains("core.tenant.provision", "core.tenant.impersonate", "core.audit.read", "core.billing.manage");
+        assertThat(held).allMatch(PlatformTenantRoleScopeIT::isPlatformAction);
     }
 
     @Test
@@ -72,10 +70,15 @@ class PlatformTenantRoleScopeIT extends AbstractIntegrationTest {
         for (String role : AuthzTestSchema.SYSTEM_ROLES) {
             assertThat(AuthzTestSchema.actionsOfRole(AuthzTestSchema.roleId(PLATFORM, role)))
                     .as("platform tenant's %s", role)
-                    .allMatch(code -> code.startsWith("core.tenant.")
-                            || code.equals("core.audit.read")
-                            || code.equals("core.user.manage"));
+                    .allMatch(PlatformTenantRoleScopeIT::isPlatformAction);
         }
+    }
+
+    private static boolean isPlatformAction(String code) {
+        return code.startsWith("core.tenant.")
+                || code.equals("core.audit.read")
+                || code.equals("core.user.manage")
+                || code.equals("core.billing.manage");
     }
 
     @Test
