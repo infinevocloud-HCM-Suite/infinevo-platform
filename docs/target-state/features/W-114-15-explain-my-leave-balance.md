@@ -51,7 +51,7 @@ So the tool returns the first eight and says nothing about the last two.
 
 ## Scope
 
-**In scope:** one tool, `core.explain_leave_balance`, in `CoreAiToolProvider`.
+**In scope:** one tool, `core.explain_leave_balance`, in its own `LeaveBalanceAiToolProvider` beside `CoreAiToolProvider`.
 
 **Out of scope:** another employee's balance; the list of each day taken (`core.my_leave_requests`
 has it); how many days were lost at a reset; changing anything.
@@ -69,7 +69,10 @@ has it); how many days were lost at a reset; changing anything.
 | `leaveType` (code and name) | `LeaveBalanceResponse.leaveTypeCode`, `leaveTypeName` |
 | `leaveYear`, `yearStart`, `yearEnd` | the allocation |
 | `granted`, `accrued`, `carriedForward`, `used`, `balance`, `pending`, `available` | `entitlementDays`, `accruedDays`, `carriedForwardDays`, `consumedDays`, `remainingDays`, `pendingDays`, `availableDays` |
-| `carryForwardExpiresOn`, `expired` | the same response |
+| `carryForwardExpiresOn` | the same response |
+| `asOf` | the day read (today when not given) |
+| `carryForwardExpired` | the allocation carried days in and `asOf` is after `carryForwardExpiresOn` — the day the carried figure stops counting (`leave/LeaveDateUtils.java:130`) |
+| `leaveTypeEnded` | the response's `expired`, which is about the leave type (switched off or past Valid To, `leave/LeaveBalanceServiceImpl.java:154`), not the carry-forward. Renamed so the model does not read it as the carry-forward running out |
 | `proRateFactor`, `lastAccruedOn` | the allocation; left out when null |
 | `howItAddsUp` | one fixed sentence built by the tool: "balance = granted + accrued + carried forward − used; available = balance − pending, never below zero" with the numbers filled in (`leave/LeaveBalanceServiceImpl.java:120,143-145`) |
 
@@ -78,7 +81,7 @@ has it); how many days were lost at a reset; changing anything.
 | # | Rule |
 |---|---|
 | 1 | The tool takes no employee id. The caller is `EmployeeService.currentEmployee()`, as the controller does (`leave/LeaveAllocationController.java:106-108`). A login with no employee record gets "No employee record is linked to your login." |
-| 2 | `leaveType` is matched on code first, then on name, ignoring case. No match answers "You have no allocation for that leave type." with the list of types the caller does have. |
+| 2 | `leaveType` is matched on code first, then on name, ignoring case. No match answers "You have no allocation for that leave type." with the list of types the caller does have. A caller with no allocation at all for that date gets "You have no leave allocated for the leave year of that date." |
 | 3 | Days are `BigDecimal`, written with two decimals as text. No `double`, no `float`. |
 | 4 | No result carries an id: not the employee's, not the leave type's, not the allocation's, not the policy's. |
 | 5 | `howItAddsUp` is written by the tool from the service's figures, so the model does not do the sum. Every number in it is the service's own figure; the tool adds nothing up itself. |
@@ -87,7 +90,7 @@ has it); how many days were lost at a reset; changing anything.
 
 | Layer | File | Change |
 |---|---|---|
-| Tools | `ai/CoreAiToolProvider.java` | Adds `core.explain_leave_balance` |
+| Tools | `ai/LeaveBalanceAiToolProvider.java` | **New.** `core.explain_leave_balance`, a provider of its own so `CoreAiToolProvider`'s constructor does not grow |
 | Mapping | `ai/LeaveBalanceExplanation.java` | **New.** Builds the id-free result and the `howItAddsUp` sentence |
 
 **API contract:** none added. **Routes added:** none.
@@ -108,8 +111,8 @@ None.
 | Type | File | Covers |
 |---|---|---|
 | Unit | `core/src/test/.../ai/LeaveBalanceExplanationTest.java` | Sentence for granted 12, accrued 0, carried 3, used 4.5, pending 1 reads balance 10.50, available 9.50; a null pro-rate factor is left out; no UUID in the result; `4.5` is `"4.50"` |
-| Unit | `core/src/test/.../ai/CoreAiToolProviderTest.java` (extend) | `requiredAction` is `core.leave.read_own`; match by code, then name; unknown type answers with the caller's types; no employee record answers the plain sentence |
-| Integration | `app/src/test/.../ai/CoreAiToolsIT.java` (extend) | Employee A gets A's figures, equal to `GET /api/v1/me/leave-balances`; employee B's allocation never appears; an expired carry-forward shows `expired: true` and a carried figure of `0.00` |
+| Unit | `core/src/test/.../ai/LeaveBalanceExplanationTest.java` (same file) | `requiredAction` is `core.leave.read_own`; match by code, then name; unknown type answers with the caller's types; no employee record answers the plain sentence |
+| Integration | `core/src/test/.../ai/LeaveBalanceToolIT.java` (new; `app` has no AI tools IT) | Employee A gets A's figures, equal to `GET /api/v1/me/leave-balances`; employee B's allocation never appears; an expired carry-forward shows `carryForwardExpired: true` and a carried figure of `0.00`; a login without `core.leave.read_own` is not offered the tool |
 
 ## Verification
 
@@ -119,11 +122,11 @@ cd code/backend && ./mvnw -B -pl core,app -am verify
 
 | Check | Expected | Result |
 |---|---|---|
-| Ask "why is my casual leave balance 10.5?" (stub scripted to call the tool with `CL`) | TOOL row holds the parts and the sentence; figures match the Leave screen | not run |
-| Ask about a type the user has no allocation for | The plain sentence and the user's own types | not run |
-| Stored TOOL row | No id of any kind | not run |
-| A login without `core.leave.read_own` | The tool is not offered | not run |
-| `grep -nE "double|float" code/backend/core/src/main/java/com/infinevo/core/ai/LeaveBalanceExplanation.java` | No match | not run |
+| Ask "why is my casual leave balance 10.5?" (stub scripted to call the tool with `CL`) | TOOL row holds the parts and the sentence; figures match the Leave screen | `LeaveBalanceToolIT.ownFigures_matchTheScreen` passes |
+| Ask about a type the user has no allocation for | The plain sentence and the user's own types | `LeaveBalanceToolIT.unknownType` passes |
+| Stored TOOL row | No id of any kind | checked in `ownFigures_matchTheScreen` |
+| A login without `core.leave.read_own` | The tool is not offered | `LeaveBalanceToolIT.notOffered_withoutReadOwn` passes |
+| `grep -nE "double|float" code/backend/core/src/main/java/com/infinevo/core/ai/LeaveBalanceExplanation.java` | No match | no match |
 
 ## Risks
 
@@ -141,4 +144,4 @@ Revert the commit. `core.my_leave_balances` still answers the plain question.
 | # | Area | Task |
 |---|---|---|
 | 1 | `core` | The tool, `LeaveBalanceExplanation`, unit tests |
-| 2 | `app` (test only) | The extended integration test |
+| 2 | `core` (test only) | `LeaveBalanceToolIT`, the integration test |

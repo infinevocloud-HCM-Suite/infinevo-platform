@@ -99,15 +99,28 @@ export function PayslipPage() {
           @media print {
             body {
               background: white !important;
+              margin: 0 !important;
+              padding: 0 !important;
             }
             .no-print {
               display: none !important;
             }
             .print-container {
               max-width: 100% !important;
+              width: 100% !important;
               margin: 0 !important;
               padding: 0 !important;
               box-shadow: none !important;
+            }
+            /* Strip the outer page wrapper padding so payslip fills the A4 page */
+            [data-testid="payslip-page"] {
+              padding: 0 !important;
+              width: 100% !important;
+            }
+            /* Remove card shadow and border on the payslip document itself */
+            #payslip-to-print {
+              box-shadow: none !important;
+              page-break-inside: avoid;
             }
           }
         `}
