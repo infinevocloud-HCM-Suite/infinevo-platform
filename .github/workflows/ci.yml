@@ -736,8 +736,10 @@ jobs:
           cache-dependency-path: code/frontend/package-lock.json
 
       # Built separately from `up` so the log shows build time and boot time apart.
+      # migrate, app and worker share image infinevo-backend:dev, so building app once
+      # avoids 3x parallel Maven builds hitting Maven Central rate limits (HTTP 429).
       - name: Build the dev images
-        run: $COMPOSE build
+        run: $COMPOSE build app web
 
       # No `--wait`: it treats a one-shot service (migrate, which exits 0 on purpose)
       # differently across compose versions. The poll below asks the same questions

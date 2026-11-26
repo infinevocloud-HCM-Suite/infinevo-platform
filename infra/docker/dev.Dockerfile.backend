@@ -7,6 +7,19 @@ FROM maven:3.9-eclipse-temurin-21
 
 WORKDIR /build
 
+# Use Google's Maven Central mirror to avoid HTTP 429 rate limits on shared CI runner IPs.
+RUN mkdir -p /root/.m2 && printf '%s\n' \
+  '<settings>' \
+  '  <mirrors>' \
+  '    <mirror>' \
+  '      <id>google-maven-central</id>' \
+  '      <name>GCS Maven Central mirror</name>' \
+  '      <url>https://maven-central.storage-download.googleapis.com/maven2</url>' \
+  '      <mirrorOf>central</mirrorOf>' \
+  '    </mirror>' \
+  '  </mirrors>' \
+  '</settings>' > /root/.m2/settings.xml
+
 # POMs first, so a source change does not re-resolve every dependency.
 COPY code/backend/pom.xml .
 COPY code/backend/shared/pom.xml      shared/
@@ -16,14 +29,15 @@ COPY code/backend/payroll/pom.xml     payroll/
 COPY code/backend/app/pom.xml         app/
 COPY code/backend/worker/pom.xml      worker/
 COPY code/backend/migration/pom.xml   migration/
-RUN mvn -B -q dependency:go-offline -DskipTests || true
+RUN mvn -B -q -Daether.transport.http.retryHandler.count=5 dependency:go-offline -DskipTests \
+    || echo "WARN: dependency:go-offline did not complete; install will resolve remaining artifacts"
 
 COPY code/backend/ .
 
 # Install every module into the local repository, so at runtime a single module can be
 # run on its own. Running with -am instead would include the parent, and spring-boot:run
 # against a packaging-pom project fails with "Unable to find a suitable main class".
-RUN mvn -B -q install -DskipTests
+RUN mvn -B -q -Daether.transport.http.retryHandler.count=5 install -DskipTests
 
 EXPOSE 8080
 ENTRYPOINT ["mvn", "-B"]

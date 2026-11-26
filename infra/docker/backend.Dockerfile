@@ -19,6 +19,20 @@ FROM maven:3.9-eclipse-temurin-21 AS deps
 
 WORKDIR /build
 
+# Use Google's Maven Central mirror to avoid HTTP 429 rate limits on shared CI runner IPs.
+# Only lives in the deps/build stages and is never copied into the runtime stage.
+RUN mkdir -p /root/.m2 && printf '%s\n' \
+  '<settings>' \
+  '  <mirrors>' \
+  '    <mirror>' \
+  '      <id>google-maven-central</id>' \
+  '      <name>GCS Maven Central mirror</name>' \
+  '      <url>https://maven-central.storage-download.googleapis.com/maven2</url>' \
+  '      <mirrorOf>central</mirrorOf>' \
+  '    </mirror>' \
+  '  </mirrors>' \
+  '</settings>' > /root/.m2/settings.xml
+
 # Copy only POMs so that a source change does not re-download every dependency.
 COPY code/backend/pom.xml .
 COPY code/backend/shared/pom.xml      shared/
@@ -33,7 +47,7 @@ COPY code/backend/migration/pom.xml   migration/
 # multi-module reactor, so a failure here must not fail the build — but it must be VISIBLE
 # in the build log, because stage 2 will then re-resolve everything and take minutes for a
 # reason nobody can see.
-RUN mvn -B -q dependency:go-offline -DskipTests \
+RUN mvn -B -q -Daether.transport.http.retryHandler.count=5 dependency:go-offline -DskipTests \
     || echo "WARN: dependency:go-offline did not complete; stage 2 will resolve from the network"
 
 # ── Stage 2: compile and package ─────────────────────────────────────────────
@@ -43,7 +57,7 @@ COPY code/backend/ .
 
 # Package the full reactor. app, worker and migration each produce a repackaged fat jar.
 # Tests are skipped here — they ran in CI's backend job before the images job.
-RUN mvn -B -q package -DskipTests
+RUN mvn -B -q -Daether.transport.http.retryHandler.count=5 package -DskipTests
 
 # Resolve each fat jar to a fixed name here, where a wrong match can still fail loudly.
 # `COPY app-*.jar` in the runtime stage fails with an opaque error if the glob ever

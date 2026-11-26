@@ -154,6 +154,7 @@ services:
     # Runs once, exits 0 on success. app and worker wait on service_completed_successfully.
     # command overrides the Dockerfile CMD (which is hardwired to -pl app spring-boot:run).
     # -pl alone works because dev.Dockerfile.backend:26 installs every module.
+    image: infinevo-backend:dev
     build:
       context: ../..
       dockerfile: infra/docker/dev.Dockerfile.backend
@@ -168,6 +169,7 @@ services:
 
   # ── application ─────────────────────────────────────────────────────────────
   app:                                    # -> Container App 'app', web role
+    image: infinevo-backend:dev
     build:
       context: ../..
       dockerfile: infra/docker/dev.Dockerfile.backend
@@ -216,6 +218,7 @@ services:
       start_period: 90s
 
   worker:                                 # -> Container App 'worker', batch role
+    image: infinevo-backend:dev
     build:
       context: ../..
       dockerfile: infra/docker/dev.Dockerfile.backend
@@ -259,6 +262,7 @@ services:
       start_period: 90s
 
   web:                                    # -> Container App 'web'
+    image: infinevo-frontend:dev
     build:
       context: ../..
       dockerfile: infra/docker/dev.Dockerfile.frontend
