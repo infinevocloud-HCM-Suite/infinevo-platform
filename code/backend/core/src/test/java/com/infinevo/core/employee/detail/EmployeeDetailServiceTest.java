@@ -533,10 +533,10 @@ class EmployeeDetailServiceTest {
 
         @Test
         @DisplayName(
-                "V260: transfer type and narration default to NEFT and Salary; Other needs its text, kept only for Other")
+                "V260: transfer type and narration default to FT and Salary (V261); Other needs its text, kept only for Other")
         void transferTypeAndCreditNarration() {
             EmployeeBankResponse defaults = bankService.put(EMPLOYEE_A, bank("0012345678"));
-            assertThat(defaults.transferType()).isEqualTo(TransferType.NEFT);
+            assertThat(defaults.transferType()).isEqualTo(TransferType.FT);
             assertThat(defaults.creditNarration()).isEqualTo(CreditNarration.SALARY);
             assertThat(defaults.creditNarrationOther()).isNull();
 

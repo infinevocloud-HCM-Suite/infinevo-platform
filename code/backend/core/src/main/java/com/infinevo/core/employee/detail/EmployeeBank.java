@@ -75,7 +75,7 @@ public class EmployeeBank extends EmployeeDetail {
     // V260: the bank's transfer method and what the credit says it is for (founder 2026-11-27).
     @Enumerated(EnumType.STRING)
     @Column(name = "transfer_type", nullable = false, length = 16)
-    private TransferType transferType = TransferType.NEFT;
+    private TransferType transferType = TransferType.FT;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "credit_narration", nullable = false, length = 32)

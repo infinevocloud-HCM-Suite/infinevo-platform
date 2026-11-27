@@ -341,7 +341,7 @@ export const sectionFields = {
         ],
       },
       // Founder 2026-11-27 (V260): how the bank moves the money, and what the credit says it is for.
-      // Left blank on a new record, the server saves NEFT and Salary.
+      // Left blank on a new record, the server saves FT and Salary (V261).
       {
         name: 'transferType',
         label: 'Transfer Type',

@@ -21,7 +21,7 @@ const SAMPLE = {
   DEPARTMENT: 'Engineering',
   DESIGNATION: 'Engineer',
   NARRATION: 'Salary 2026-11',
-  TRANSFER_TYPE: 'NEFT',
+  TRANSFER_TYPE: 'FT',
   CREDIT_NARRATION: 'Salary',
 };
 

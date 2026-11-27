@@ -86,8 +86,8 @@ public class EmployeeBankServiceImpl
                 trimToNull(request.ifscCode()),
                 trimToNull(request.bankAccountNumber()),
                 request.bankAccountType(),
-                // Left out (an older caller) means the founder's defaults, NEFT and Salary.
-                request.transferType() == null ? TransferType.NEFT : request.transferType(),
+                // Left out (an older caller) means the founder's defaults, FT and Salary (V261).
+                request.transferType() == null ? TransferType.FT : request.transferType(),
                 narration,
                 narration == CreditNarration.OTHER ? trimToNull(request.creditNarrationOther()) : null,
                 actor);

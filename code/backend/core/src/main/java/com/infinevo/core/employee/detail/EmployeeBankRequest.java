@@ -28,7 +28,7 @@ public record EmployeeBankRequest(
         CreditNarration creditNarration,
         String creditNarrationOther) {
 
-    /** The request before V260: transfer type and narration left out, so they take NEFT and Salary. */
+    /** The request before V260: transfer type and narration left out, so they take FT and Salary (V261). */
     public EmployeeBankRequest(
             PaymentMode paymentMode,
             String accountHolderName,
