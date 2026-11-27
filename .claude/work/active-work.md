@@ -6,6 +6,12 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-27 — W-114.29 AI helper HR steps behind Confirm
+
+- Tools `core.propose_leave_allocation`, `core.propose_wfh_allocation`, `core.propose_delegation`, `core.propose_onboarding_assign` (`code/backend/core/src/main/java/com/infinevo/core/ai/action/`). One employee per card; Confirm calls the screen's service.
+- Bank file generation (step 5) dropped by the founder: screen only. Pay Run is not offered as a delegation flow type.
+- Built by Claude. No migration.
+
 ## 2026-11-27 — W-114.28 AI helper admin set-up steps behind Confirm
 
 - Tools `core.propose_department`, `core.propose_designation`, `core.propose_work_location`, `core.propose_holiday`, `core.propose_user_invite` (`code/backend/core/src/main/java/com/infinevo/core/ai/action/`) and `payroll.propose_bank_file_template` (`code/backend/payroll/src/main/java/com/infinevo/payroll/ai/`). Nothing is made until Confirm; Confirm calls the screen's service.
