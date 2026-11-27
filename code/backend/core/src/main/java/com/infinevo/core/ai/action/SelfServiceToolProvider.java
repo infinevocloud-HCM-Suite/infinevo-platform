@@ -203,6 +203,17 @@ public class SelfServiceToolProvider implements AiToolProvider {
 
     private List<LeaveRequestResponse> openLeave(AiToolContext ctx) {
         LocalDate today = today();
+        return ownLeave(ctx).stream()
+                .filter(r -> !r.fromDate().isBefore(today))
+                .limit(MAX_LISTED)
+                .toList();
+    }
+
+    /**
+     * Every pending or approved leave request of the caller's, oldest start first, whatever the date: a pending
+     * request whose start has passed can still be withdrawn, so withdraw and cancel look here, not in the list.
+     */
+    private List<LeaveRequestResponse> ownLeave(AiToolContext ctx) {
         List<LeaveRequestResponse> found = new ArrayList<>();
         for (LeaveRequestStatus status : List.of(LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED)) {
             found.addAll(leaveService
@@ -219,20 +230,26 @@ public class SelfServiceToolProvider implements AiToolProvider {
         }
         return found.stream()
                 .filter(r -> ctx.employeeId().equals(r.employeeId()))
-                .filter(r -> r.fromDate() != null && !r.fromDate().isBefore(today))
+                .filter(r -> r.fromDate() != null)
                 .sorted(Comparator.comparing(LeaveRequestResponse::fromDate))
-                .limit(MAX_LISTED)
                 .toList();
     }
 
     private List<WfhRequestResponse> openWfh(AiToolContext ctx) {
         LocalDate today = today();
+        return ownWfh(ctx).stream()
+                .filter(r -> !r.fromDate().isBefore(today))
+                .limit(MAX_LISTED)
+                .toList();
+    }
+
+    /** Every pending or approved WFH request of the caller's, oldest start first, whatever the date. */
+    private List<WfhRequestResponse> ownWfh(AiToolContext ctx) {
         return wfhService.listEmployeeRequests(ctx.tenantId(), ctx.employeeId()).stream()
                 .filter(r -> ctx.employeeId().equals(r.employeeId()))
                 .filter(r -> r.status() == WfhRequestStatus.PENDING || r.status() == WfhRequestStatus.APPROVED)
-                .filter(r -> r.fromDate() != null && !r.fromDate().isBefore(today))
+                .filter(r -> r.fromDate() != null)
                 .sorted(Comparator.comparing(WfhRequestResponse::fromDate))
-                .limit(MAX_LISTED)
                 .toList();
     }
 
@@ -285,7 +302,7 @@ public class SelfServiceToolProvider implements AiToolProvider {
         String reason = reason(args);
         return Objects.requireNonNull(tx.execute(s -> {
             LeaveRequestStatus wanted = cancel ? LeaveRequestStatus.APPROVED : LeaveRequestStatus.PENDING;
-            List<LeaveRequestResponse> matches = openLeave(ctx).stream()
+            List<LeaveRequestResponse> matches = ownLeave(ctx).stream()
                     .filter(r -> from.equals(r.fromDate()) && r.status() == wanted)
                     .toList();
             if (matches.size() != 1) {
@@ -312,7 +329,7 @@ public class SelfServiceToolProvider implements AiToolProvider {
         String reason = reason(args);
         return Objects.requireNonNull(tx.execute(s -> {
             WfhRequestStatus wanted = cancel ? WfhRequestStatus.APPROVED : WfhRequestStatus.PENDING;
-            List<WfhRequestResponse> matches = openWfh(ctx).stream()
+            List<WfhRequestResponse> matches = ownWfh(ctx).stream()
                     .filter(r -> from.equals(r.fromDate()) && r.status() == wanted)
                     .toList();
             if (matches.size() != 1) {

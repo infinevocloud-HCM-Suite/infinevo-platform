@@ -2,6 +2,7 @@ package com.infinevo.core.ai.action;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,6 +12,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.ai.AiModelClient;
 import com.infinevo.core.ai.AiModelResponse;
 import com.infinevo.core.ai.StubAiModelClient;
+import com.infinevo.core.approval.ApprovalDefinitionRequest;
+import com.infinevo.core.approval.ApprovalDefinitionService;
+import com.infinevo.core.approval.ApprovalFlowType;
+import com.infinevo.core.approval.ApprovalService;
+import com.infinevo.core.approval.ApprovalStepDefinition;
+import com.infinevo.core.approval.ApproverKind;
+import com.infinevo.core.approval.CommentScope;
+import com.infinevo.core.approval.StepOrdering;
+import com.infinevo.core.approval.SubjectRef;
 import com.infinevo.core.authz.AuthzTestSchema;
 import com.infinevo.core.guard.PermissionGuardTestApp;
 import com.infinevo.core.leave.ExceedBalanceMode;
@@ -40,6 +50,7 @@ import java.sql.SQLException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -101,6 +112,12 @@ class SelfServiceActionsIT extends AbstractIntegrationTest {
 
     @Autowired
     private PlatformTransactionManager txManager;
+
+    @Autowired
+    private ApprovalDefinitionService definitionService;
+
+    @Autowired
+    private ApprovalService approvalService;
 
     private StubAiModelClient stub;
     private UUID tenant;
@@ -170,10 +187,25 @@ class SelfServiceActionsIT extends AbstractIntegrationTest {
     @DisplayName("leave withdraw: PENDING -> WITHDRAWN on confirm; a second confirm changes nothing")
     void leaveWithdraw() throws Exception {
         UUID request = leaveRow(employeeA, day, "PENDING");
+        UUID instance = awaitingApproval(ApprovalFlowType.LEAVE, "leave_request", request);
         UUID intent = propose("core.propose_leave_withdraw", Map.of("fromDate", day.toString()), "core.leave.withdraw");
         assertThat(leaveStatus(request)).isEqualTo("PENDING");
 
         confirm(intent).andExpect(status().isOk());
+        confirm(intent).andExpect(status().isOk());
+
+        assertThat(leaveStatus(request)).isEqualTo("WITHDRAWN");
+        assertApprovalClosed(instance);
+    }
+
+    @Test
+    @DisplayName("a pending leave whose start date has passed can still be withdrawn through the helper")
+    void leaveWithdraw_pastStart() throws Exception {
+        LocalDate past = LocalDate.now(ZoneOffset.UTC).minusDays(3);
+        UUID request = leaveRow(employeeA, past, "PENDING");
+        UUID intent =
+                propose("core.propose_leave_withdraw", Map.of("fromDate", past.toString()), "core.leave.withdraw");
+
         confirm(intent).andExpect(status().isOk());
 
         assertThat(leaveStatus(request)).isEqualTo("WITHDRAWN");
@@ -203,9 +235,11 @@ class SelfServiceActionsIT extends AbstractIntegrationTest {
     @DisplayName("WFH withdraw: PENDING -> WITHDRAWN; WFH cancel: APPROVED -> CANCELLED")
     void wfhWithdrawAndCancel() throws Exception {
         UUID pending = wfhRow(employeeA, day, "PENDING");
+        UUID instance = awaitingApproval(ApprovalFlowType.WORK_FROM_HOME, "wfh_request", pending);
         UUID withdraw = propose("core.propose_wfh_withdraw", Map.of("fromDate", day.toString()), "core.wfh.withdraw");
         confirm(withdraw).andExpect(status().isOk());
         assertThat(wfhStatus(pending)).isEqualTo("WITHDRAWN");
+        assertApprovalClosed(instance);
 
         LocalDate later = nextWeekday(day.plusDays(3));
         UUID approved = wfhRow(employeeA, later, "APPROVED");
@@ -233,6 +267,30 @@ class SelfServiceActionsIT extends AbstractIntegrationTest {
 
         assertThat(leaveStatus(theirLeave)).isEqualTo("PENDING");
         assertThat(wfhStatus(theirWfh)).isEqualTo("PENDING");
+
+        UUID theirApprovedLeave = leaveRow(employeeB, nextWeekday(day.plusDays(6)), "APPROVED");
+        UUID theirApprovedWfh = wfhRow(employeeB, nextWeekday(day.plusDays(9)), "APPROVED");
+        confirm(plant("core.leave.cancel", theirApprovedLeave))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(SelfServiceCards.LEAVE_GONE));
+        confirm(plant("core.wfh.cancel", theirApprovedWfh))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(SelfServiceCards.WFH_GONE));
+        assertThat(leaveStatus(theirApprovedLeave)).isEqualTo("APPROVED");
+        assertThat(wfhStatus(theirApprovedWfh)).isEqualTo("APPROVED");
+    }
+
+    @Test
+    @DisplayName("an intent naming a request that does not exist: the card reads 'not found', with no error")
+    void missingRequest_cardSaysNotFound() throws Exception {
+        UUID intent = plant("core.leave.withdraw", UUID.randomUUID());
+        mvc.perform(as(get("/api/v1/ai/actions/{id}", intent)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary").value(SelfServiceCards.LEAVE_GONE));
+        UUID wfhIntent = plant("core.wfh.withdraw", UUID.randomUUID());
+        mvc.perform(as(get("/api/v1/ai/actions/{id}", wfhIntent)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary").value(SelfServiceCards.WFH_GONE));
     }
 
     @Test
@@ -286,6 +344,17 @@ class SelfServiceActionsIT extends AbstractIntegrationTest {
         TenantContext.set(tenant);
         try {
             new TransactionTemplate(txManager).executeWithoutResult(s -> {
+                for (ApprovalFlowType flow : List.of(ApprovalFlowType.LEAVE, ApprovalFlowType.WORK_FROM_HOME)) {
+                    definitionService.saveDefinition(
+                            tenant,
+                            flow,
+                            new ApprovalDefinitionRequest(
+                                    StepOrdering.SEQUENTIAL,
+                                    CommentScope.PER_STEP,
+                                    LocalDate.of(2024, 1, 1),
+                                    List.of(new ApprovalStepDefinition(
+                                            ApproverKind.NAMED_EMPLOYEE, employeeB.toString(), 3, false))));
+                }
                 LeaveTypeResponse type = leaveTypeService.createLeaveType(
                         tenant,
                         new LeaveTypeRequest(
@@ -340,6 +409,35 @@ class SelfServiceActionsIT extends AbstractIntegrationTest {
                 on,
                 on,
                 status);
+    }
+
+    /** A pending approval for the request, started as the screens start it, and linked to the row. */
+    private UUID awaitingApproval(ApprovalFlowType flow, String table, UUID requestId) throws SQLException {
+        TenantContext.set(tenant);
+        UUID instance;
+        try {
+            instance = new TransactionTemplate(txManager)
+                    .execute(s -> approvalService.start(flow, new SubjectRef(table, requestId), employeeA));
+        } finally {
+            TenantContext.clear();
+        }
+        try (Connection conn = AuthzTestSchema.migrationConnection();
+                PreparedStatement ps =
+                        conn.prepareStatement("UPDATE core." + table + " SET approval_instance_id = ? WHERE id = ?")) {
+            ps.setObject(1, instance);
+            ps.setObject(2, requestId);
+            ps.executeUpdate();
+        }
+        return instance;
+    }
+
+    /** The withdrawn request's approval is closed: no longer pending, and no step is left undecided. */
+    private void assertApprovalClosed(UUID instance) throws SQLException {
+        assertThat(scalar("SELECT status FROM core.approval_instance WHERE id = ?", instance))
+                .isNotEqualTo("PENDING");
+        assertThat(count(
+                        "SELECT count(*) FROM core.approval_step WHERE instance_id = ? AND decision IS NULL", instance))
+                .isZero();
     }
 
     private UUID wfhRow(UUID employee, LocalDate on, String status) throws SQLException {

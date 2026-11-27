@@ -159,18 +159,18 @@ cd code/frontend && npx vitest run src/shell/assistant && npm run lint
 
 | Check | Expected | Result |
 |---|---|---|
-| The commands | Build success; existing leave and WFH tests pass unchanged | not run |
-| "Work from home on 2026-12-08" | A card; no row in `core.wfh_request` until Confirm; then one `PENDING` request on the WFH screen | not run |
-| Same dates as an existing leave | The helper explains the overlap; no card | not run |
-| "Withdraw my leave of 15 December" (pending) | Card; Confirm sets `WITHDRAWN` | not run |
-| "Cancel my leave of 20 December" (approved, in the future) | Card; Confirm sets `CANCELLED`; the balance goes back | not run |
-| Cancel a leave that starts today | Refused with the service's message; no card | not run |
-| "Withdraw my WFH request for 8 December" (pending) | Card; Confirm sets `WITHDRAWN`; the card links to `/me/wfh` | not run |
-| "Cancel my WFH on 10 December" (approved, in the future) | Card; Confirm sets `CANCELLED` | not run |
-| Cancel a WFH request that starts today | Refused with the service's message; no card | not run |
-| An intent planted with another employee's WFH request id | Refused at confirm; that request is unchanged | not run |
-| The request is approved between proposal and confirm of a withdraw | `409 AI_ACTION_FAILED` with the service's message | not run |
-| Confirm twice | Same result; one change | not run |
+| The commands | Build success; existing leave and WFH tests pass unchanged | Pass 2026-11-27, full `core,app` verify |
+| "Work from home on 2026-12-08" | A card; no row in `core.wfh_request` until Confirm; then one `PENDING` request on the WFH screen | Pass, `SelfServiceActionsIT.wfhApply` (screen not opened) |
+| Same dates as an existing leave | The helper explains the overlap; no card | Pass, the service's refusal passed back with no intent (`SelfServiceToolProviderTest`; overlap itself in `WfhRequestServiceTest`) |
+| "Withdraw my leave of 15 December" (pending) | Card; Confirm sets `WITHDRAWN` | Pass, `leaveWithdraw` (approval closed too) and `leaveWithdraw_pastStart` |
+| "Cancel my leave of 20 December" (approved, in the future) | Card; Confirm sets `CANCELLED`; the balance goes back | Pass, `leaveCancel` |
+| Cancel a leave that starts today | Refused with the service's message; no card | Pass, `SelfServiceToolProviderTest` |
+| "Withdraw my WFH request for 8 December" (pending) | Card; Confirm sets `WITHDRAWN`; the card links to `/me/wfh` | Pass, `wfhWithdrawAndCancel`; link in `actionLinks.test.js` |
+| "Cancel my WFH on 10 December" (approved, in the future) | Card; Confirm sets `CANCELLED` | Pass, `wfhWithdrawAndCancel` |
+| Cancel a WFH request that starts today | Refused with the service's message; no card | Pass, `SelfServiceToolProviderTest` |
+| An intent planted with another employee's WFH request id | Refused at confirm; that request is unchanged | Pass, `anotherEmployeesRequestIsRefused`, all four executors |
+| The request is approved between proposal and confirm of a withdraw | `409 AI_ACTION_FAILED` with the service's message | Not run as its own test: the executor calls the service, whose status check refuses it (`IllegalStateException`, which confirm turns into `409`) |
+| Confirm twice | Same result; one change | Pass, `wfhApply`, `leaveWithdraw` |
 
 ## Risks
 

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.infinevo.core.ai.AiActionField;
 import com.infinevo.core.ai.AiToolContext;
+import com.infinevo.core.leave.LeaveRequestRepository;
 import com.infinevo.core.leave.LeaveRequestResponse;
 import com.infinevo.core.leave.LeaveRequestService;
 import java.util.List;
@@ -26,9 +27,11 @@ abstract class LeaveStatusExecutor implements AiActionExecutor {
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
 
     final LeaveRequestService leaveRequestService;
+    private final LeaveRequestRepository leaveRequests;
 
-    LeaveStatusExecutor(LeaveRequestService leaveRequestService) {
+    LeaveStatusExecutor(LeaveRequestService leaveRequestService, LeaveRequestRepository leaveRequests) {
         this.leaveRequestService = Objects.requireNonNull(leaveRequestService, "leaveRequestService must not be null");
+        this.leaveRequests = Objects.requireNonNull(leaveRequests, "leaveRequests must not be null");
     }
 
     /** "Withdraw" or "Cancel", the card's verb. */
@@ -56,7 +59,8 @@ abstract class LeaveStatusExecutor implements AiActionExecutor {
 
     @Override
     public AiActionDescription describe(AiToolContext ctx, JsonNode payload) {
-        Optional<LeaveRequestResponse> found = SelfServiceCards.ownLeave(leaveRequestService, ctx, payload);
+        Optional<LeaveRequestResponse> found =
+                SelfServiceCards.ownLeave(leaveRequestService, leaveRequests, ctx, payload);
         String reason = SelfServiceCards.text(payload, REASON);
         if (found.isEmpty()) {
             return new AiActionDescription(
@@ -78,7 +82,7 @@ abstract class LeaveStatusExecutor implements AiActionExecutor {
 
     @Override
     public JsonNode execute(AiToolContext ctx, JsonNode payload) {
-        LeaveRequestResponse own = SelfServiceCards.ownLeave(leaveRequestService, ctx, payload)
+        LeaveRequestResponse own = SelfServiceCards.ownLeave(leaveRequestService, leaveRequests, ctx, payload)
                 .orElseThrow(() -> new IllegalStateException(LEAVE_GONE));
         LeaveRequestResponse changed = change(ctx, own, SelfServiceCards.text(payload, REASON));
         ObjectNode result = NODES.objectNode();

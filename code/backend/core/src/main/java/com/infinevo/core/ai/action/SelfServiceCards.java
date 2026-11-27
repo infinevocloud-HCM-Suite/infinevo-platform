@@ -2,6 +2,7 @@ package com.infinevo.core.ai.action;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.infinevo.core.ai.AiToolContext;
+import com.infinevo.core.leave.LeaveRequestRepository;
 import com.infinevo.core.leave.LeaveRequestResponse;
 import com.infinevo.core.leave.LeaveRequestService;
 import com.infinevo.core.wfh.WfhRequestResponse;
@@ -27,9 +28,15 @@ final class SelfServiceCards {
     private SelfServiceCards() {}
 
     /** The caller's own leave request named by the payload, or empty: missing, another employee's, or a bad id. */
-    static Optional<LeaveRequestResponse> ownLeave(LeaveRequestService service, AiToolContext ctx, JsonNode payload) {
+    static Optional<LeaveRequestResponse> ownLeave(
+            LeaveRequestService service, LeaveRequestRepository rows, AiToolContext ctx, JsonNode payload) {
         UUID id = id(payload);
         if (id == null || ctx.employeeId() == null) {
+            return Optional.empty();
+        }
+        // Looked up first: the service throws for a missing row inside a transaction the caller may hold, which
+        // would mark it rollback-only and turn a "not found" card into a 500.
+        if (rows.findByIdAndTenantId(id, ctx.tenantId()).isEmpty()) {
             return Optional.empty();
         }
         try {
@@ -46,12 +53,11 @@ final class SelfServiceCards {
         if (id == null || ctx.employeeId() == null) {
             return Optional.empty();
         }
-        try {
-            WfhRequestResponse r = service.getRequest(ctx.tenantId(), id);
-            return r != null && ctx.employeeId().equals(r.employeeId()) ? Optional.of(r) : Optional.empty();
-        } catch (NoSuchElementException e) {
-            return Optional.empty();
-        }
+        // The caller's own list, not getRequest: that throws for a missing row inside a transaction the caller may
+        // hold, marking it rollback-only.
+        return service.listEmployeeRequests(ctx.tenantId(), ctx.employeeId()).stream()
+                .filter(r -> id.equals(r.id()) && ctx.employeeId().equals(r.employeeId()))
+                .findFirst();
     }
 
     static UUID id(JsonNode payload) {

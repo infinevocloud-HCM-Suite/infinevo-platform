@@ -92,6 +92,10 @@ class WfhRequestServiceTest {
         assertThatThrownBy(() -> requestService.apply(tenantId, employeeId, req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("fromDate cannot be after toDate");
+        // W-114.17: validateApply holds the same checks and refuses the same way, writing nothing.
+        assertThatThrownBy(() -> requestService.validateApply(tenantId, employeeId, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("fromDate cannot be after toDate");
     }
 
     @Test
@@ -101,6 +105,10 @@ class WfhRequestServiceTest {
                 employeeId, LocalDate.of(2026, 11, 5), LocalDate.of(2026, 11, 6), true, "first", "Half day");
 
         assertThatThrownBy(() -> requestService.apply(tenantId, employeeId, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Half-day WFH request must have identical fromDate and toDate");
+        // W-114.17: validateApply holds the same checks and refuses the same way, writing nothing.
+        assertThatThrownBy(() -> requestService.validateApply(tenantId, employeeId, req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Half-day WFH request must have identical fromDate and toDate");
     }
@@ -120,6 +128,10 @@ class WfhRequestServiceTest {
         ApplyWfhRequest req = new ApplyWfhRequest(employeeId, from, to, false, null, "Focus sprint");
 
         assertThatThrownBy(() -> requestService.apply(tenantId, employeeId, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("overlapping these dates");
+        // W-114.17: validateApply holds the same checks and refuses the same way, writing nothing.
+        assertThatThrownBy(() -> requestService.validateApply(tenantId, employeeId, req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("overlapping these dates");
     }
@@ -143,6 +155,10 @@ class WfhRequestServiceTest {
         ApplyWfhRequest req = new ApplyWfhRequest(employeeId, from, to, false, null, "Focus sprint");
 
         assertThatThrownBy(() -> requestService.apply(tenantId, employeeId, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Employee already has a pending or approved leave request");
+        // W-114.17: validateApply holds the same checks and refuses the same way, writing nothing.
+        assertThatThrownBy(() -> requestService.validateApply(tenantId, employeeId, req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Employee already has a pending or approved leave request");
     }
@@ -169,6 +185,10 @@ class WfhRequestServiceTest {
         assertThatThrownBy(() -> requestService.apply(tenantId, employeeId, req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Insufficient WFH balance");
+        // W-114.17: validateApply holds the same checks and refuses the same way, writing nothing.
+        assertThatThrownBy(() -> requestService.validateApply(tenantId, employeeId, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Insufficient WFH balance");
     }
 
     @Test
@@ -192,6 +212,10 @@ class WfhRequestServiceTest {
         ApplyWfhRequest req = new ApplyWfhRequest(employeeId, from, to, false, null, "Focus sprint");
 
         assertThatThrownBy(() -> requestService.apply(tenantId, employeeId, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Request exceeds maximum allowable WFH days for the month");
+        // W-114.17: validateApply holds the same checks and refuses the same way, writing nothing.
+        assertThatThrownBy(() -> requestService.validateApply(tenantId, employeeId, req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Request exceeds maximum allowable WFH days for the month");
     }

@@ -1,6 +1,7 @@
 package com.infinevo.core.ai.action;
 
 import com.infinevo.core.ai.AiToolContext;
+import com.infinevo.core.leave.LeaveRequestRepository;
 import com.infinevo.core.leave.LeaveRequestResponse;
 import com.infinevo.core.leave.LeaveRequestService;
 import org.springframework.stereotype.Component;
@@ -11,8 +12,8 @@ public class LeaveWithdrawExecutor extends LeaveStatusExecutor {
 
     public static final String ACTION_CODE = "core.leave.withdraw";
 
-    public LeaveWithdrawExecutor(LeaveRequestService leaveRequestService) {
-        super(leaveRequestService);
+    public LeaveWithdrawExecutor(LeaveRequestService leaveRequestService, LeaveRequestRepository leaveRequests) {
+        super(leaveRequestService, leaveRequests);
     }
 
     @Override
