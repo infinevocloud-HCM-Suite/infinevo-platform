@@ -9,6 +9,7 @@ import {
   Card,
   Tag,
   Select,
+  Input,
   theme,
 } from 'antd';
 import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
@@ -40,6 +41,9 @@ const formatSummary = (str) => {
   return str.replace('WORK_FROM_HOME Request', 'Work From Home Request');
 };
 
+/** The server's largest page (ApprovalController caps size at 100). */
+const FILTER_LOAD_SIZE = 100;
+
 export function Inbox() {
   const { token } = theme.useToken();
   const navigate = useNavigate();
@@ -61,6 +65,10 @@ export function Inbox() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [flowTypeFilter, setFlowTypeFilter] = useState(null);
+  // Founder 2026-11-27: find a person's requests by name. While a filter is on, the inbox loads the
+  // server's largest page (100) and filters it here, so a match is not lost on a page not loaded.
+  const [nameFilter, setNameFilter] = useState('');
+  const filtering = Boolean(flowTypeFilter) || nameFilter.trim() !== '';
 
   // Decide modal state
   const [decideModal, setDecideModal] = useState({
@@ -73,7 +81,9 @@ export function Inbox() {
     if (!canDecide) return;
     setLoading(true);
     try {
-      const res = await approvalService.pending(page - 1, pageSize);
+      const res = filtering
+        ? await approvalService.pending(0, FILTER_LOAD_SIZE)
+        : await approvalService.pending(page - 1, pageSize);
       const items = res?.content || (Array.isArray(res) ? res : []);
       const count = res?.totalElements ?? items.length;
       setData(items);
@@ -84,7 +94,7 @@ export function Inbox() {
     } finally {
       setLoading(false);
     }
-  }, [canDecide, page, pageSize, dispatch]);
+  }, [canDecide, page, pageSize, dispatch, filtering]);
 
   useEffect(() => {
     loadPending();
@@ -109,11 +119,17 @@ export function Inbox() {
     loadPending();
   };
 
-  // Filter the page by the selected flow type
-  const filteredData = useMemo(
-    () => (flowTypeFilter ? data.filter((item) => item.flowType === flowTypeFilter) : data),
-    [data, flowTypeFilter],
-  );
+  // Filter by the selected flow type and by the employee's name (or employee ID), case-insensitive
+  const filteredData = useMemo(() => {
+    const needle = nameFilter.trim().toLowerCase();
+    return data.filter(
+      (item) =>
+        (!flowTypeFilter || item.flowType === flowTypeFilter) &&
+        (!needle ||
+          String(item.subjectEmployeeName || '').toLowerCase().includes(needle) ||
+          String(item.subjectEmployeeId || '').toLowerCase().includes(needle)),
+    );
+  }, [data, flowTypeFilter, nameFilter]);
 
   const columns = [
     {
@@ -229,6 +245,15 @@ export function Inbox() {
         subtitle="Review and decide requests waiting on your approval."
         count={`${total} pending`}
         actions={
+          <Space wrap>
+          <Input.Search
+            id="input-employee-filter"
+            allowClear
+            placeholder="Search employee name"
+            style={{ width: 220 }}
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
           <Select
             id="select-flow-type-filter"
             allowClear
@@ -238,6 +263,7 @@ export function Inbox() {
             onChange={(val) => setFlowTypeFilter(val)}
             options={filterOptions}
           />
+          </Space>
         }
       />
 
@@ -246,15 +272,19 @@ export function Inbox() {
         columns={columns}
         rowKey="id"
         loading={loading}
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          onChange: (p, s) => {
-            setPage(p);
-            setPageSize(s);
-          },
-        }}
+        pagination={
+          filtering
+            ? { pageSize, onChange: (_, s) => setPageSize(s) }
+            : {
+                current: page,
+                pageSize,
+                total,
+                onChange: (p, s) => {
+                  setPage(p);
+                  setPageSize(s);
+                },
+              }
+        }
       />
 
       {decideModal.step && (
