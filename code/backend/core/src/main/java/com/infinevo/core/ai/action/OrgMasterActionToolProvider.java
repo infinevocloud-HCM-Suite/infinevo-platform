@@ -39,8 +39,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Component
 public class OrgMasterActionToolProvider implements AiToolProvider {
 
-    static final int MAX_CODE = 50;
-    static final int MAX_TEXT = 100;
+    /** The service's limits ({@code org/AbstractOrgMasterServiceImpl.java:39-40}), checked before the card. */
+    static final int MAX_CODE = 32;
+
+    static final int MAX_TEXT = 128;
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
 
     private final AiActionProposals proposals;
@@ -123,10 +125,10 @@ public class OrgMasterActionToolProvider implements AiToolProvider {
             props.put("name", textProperty(MAX_TEXT, "The " + kind + "'s name."));
             if (address) {
                 props.put("addressLine1", textProperty(200, "Street address, if given."));
-                props.put("city", textProperty(MAX_TEXT, "City, if given."));
-                props.put("state", textProperty(MAX_TEXT, "State, if given."));
-                props.put("stateCode", textProperty(4, "The state's two-digit GST code, if given."));
-                props.put("zipCode", textProperty(10, "PIN code, if given."));
+                props.put("city", textProperty(100, "City, if given."));
+                props.put("state", textProperty(100, "State, if given."));
+                props.put("stateCode", textProperty(8, "The state's two-digit GST code, if given."));
+                props.put("zipCode", textProperty(16, "PIN code, if given."));
             }
             this.inputSchema = schema(props, "code", "name");
         }
@@ -164,6 +166,12 @@ public class OrgMasterActionToolProvider implements AiToolProvider {
                 String label = given(args, "name");
                 if (code == null || label == null) {
                     throw new BadInput("code and name are required. Ask the user for them.");
+                }
+                if (code.length() > MAX_CODE) {
+                    throw new BadInput("The code must be at most " + MAX_CODE + " characters.");
+                }
+                if (label.length() > MAX_TEXT) {
+                    throw new BadInput("The name must be at most " + MAX_TEXT + " characters.");
                 }
                 AiProposedAction card = tx.execute(s -> {
                     for (Existing e : existing.get().toList()) {

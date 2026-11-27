@@ -110,6 +110,16 @@ class HolidayActionToolProviderTest {
     }
 
     @Test
+    @DisplayName("one proposal per message")
+    void oneAtATime() throws Exception {
+        assertThat(run("{\"name\":\"Diwali\",\"from\":\"2026-11-08\"}").ok()).isTrue();
+        assertThat(run("{\"name\":\"Holi\",\"from\":\"2026-03-04\"}").error()).contains("One step at a time");
+        f.nextMessage();
+        assertThat(run("{\"name\":\"Holi\",\"from\":\"2026-03-04\"}").ok()).isTrue();
+        assertThat(f.stored).hasSize(2);
+    }
+
+    @Test
     @DisplayName("no calendar at all: make one on the screen first")
     void noCalendars() throws Exception {
         calendars.clear();

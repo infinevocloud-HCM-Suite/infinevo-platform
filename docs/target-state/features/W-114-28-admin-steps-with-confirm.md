@@ -82,6 +82,8 @@ This part is itself the AI helper's action layer for these screens. Help article
 
 `NoPayRunActionTest` (app) now allows exactly one payroll action, `payroll.bank_file_template.create`; any other payroll action still fails the build. `PayrollTestApp` gains stand-in `AiActionProposals` and `EmployeeQueryService` beans: its scan leaves core's out, and without them no payroll IT context starts. Tests: `OrgMasterActionToolProviderTest` 7, `HolidayActionToolProviderTest` 5, `UserInviteToolProviderTest` 5, `BankFileTemplateToolProviderTest` 5, `AdminStepsIT` 5, `BankFileTemplateActionIT` 3, `actionLinks.test.js`.
 
+**Review fixes (2026-11-27).** Confirm checks the department, designation or work location name again (the service checks only the code). Code and name limits are the service's (32 and 128) and the tool refuses longer ones before a card. `AdminStepsIT` now covers all three org lists, and a holiday, an invitation and a department name made in between, each ending `FAILED`. `BankFileTemplateActionIT` runs the executor directly: the payroll test application has no chat or confirm endpoint, and the confirm path (permission, module, one result for many confirms) is core's, tested in `AiActionServiceImplTest` and `AdminStepsIT`.
+
 ## Rollback
 
 Revert the commit. The tools are no longer offered; what was made stays.

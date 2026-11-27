@@ -39,6 +39,9 @@ abstract class OrgMasterCreateExecutor implements AiActionExecutor {
     /** Creates from the stored payload and answers the new row's id and code. */
     abstract Created create(JsonNode payload);
 
+    /** Every name in the list, inactive ones included, as the tool checks them. */
+    abstract List<String> names();
+
     record Created(String id, String code) {}
 
     @Override
@@ -69,6 +72,12 @@ abstract class OrgMasterCreateExecutor implements AiActionExecutor {
 
     @Override
     public JsonNode execute(AiToolContext ctx, JsonNode payload) {
+        String name = text(payload, NAME);
+        for (String n : names()) {
+            if (n != null && name != null && n.trim().equalsIgnoreCase(name.trim())) {
+                throw new IllegalStateException("A " + kind() + " named " + name.trim() + " already exists.");
+            }
+        }
         Created created;
         try {
             created = create(payload);

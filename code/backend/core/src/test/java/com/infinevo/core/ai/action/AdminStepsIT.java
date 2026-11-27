@@ -188,6 +188,78 @@ class AdminStepsIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("a designation and a work location: none until Confirm; Confirm makes one; a second makes none")
+    void designationAndLocation() throws Exception {
+        UUID designation =
+                propose(subAdmin, "core.propose_designation", Map.of("code", code, "name", "Team lead " + code));
+        assertThat(count("SELECT count(*) FROM core.designation WHERE tenant_id = ? AND code = ?", code))
+                .isZero();
+        body(confirm(designation).andExpect(status().isOk()));
+        body(confirm(designation).andExpect(status().isOk()));
+        assertThat(count("SELECT count(*) FROM core.designation WHERE tenant_id = ? AND code = ?", code))
+                .isEqualTo(1);
+
+        UUID location = propose(
+                subAdmin,
+                "core.propose_work_location",
+                Map.of("code", code, "name", "Pune " + code, "city", "Pune", "state", "Maharashtra"));
+        assertThat(count("SELECT count(*) FROM core.work_location WHERE tenant_id = ? AND code = ?", code))
+                .isZero();
+        body(confirm(location).andExpect(status().isOk()));
+        body(confirm(location).andExpect(status().isOk()));
+        assertThat(count("SELECT count(*) FROM core.work_location WHERE tenant_id = ? AND code = ?", code))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("a department name taken between proposal and Confirm ends FAILED; no second Finance")
+    void departmentName_takenMeanwhile() throws Exception {
+        UUID intent = propose(subAdmin, "core.propose_department", Map.of("code", code, "name", "Operations"));
+        execute(
+                "INSERT INTO core.department (id, tenant_id, code, name) VALUES (?, ?, 'OTHER1', 'operations')",
+                UUID.randomUUID(),
+                tenant);
+
+        confirm(intent)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("AI_ACTION_FAILED"));
+        assertThat(count("SELECT count(*) FROM core.department WHERE tenant_id = ? AND code = ?", code))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("the same holiday added between proposal and Confirm ends FAILED; still one")
+    void holiday_addedMeanwhile() throws Exception {
+        UUID intent = propose(subAdmin, "core.propose_holiday", Map.of("name", "Holi", "from", "2026-03-04"));
+        execute(
+                "INSERT INTO core.holiday (tenant_id, calendar_id, name, from_date, to_date)"
+                        + " VALUES (?, ?, 'Holi', DATE '2026-03-04', DATE '2026-03-04')",
+                tenant,
+                calendar);
+
+        confirm(intent)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("AI_ACTION_FAILED"));
+        assertThat(count("SELECT count(*) FROM core.holiday WHERE tenant_id = ? AND name = ?", "Holi"))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("an invitation sent between proposal and Confirm ends FAILED; still one")
+    void invite_sentMeanwhile() throws Exception {
+        String email = "twice-" + code.toLowerCase() + "@admin.test";
+        UUID first = propose(subAdmin, "core.propose_user_invite", Map.of("email", email));
+        UUID second = propose(subAdmin, "core.propose_user_invite", Map.of("email", email));
+        body(confirm(second).andExpect(status().isOk()));
+
+        confirm(first)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("AI_ACTION_FAILED"));
+        assertThat(count("SELECT count(*) FROM core.user_invitation WHERE tenant_id = ? AND email = ?", email))
+                .isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("a user without the actions is never offered the tools, and a call to one makes nothing")
     void notOffered() throws Exception {
         JsonNode answer = say(

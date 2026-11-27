@@ -112,6 +112,16 @@ class UserInviteToolProviderTest {
     }
 
     @Test
+    @DisplayName("one proposal per message")
+    void oneAtATime() throws Exception {
+        assertThat(run("{\"email\":\"a@acme.in\"}").ok()).isTrue();
+        assertThat(run("{\"email\":\"b@acme.in\"}").error()).contains("One step at a time");
+        f.nextMessage();
+        assertThat(run("{\"email\":\"b@acme.in\"}").ok()).isTrue();
+        assertThat(f.stored).hasSize(2);
+    }
+
+    @Test
     @DisplayName("an unknown role lists the company's roles, never platform-admin; it cannot be asked for")
     void unknownRole() throws Exception {
         AiToolResult result = run("{\"email\":\"a@acme.in\",\"roles\":[\"Boss\"]}");

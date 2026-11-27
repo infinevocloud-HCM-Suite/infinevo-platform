@@ -19,6 +19,7 @@ import com.infinevo.core.org.DesignationService;
 import com.infinevo.core.org.WorkLocationRequest;
 import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
+import java.util.List;
 import java.util.Objects;
 import org.springframework.stereotype.Component;
 
@@ -51,6 +52,11 @@ final class OrgMasterExecutors {
         @Override
         String screen() {
             return "/org/departments";
+        }
+
+        @Override
+        List<String> names() {
+            return service.list(false).stream().map(DepartmentResponse::name).toList();
         }
 
         @Override
@@ -87,6 +93,11 @@ final class OrgMasterExecutors {
         }
 
         @Override
+        List<String> names() {
+            return service.list(false).stream().map(DesignationResponse::name).toList();
+        }
+
+        @Override
         Created create(JsonNode p) {
             DesignationResponse r = service.create(new DesignationRequest(text(p, CODE), text(p, NAME), true));
             return new Created(r.id().toString(), r.code());
@@ -117,6 +128,11 @@ final class OrgMasterExecutors {
         @Override
         String screen() {
             return "/org/work-locations";
+        }
+
+        @Override
+        List<String> names() {
+            return service.list(false).stream().map(WorkLocationResponse::name).toList();
         }
 
         @Override
