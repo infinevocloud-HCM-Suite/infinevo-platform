@@ -110,7 +110,7 @@ Paths are under `code/backend/core/src/main/java/com/infinevo/core/`.
 
 | Tool | Input | Does | `requiredAction` |
 |---|---|---|---|
-| `core.my_open_requests` | — | Two lists, each at most 25, no ids. **Leave:** the caller's requests in `PENDING` or `APPROVED` with a start date today or later, through `leaveRequestService.searchRequests(tenantId, caller.id(), …)`: leave type, from, to, days, status, "can withdraw" / "can cancel". **WFH:** the same for the caller's WFH requests, through `WfhRequestService.listEmployeeRequests(tenantId, caller.id())` (`wfh/WfhRequestService.java:14`): from, to, half day, status, "can withdraw" / "can cancel". A list is left out when the caller lacks its read action | `core.leave.read_own`, with `requiredAnyOf = [core.wfh.read_own]` (`W-114.3`; `MyWfhController.java:53-54`) |
+| `core.my_open_requests` | — | Two lists, each at most 25, no ids. **Leave:** the caller's requests in `PENDING` or `APPROVED` with a start date today or later, through `leaveRequestService.searchRequests(tenantId, caller.id(), status, null, null, …)` and filtered on the start date in code - the search's own date filter fails in PostgreSQL when a date is bound (`42P18`, found while building this; reported): leave type, from, to, days, status, "can withdraw" / "can cancel". **WFH:** the same for the caller's WFH requests, through `WfhRequestService.listEmployeeRequests(tenantId, caller.id())` (`wfh/WfhRequestService.java:14`): from, to, half day, status, "can withdraw" / "can cancel". A list is left out when the caller lacks its read action | `core.leave.read_own`, with `requiredAnyOf = [core.wfh.read_own]` (`W-114.3`; `MyWfhController.java:53-54`) |
 | `core.propose_wfh_request` | `fromDate`, `toDate` (ISO), `halfDay`, `halfDayPeriod` (`first` / `second`, `WfhRequestServiceImpl.java:102`), `reason` (500) | `validateApply`, then propose `core.wfh.apply`. Card fields: From, To, Half day, Working days, Reason | `core.wfh.apply` |
 | `core.propose_wfh_withdraw` | `fromDate`, `reason` | Finds the caller's own `PENDING` WFH request starting that date, then proposes `core.wfh.withdraw`. Card fields: From, To, Half day, Status, Reason | `core.wfh.apply` |
 | `core.propose_wfh_cancel` | `fromDate`, `reason` | Finds the caller's own `APPROVED` WFH request starting that date; refuses when today is on or after the start date, with the service's wording (`WfhRequestServiceImpl.java:298-301`); proposes `core.wfh.cancel` | `core.wfh.apply` |
@@ -148,7 +148,7 @@ None.
 |---|---|---|
 | Unit | the existing WFH service tests | Pass unchanged after the extraction; `validateApply` refuses what `apply` refused |
 | Unit | `core/src/test/.../ai/action/SelfServiceToolProviderTest.java` | For leave and for WFH alike: no request on that date lists the open ones; a `PENDING` request cannot be proposed for cancel, an `APPROVED` one cannot be proposed for withdraw; cancel on the start date is refused with the service's text; no tool result carries an id; a refusal writes no intent. `core.my_open_requests` leaves out the WFH list for a caller without `core.wfh.read_own` |
-| Integration | `core/src/test/.../ai/action/SelfServiceActionsIT.java` | Confirmed WFH creates one `PENDING` request; confirmed withdraw moves `PENDING → WITHDRAWN` and cancels the approval instance; confirmed cancel moves `APPROVED → CANCELLED` and releases the consumed days; confirmed WFH withdraw moves `PENDING → WITHDRAWN` and cancels its approval instance; confirmed WFH cancel moves `APPROVED → CANCELLED`; a second confirm changes nothing; an intent whose payload names another employee's leave request or WFH request is refused at confirm and that request is unchanged |
+| Integration | `core/src/test/.../ai/action/SelfServiceActionsIT.java` (requests that must already exist, pending or approved, are written as rows; WFH apply goes through the real policy and quota) | Confirmed WFH creates one `PENDING` request; confirmed withdraw moves `PENDING → WITHDRAWN` and cancels the approval instance; confirmed cancel moves `APPROVED → CANCELLED` and releases the consumed days; confirmed WFH withdraw moves `PENDING → WITHDRAWN` and cancels its approval instance; confirmed WFH cancel moves `APPROVED → CANCELLED`; a second confirm changes nothing; an intent whose payload names another employee's leave request or WFH request is refused at confirm and that request is unchanged |
 
 ## Verification
 
@@ -159,18 +159,18 @@ cd code/frontend && npx vitest run src/shell/assistant && npm run lint
 
 | Check | Expected | Result |
 |---|---|---|
-| The commands | Build success; existing leave and WFH tests pass unchanged | not run |
-| "Work from home on 2026-12-08" | A card; no row in `core.wfh_request` until Confirm; then one `PENDING` request on the WFH screen | not run |
-| Same dates as an existing leave | The helper explains the overlap; no card | not run |
-| "Withdraw my leave of 15 December" (pending) | Card; Confirm sets `WITHDRAWN` | not run |
-| "Cancel my leave of 20 December" (approved, in the future) | Card; Confirm sets `CANCELLED`; the balance goes back | not run |
-| Cancel a leave that starts today | Refused with the service's message; no card | not run |
-| "Withdraw my WFH request for 8 December" (pending) | Card; Confirm sets `WITHDRAWN`; the card links to `/me/wfh` | not run |
-| "Cancel my WFH on 10 December" (approved, in the future) | Card; Confirm sets `CANCELLED` | not run |
-| Cancel a WFH request that starts today | Refused with the service's message; no card | not run |
-| An intent planted with another employee's WFH request id | Refused at confirm; that request is unchanged | not run |
-| The request is approved between proposal and confirm of a withdraw | `409 AI_ACTION_FAILED` with the service's message | not run |
-| Confirm twice | Same result; one change | not run |
+| The commands | Build success; existing leave and WFH tests pass unchanged | Pass 2026-11-27, full `core,app` verify |
+| "Work from home on 2026-12-08" | A card; no row in `core.wfh_request` until Confirm; then one `PENDING` request on the WFH screen | Pass, `SelfServiceActionsIT.wfhApply` (screen not opened) |
+| Same dates as an existing leave | The helper explains the overlap; no card | Pass, the service's refusal passed back with no intent (`SelfServiceToolProviderTest`; overlap itself in `WfhRequestServiceTest`) |
+| "Withdraw my leave of 15 December" (pending) | Card; Confirm sets `WITHDRAWN` | Pass, `leaveWithdraw` (approval closed too) and `leaveWithdraw_pastStart` |
+| "Cancel my leave of 20 December" (approved, in the future) | Card; Confirm sets `CANCELLED`; the balance goes back | Pass, `leaveCancel` |
+| Cancel a leave that starts today | Refused with the service's message; no card | Pass, `SelfServiceToolProviderTest` |
+| "Withdraw my WFH request for 8 December" (pending) | Card; Confirm sets `WITHDRAWN`; the card links to `/me/wfh` | Pass, `wfhWithdrawAndCancel`; link in `actionLinks.test.js` |
+| "Cancel my WFH on 10 December" (approved, in the future) | Card; Confirm sets `CANCELLED` | Pass, `wfhWithdrawAndCancel` |
+| Cancel a WFH request that starts today | Refused with the service's message; no card | Pass, `SelfServiceToolProviderTest` |
+| An intent planted with another employee's WFH request id | Refused at confirm; that request is unchanged | Pass, `anotherEmployeesRequestIsRefused`, all four executors |
+| The request is approved between proposal and confirm of a withdraw | `409 AI_ACTION_FAILED` with the service's message | Not run as its own test: the executor calls the service, whose status check refuses it (`IllegalStateException`, which confirm turns into `409`) |
+| Confirm twice | Same result; one change | Pass, `wfhApply`, `leaveWithdraw` |
 
 ## Risks
 

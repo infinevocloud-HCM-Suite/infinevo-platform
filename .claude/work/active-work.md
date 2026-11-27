@@ -28,6 +28,14 @@
 - `EmployeeService.checkCreate` runs every check `create` runs before it writes (one shared private method), and writes nothing. The card links to `/employees/{id}` once confirmed.
 - Never from chat: mobile, status, termination, portal login, salary, bank, statutory data, reporting manager. Built by Claude. No migration.
 
+## 2026-11-26 — W-114.17 AI helper self-service actions
+
+- Tools `core.my_open_requests` and `core.propose_wfh_request`, `_wfh_withdraw`, `_wfh_cancel`, `_leave_withdraw`, `_leave_cancel`; actions `core.wfh.apply`, `.withdraw`, `.cancel` and `core.leave.withdraw`, `.cancel`, each behind Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/SelfServiceToolProvider.java` and the five executors beside it.
+- A request is named by its start date; only the caller's own are searched, and each executor checks ownership again at confirm (the WFH service never does). Wrong status or start date reached: refused in the service's own words, no intent.
+- `WfhRequestService.validateApply` holds the checks moved unchanged out of `submitRequest`; the WFH screen is unchanged. The card links: leave to its request page, WFH to `/me/wfh`.
+- **Found here, fixed in W-114.19:** `LeaveRequestRepository.search` fails in PostgreSQL (`42P18`, "could not determine data type of parameter") whenever a date is passed to its `fromDate`/`toDate` filter, so the Leave screen's date filter and `core.my_leave_requests` with dates likely fail. The new tool searches without dates.
+- Built by Claude. No migration.
+
 ## 2026-11-26 — W-114.22 AI helper starters
 
 - `GET /api/v1/ai/starters` (`core.ai.use`; `403 AI_DISABLED` when off; no model call, not counted) returns up to six `{ id, label, prompt, kind }`. `code/backend/core/src/main/java/com/infinevo/core/ai/starter/`.

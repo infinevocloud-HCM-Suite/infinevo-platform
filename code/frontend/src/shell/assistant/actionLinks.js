@@ -3,9 +3,18 @@
  * shows no link. Every path is checked against the route tables (`src/shell/routes.js`,
  * `src/core/index.js`). Later parts (W-114.17, .18, .20) add their lines here; the card does not change.
  */
+const leaveRequest = (result) =>
+  result.leaveRequestId ? '/me/leave/requests/' + encodeURIComponent(result.leaveRequestId) : null;
+// A WFH request has no page of its own: the portal's WFH tab lists it (W-114.17).
+const wfhTab = (result) => (result.wfhRequestId ? '/me/wfh' : null);
+
 const LINKS = {
-  'core.leave.apply': (result) =>
-    result.leaveRequestId ? '/me/leave/requests/' + encodeURIComponent(result.leaveRequestId) : null,
+  'core.leave.apply': leaveRequest,
+  'core.leave.withdraw': leaveRequest,
+  'core.leave.cancel': leaveRequest,
+  'core.wfh.apply': wfhTab,
+  'core.wfh.withdraw': wfhTab,
+  'core.wfh.cancel': wfhTab,
   'core.approval.decide': (result) =>
     result.instanceId ? '/approvals/' + encodeURIComponent(result.instanceId) : null,
   'core.employee.create': (result) =>
@@ -17,6 +26,11 @@ const LABELS = {
   'core.leave.apply': 'Open the leave request',
   'core.approval.decide': 'Open the approval',
   'core.employee.create': 'Open the employee to set the manager and the rest',
+  'core.leave.withdraw': 'Open the leave request',
+  'core.leave.cancel': 'Open the leave request',
+  'core.wfh.apply': 'Open work from home',
+  'core.wfh.withdraw': 'Open work from home',
+  'core.wfh.cancel': 'Open work from home',
 };
 
 const has = (map, key) => typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key);

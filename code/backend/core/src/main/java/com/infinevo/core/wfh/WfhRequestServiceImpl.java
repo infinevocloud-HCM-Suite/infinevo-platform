@@ -72,12 +72,25 @@ public class WfhRequestServiceImpl implements WfhRequestService {
         return submitRequest(tenantId, targetEmployeeId, request, true);
     }
 
-    private WfhRequestResponse submitRequest(
-            UUID tenantId, UUID employeeId, ApplyWfhRequest request, boolean onBehalf) {
+    /** What {@link #validate} found: the employee, the working days and the half-day period, nothing saved. */
+    private record Validated(Employee employee, BigDecimal workingDays, String halfDayPeriod) {}
+
+    @Override
+    @Transactional(readOnly = true)
+    public WfhApplyCheck validateApply(UUID tenantId, UUID employeeId, ApplyWfhRequest request) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(employeeId, "employeeId must not be null");
         Objects.requireNonNull(request, "request must not be null");
+        Validated checked = validate(tenantId, employeeId, request);
+        return new WfhApplyCheck(checked.workingDays(), request.halfDay(), checked.halfDayPeriod());
+    }
 
+    /**
+     * The checks a WFH request must pass before it is saved (W-114.17): dates, half day, working days, overlap with
+     * WFH and with leave, quota and the monthly maximum. Moved unchanged out of {@code submitRequest}, which runs
+     * them first; {@link #validateApply} runs them alone.
+     */
+    private Validated validate(UUID tenantId, UUID employeeId, ApplyWfhRequest request) {
         Employee employee = employeeRepository
                 .findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId)
                 .orElseThrow(() -> new NoSuchElementException("Employee not found: " + employeeId));
@@ -151,6 +164,22 @@ public class WfhRequestServiceImpl implements WfhRequestService {
         if (!balanceService.isWithinMonthlyLimit(tenantId, employeeId, fromDate, workingDays)) {
             throw new IllegalArgumentException("Request exceeds maximum allowable WFH days for the month.");
         }
+
+        return new Validated(employee, workingDays, halfDayPeriod);
+    }
+
+    private WfhRequestResponse submitRequest(
+            UUID tenantId, UUID employeeId, ApplyWfhRequest request, boolean onBehalf) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(employeeId, "employeeId must not be null");
+        Objects.requireNonNull(request, "request must not be null");
+
+        Validated checked = validate(tenantId, employeeId, request);
+        Employee employee = checked.employee();
+        LocalDate fromDate = request.fromDate();
+        LocalDate toDate = request.toDate();
+        BigDecimal workingDays = checked.workingDays();
+        String halfDayPeriod = checked.halfDayPeriod();
 
         WfhRequest entity = new WfhRequest();
         entity.setTenantId(tenantId);
