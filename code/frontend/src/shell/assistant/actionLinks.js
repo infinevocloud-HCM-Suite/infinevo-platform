@@ -8,12 +8,15 @@ const LINKS = {
     result.leaveRequestId ? '/me/leave/requests/' + encodeURIComponent(result.leaveRequestId) : null,
   'core.approval.decide': (result) =>
     result.instanceId ? '/approvals/' + encodeURIComponent(result.instanceId) : null,
+  'core.employee.create': (result) =>
+    result.employeeId ? '/employees/' + encodeURIComponent(result.employeeId) : null,
 };
 
 /** The words of each link, kept next to its path so the card holds no action-specific text. */
 const LABELS = {
   'core.leave.apply': 'Open the leave request',
   'core.approval.decide': 'Open the approval',
+  'core.employee.create': 'Open the employee to set the manager and the rest',
 };
 
 const has = (map, key) => typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key);

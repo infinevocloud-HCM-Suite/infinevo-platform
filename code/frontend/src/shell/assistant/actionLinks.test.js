@@ -21,6 +21,11 @@ describe('actionLinks', () => {
     expect(viewLinkFor(null)).toBeNull();
   });
 
+  it('links an added employee to their page (W-114.20)', () => {
+    expect(linkFor('core.employee.create', { employeeId: 'e-1', employeeNumber: 'E-207' })).toBe('/employees/e-1');
+    expect(linkFor('core.employee.create', {})).toBeNull();
+  });
+
   it('returns nothing for an unknown code, or a result without the id', () => {
     expect(linkFor('core.made.up', { leaveRequestId: 'lr-1' })).toBeNull();
     expect(linkFor(undefined, {})).toBeNull();
