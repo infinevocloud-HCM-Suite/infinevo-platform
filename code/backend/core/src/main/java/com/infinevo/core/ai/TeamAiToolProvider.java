@@ -308,7 +308,10 @@ public class TeamAiToolProvider implements AiToolProvider {
                     row.put("halfDay", r.isHalfDay() ? "yes" : "no");
                     row.put("status", "On leave");
                 });
-        more(out, found.getTotalElements(), requests.size());
+        // A soft-deleted employee is in no answer, the count included: the requests of this page that were left out
+        // come off the total, so the total and the rows agree.
+        long leftOut = requests.size() - rows.size();
+        more(out, found.getTotalElements() - leftOut, rows.size());
         out.put("note", "The type of leave is not shown. Open the Leave requests screen for it.");
         return out;
     }

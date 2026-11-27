@@ -183,8 +183,27 @@ class EmployeeActionToolProviderTest {
                 .contains("More than one")
                 .contains("FIN")
                 .contains("FIN2")
-                .contains("ask HR");
+                .contains("give its code");
         assertThat(stored).isEmpty();
+
+        // HR answers with the code: that one is taken.
+        AiToolResult byCode = run("{" + PRIYA + ",\"department\":\"fin2\"}");
+        assertThat(byCode.ok()).isTrue();
+        assertThat(stored.get(0).getPayload().path("departmentId").asText())
+                .isEqualTo(other.getId().toString());
+    }
+
+    @Test
+    @DisplayName("a blank optional field is taken as not given; a blank required one is asked for")
+    void blankFields() throws Exception {
+        AiToolResult ok = run("{" + PRIYA + ",\"middleName\":\"\",\"department\":\"  \"}");
+        assertThat(ok.ok()).isTrue();
+        assertThat(stored.get(0).getPayload().path("middleName").isNull()).isTrue();
+        assertThat(stored.get(0).getPayload().path("departmentId").isNull()).isTrue();
+
+        AiToolResult blankNumber =
+                run("{\"employeeNumber\":\" \",\"firstName\":\"Priya\",\"dateOfJoining\":\"2026-12-01\"}");
+        assertThat(blankNumber.error()).contains("employeeNumber is required");
     }
 
     @Test

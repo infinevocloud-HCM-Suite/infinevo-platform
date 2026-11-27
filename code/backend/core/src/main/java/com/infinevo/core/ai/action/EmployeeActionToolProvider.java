@@ -4,7 +4,6 @@ import static com.infinevo.core.ai.AiToolInputs.date;
 import static com.infinevo.core.ai.AiToolInputs.dateProperty;
 import static com.infinevo.core.ai.AiToolInputs.enumProperty;
 import static com.infinevo.core.ai.AiToolInputs.schema;
-import static com.infinevo.core.ai.AiToolInputs.text;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -56,8 +55,8 @@ public class EmployeeActionToolProvider implements AiToolProvider {
     static final String NAME = "core.propose_employee_create";
     static final int MAX_TEXT = 100;
 
-    static final String MANAGER_NOT_HERE = "The reporting manager is not set from chat. After the employee is added,"
-            + " set it on the employee's page.";
+    static final String MANAGER_NOT_HERE = "The reporting manager is not set from chat. Propose the employee without"
+            + " it; once HR confirms, the card links to the employee's page, where the manager is set.";
     static final String NOT_HERE = "Mobile, salary, bank, PAN, Aadhaar, status and portal login are not set from"
             + " chat. Set them on the employee's page after the employee is added.";
 
@@ -149,9 +148,9 @@ public class EmployeeActionToolProvider implements AiToolProvider {
             props.put("gender", enumProperty("Gender, if given.", List.of("MALE", "FEMALE", "OTHER", "UNDISCLOSED")));
             props.put("dateOfJoining", dateProperty("Date of joining, YYYY-MM-DD."));
             props.put("workEmail", textProperty("Work email, if given."));
-            props.put("department", textProperty("Department by its name."));
-            props.put("designation", textProperty("Designation by its name."));
-            props.put("workLocation", textProperty("Work location by its name."));
+            props.put("department", textProperty("Department by its name, or its code when two share a name."));
+            props.put("designation", textProperty("Designation by its name, or its code when two share a name."));
+            props.put("workLocation", textProperty("Work location by its name, or its code when two share a name."));
             props.put(
                     "employmentType",
                     enumProperty(
@@ -200,8 +199,8 @@ public class EmployeeActionToolProvider implements AiToolProvider {
                     throw new BadInput("input must be a JSON object");
                 }
                 refuseFieldsNotFromChat(args, inputSchema.path("properties"));
-                String number = text(args, "employeeNumber");
-                String first = text(args, "firstName");
+                String number = given(args, "employeeNumber");
+                String first = given(args, "firstName");
                 LocalDate joining = date(args, "dateOfJoining");
                 if (number == null) {
                     throw new BadInput("employeeNumber is required. Ask HR for it.");
@@ -212,25 +211,25 @@ public class EmployeeActionToolProvider implements AiToolProvider {
                 if (joining == null) {
                     throw new BadInput("dateOfJoining is required. Ask HR for it.");
                 }
-                String type = text(args, "employmentType");
+                String type = given(args, "employmentType");
                 EmploymentType employmentType = type == null ? null : employmentType(type);
                 Integer notice = notice(args);
                 AiProposedAction card = tx.execute(s -> {
                     EmployeeRequest request = new EmployeeRequest(
                             number.trim(),
                             first.trim(),
-                            trimmed(text(args, "middleName")),
-                            trimmed(text(args, "lastName")),
-                            text(args, "gender"),
+                            trimmed(given(args, "middleName")),
+                            trimmed(given(args, "lastName")),
+                            given(args, "gender"),
                             joining,
                             null,
                             null,
-                            trimmed(text(args, "workEmail")),
+                            trimmed(given(args, "workEmail")),
                             null,
                             null,
-                            resolve(departments, ctx, text(args, "department"), "department"),
-                            resolve(designations, ctx, text(args, "designation"), "designation"),
-                            resolve(locations, ctx, text(args, "workLocation"), "work location"),
+                            resolve(departments, ctx, given(args, "department"), "department"),
+                            resolve(designations, ctx, given(args, "designation"), "designation"),
+                            resolve(locations, ctx, given(args, "workLocation"), "work location"),
                             employmentType,
                             date(args, "probationEndDate"),
                             notice,
@@ -285,6 +284,13 @@ public class EmployeeActionToolProvider implements AiToolProvider {
                 .filter(m -> m.getName() != null
                         && m.getName().trim().toLowerCase(Locale.ROOT).equals(wanted))
                 .toList();
+        if (matches.isEmpty()) {
+            // A code is how HR tells two masters of the same name apart.
+            matches = active.stream()
+                    .filter(m -> m.getCode() != null
+                            && m.getCode().trim().toLowerCase(Locale.ROOT).equals(wanted))
+                    .toList();
+        }
         if (matches.size() == 1) {
             return matches.get(0).getId();
         }
@@ -292,7 +298,7 @@ public class EmployeeActionToolProvider implements AiToolProvider {
             String codes =
                     String.join(", ", matches.stream().map(OrgMaster::getCode).toList());
             throw new BadInput("More than one " + what + " is named '" + name.trim() + "' (codes " + codes
-                    + "); ask HR which one.");
+                    + "). Ask HR which one and give its code instead of the name.");
         }
         String valid = active.isEmpty()
                 ? "there are none set up"
@@ -337,6 +343,18 @@ public class EmployeeActionToolProvider implements AiToolProvider {
             throw new BadInput("noticePeriodDays must be a whole number of days");
         }
         return v.asInt();
+    }
+
+    /** A text value, or {@code null} when absent, null or blank: a model's {@code ""} means "not given". */
+    private static String given(JsonNode args, String name) {
+        JsonNode value = args.get(name);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (!value.isTextual()) {
+            throw new BadInput(name + " must be text");
+        }
+        return value.asText().isBlank() ? null : value.asText();
     }
 
     private static String trimmed(String value) {

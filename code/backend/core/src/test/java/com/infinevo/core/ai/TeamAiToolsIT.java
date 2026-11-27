@@ -157,6 +157,8 @@ class TeamAiToolsIT extends AbstractIntegrationTest {
     void hr_seesEveryone() throws Exception {
         String result = call(tenant, subHr, "core.team_on_leave", "{}");
 
+        assertThat(json.readTree(result).path("onLeave")).hasSize(3);
+        assertThat(json.readTree(result).path("total").asLong()).isEqualTo(3);
         assertThat(result).contains("Meera").contains("Ravi").contains("Omar");
         assertThat(result).doesNotContain("Dina").doesNotContain("Hema").doesNotContain("Xena");
         assertThat(result).doesNotContain("Maternity");
@@ -187,14 +189,32 @@ class TeamAiToolsIT extends AbstractIntegrationTest {
                         today.plusDays(6).toString())));
         assertThat(empty).doesNotContain("Meera").contains("\"total\":0");
 
-        // The Leave requests screen's own date filter, which failed the same way.
-        mvc.perform(as(
-                        tenant,
-                        subHr,
-                        get("/api/v1/leave-requests")
-                                .param("from", today.toString())
-                                .param("to", today.toString())))
-                .andExpect(status().isOk());
+        // The Leave requests screen's own date filter, which failed the same way: both dates, one, or none. The
+        // tenant holds five requests today (four approved, one pending), the soft-deleted employee's included.
+        assertThat(screenTotal(Map.of("from", today.toString(), "to", today.toString())))
+                .isEqualTo(5);
+        assertThat(screenTotal(Map.of())).isEqualTo(5);
+        assertThat(screenTotal(Map.of("from", today.toString()))).isEqualTo(5);
+        assertThat(screenTotal(Map.of("to", today.toString()))).isEqualTo(5);
+        assertThat(screenTotal(Map.of("from", today.plusDays(5).toString()))).isZero();
+        assertThat(screenTotal(Map.of("to", today.minusDays(1).toString()))).isZero();
+        assertThat(screenTotal(Map.of("status", "APPROVED"))).isEqualTo(4);
+    }
+
+    /** The Leave requests screen's total for these query parameters, as HR. */
+    private long screenTotal(Map<String, String> params) throws Exception {
+        MockHttpServletRequestBuilder request = get("/api/v1/leave-requests");
+        params.forEach(request::param);
+        String body = mvc.perform(as(tenant, subHr, request))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode page = json.readTree(body);
+        // Spring Data's page as it stands, or its stable DTO form, whichever the app serialises.
+        return page.has("totalElements")
+                ? page.path("totalElements").asLong()
+                : page.path("page").path("totalElements").asLong(-1);
     }
 
     @Test
@@ -209,7 +229,7 @@ class TeamAiToolsIT extends AbstractIntegrationTest {
                 .doesNotContain("core.joiners", "core.leavers", "core.headcount");
 
         String joiners = call(tenant, subManager, "core.joiners", "{}");
-        assertThat(joiners).doesNotContain("Omar");
+        assertThat(joiners).doesNotContain("Omar").doesNotContain("\"joiners\"");
     }
 
     @Test
