@@ -67,7 +67,7 @@ describe('ActionCard', () => {
     expect(values).toEqual(['Casual Leave', '2026-12-01', '2026-12-05', '5', 'Family trip']);
     expect(confirmButton().id).toBe('btn-ai-confirm');
     expect(cancelButton()).not.toBeNull();
-    const countdown = screen.getByTestId('assistant-action-countdown');
+    const countdown = await screen.findByTestId('assistant-action-countdown');
     expect(countdown.textContent).toMatch(/^Expires in 1[45]:\d\d$/);
     // Not read out every second by the message list's live region.
     expect(countdown.getAttribute('aria-live')).toBe('off');
@@ -304,6 +304,38 @@ describe('ActionCard', () => {
 
     fireEvent.click(confirmButton());
     expect(await screen.findByText(ACTION_TEXT.done)).toBeDefined();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('W-114.18: a proposed card shows the server link to read the request first; a foreign link is ignored', async () => {
+    vi.spyOn(assistantService, 'getAction').mockResolvedValue({
+      intentId: 'a1',
+      actionCode: 'core.approval.decide',
+      summary: 'Approve leave request for Asha Rao',
+      fields: [{ label: 'Request', value: 'Leave request' }],
+      status: 'PROPOSED',
+      expiresAt: IN_15_MIN(),
+      result: null,
+      link: '/approvals/inst-1',
+    });
+    renderCard('a1');
+    const link = await screen.findByRole('link', { name: ACTION_TEXT.openFirst });
+    expect(link.getAttribute('href')).toBe('/approvals/inst-1');
+  });
+
+  it('W-114.18: a link to another site is never followed', async () => {
+    vi.spyOn(assistantService, 'getAction').mockResolvedValue({
+      intentId: 'a2',
+      actionCode: 'core.approval.decide',
+      summary: 'Approve it',
+      fields: [],
+      status: 'PROPOSED',
+      expiresAt: IN_15_MIN(),
+      result: null,
+      link: '//evil.example/approvals',
+    });
+    renderCard('a2');
+    await screen.findByRole('group', { name: 'Approve it' });
     expect(screen.queryByRole('link')).toBeNull();
   });
 

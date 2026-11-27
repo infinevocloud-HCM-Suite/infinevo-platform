@@ -208,7 +208,8 @@ public class AiActionServiceImpl implements AiActionService {
                     d.fields(),
                     intent.getStatus(),
                     intent.getExpiresAt(),
-                    intent.getResult());
+                    intent.getResult(),
+                    d.link());
         });
     }
 

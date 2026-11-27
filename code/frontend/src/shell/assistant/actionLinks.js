@@ -15,11 +15,17 @@ const LINKS = {
   'core.wfh.apply': wfhTab,
   'core.wfh.withdraw': wfhTab,
   'core.wfh.cancel': wfhTab,
+  'core.approval.decide': (result) =>
+    result.instanceId ? '/approvals/' + encodeURIComponent(result.instanceId) : null,
+  'core.employee.create': (result) =>
+    result.employeeId ? '/employees/' + encodeURIComponent(result.employeeId) : null,
 };
 
 /** The words of each link, kept next to its path so the card holds no action-specific text. */
 const LABELS = {
   'core.leave.apply': 'Open the leave request',
+  'core.approval.decide': 'Open the approval',
+  'core.employee.create': 'Open the employee to set the manager and the rest',
   'core.leave.withdraw': 'Open the leave request',
   'core.leave.cancel': 'Open the leave request',
   'core.wfh.apply': 'Open work from home',
@@ -38,6 +44,14 @@ export function linkFor(actionCode, result) {
   } catch {
     return null;
   }
+}
+
+/**
+ * The server's link to read the item before deciding (W-114.18), or null. Only a plain app path is
+ * followed: one leading slash, letters, digits, dashes and slashes - never another site.
+ */
+export function viewLinkFor(link) {
+  return typeof link === 'string' && /^\/[A-Za-z0-9][A-Za-z0-9\-/]*$/.test(link) ? link : null;
 }
 
 /** The text of that link. */

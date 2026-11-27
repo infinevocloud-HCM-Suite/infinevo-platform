@@ -139,7 +139,7 @@ cd code/backend && ./mvnw -B -pl core -am verify
 
 | Check | Expected | Result |
 |---|---|---|
-| The command | Build success | not run |
+| The command | Build success | Pass 2026-11-27: `TeamAiToolProviderTest` 7, `TeamAiToolsIT` 6 |
 | HR: "who is on leave today?" | The same people the Leave requests screen shows for today, approved only | not run |
 | Manager with two reports, one on leave | That one report (and the manager, if on leave); nobody else | not run |
 | Employee: same question | "I can't see that" | not run |
@@ -157,6 +157,8 @@ cd code/backend && ./mvnw -B -pl core -am verify
 | Third-party names reach the model | Certain, by design | Stated above; limited to callers who already see them; only name, number, department and dates |
 | Leave type reveals something private ("Maternity", "Sick") | Closed | Founder 2026-11-23: the tool returns no leave type at all; a test proves it |
 | A prompt hidden in an employee's name or a department name | Low | Changed 2026-11-23: the prompt line is not a control (`W-114.4` rule 9). Names are cut to 100 characters on one line, no free text is returned, and these tools change nothing |
+
+**As built (2026-11-27, Claude).** The leave search's date filter failed in PostgreSQL whenever a date was bound (`42P18`, found by `W-114.17`), which `core.team_on_leave` needs. Fixed in `LeaveRequestRepository`: the stored queries always get two dates, and `search` / `searchForEmployees` turn a missing date into an open end (`0001-01-01` / `9999-12-31`). The Leave requests screen's date filter is fixed by the same change; `TeamAiToolsIT.dateRange_works` calls it. `today` is the tenant's date (`TenantClock`).
 
 ## Rollback
 
