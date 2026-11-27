@@ -5,11 +5,21 @@
 
 ALTER TABLE core.employee_bank ALTER COLUMN transfer_type SET DEFAULT 'FT';
 
--- Only rows nobody has saved since V260 ran: their NEFT came from V260's default, not from a person.
--- A row saved after V260 (updated_at later than V260's install time) keeps what was chosen.
-UPDATE core.employee_bank b
-   SET transfer_type = 'FT'
- WHERE b.transfer_type = 'NEFT'
-   AND b.updated_at <= (SELECT h.installed_on
-                          FROM migration.flyway_schema_history h
-                         WHERE h.version = '260' AND h.success);
+DO $$
+BEGIN
+    IF to_regclass('migration.flyway_schema_history') IS NOT NULL THEN
+        -- Only rows nobody has saved since V260 ran: their NEFT came from V260's default, not from a
+        -- person. A row saved after V260 (updated_at later than V260's install time) keeps its choice.
+        UPDATE core.employee_bank b
+           SET transfer_type = 'FT'
+         WHERE b.transfer_type = 'NEFT'
+           AND b.updated_at <= (SELECT h.installed_on
+                                  FROM migration.flyway_schema_history h
+                                 WHERE h.version = '260' AND h.success);
+    ELSE
+        -- No Flyway history: a schema built by running the scripts in a row (test schemas), where
+        -- nobody can have chosen NEFT between V260 and here.
+        UPDATE core.employee_bank SET transfer_type = 'FT' WHERE transfer_type = 'NEFT';
+    END IF;
+END
+$$;
