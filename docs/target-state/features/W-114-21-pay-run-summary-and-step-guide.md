@@ -185,6 +185,8 @@ cd code/backend && ./mvnw -B -pl payroll,app -am verify
 | A very large run makes the request slow | Low | 5,000-row limit, 200 a page, both runs read once |
 | Someone later adds an action for pay runs | Low | `NoPayRunActionIT` and the founder decision at the top |
 
+**As built (2026-11-27, Claude).** The two tools are in their own provider, `ai/PayRunAiToolProvider.java`, not in `PayrollAiToolProvider`: those tools all read the caller's own pay and need an employee record, these read other employees' rows and do not. The `payroll.` name prefix still gates them on the Payroll module. `PayRunService.list` has no order of its own, so the tool asks for newest period first, and rows in the screen's order. `NoPayRunActionIT` is built as `app/src/test/.../ai/NoPayRunActionTest.java`, a classpath scan of every executor's `ACTION_CODE` and every provider's tool-name constants; `PayRunSummaryToolIT` is in `payroll`, beside the other payroll AI ITs and the pay run test schema. Tests: `PayRunSummaryTest` 7, `PayRunNextStepTest` 9, `PayRunAiToolProviderTest` 5, `PayRunSummaryToolIT` 3, `NoPayRunActionTest` 2.
+
 ## Rollback
 
 Revert the commit. The helper loses the two tools; no run is touched, because none ever was.

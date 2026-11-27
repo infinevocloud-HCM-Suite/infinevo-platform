@@ -6,6 +6,12 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-27 — W-114.21 AI helper pay run summary and next step
+
+- Tools `payroll.payrun_summary` and `payroll.payrun_next_step` (`payroll.run.read`) in `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/PayRunAiToolProvider.java`, with `PayRunSummary` and `PayRunNextStep`.
+- Read-only by founder rule: only `list` and `employees` are called; `NoPayRunActionTest` (app) fails the build if a `payroll.` action or a third `payroll.payrun_` tool appears.
+- Other employees' names, numbers and net pay go to the model for holders of `payroll.run.read`; lists capped at 20; no id, no error text. Built by Claude. No migration.
+
 ## 2026-11-26 — W-114.17 AI helper self-service actions
 
 - Tools `core.my_open_requests` and `core.propose_wfh_request`, `_wfh_withdraw`, `_wfh_cancel`, `_leave_withdraw`, `_leave_cancel`; actions `core.wfh.apply`, `.withdraw`, `.cancel` and `core.leave.withdraw`, `.cancel`, each behind Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/SelfServiceToolProvider.java` and the five executors beside it.
