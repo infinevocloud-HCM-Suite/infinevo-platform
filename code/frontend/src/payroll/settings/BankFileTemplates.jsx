@@ -92,8 +92,10 @@ export function BankFileTemplates() {
       title: 'Template',
       key: 'name',
       render: (_, t) => (
-        <Space>
-          <Text strong>{t.name}</Text>
+        <Space wrap size={[8, 4]}>
+          <Text strong style={{ whiteSpace: 'nowrap' }}>
+            {t.name}
+          </Text>
           {t.builtIn && (
             <Tag icon={<LockOutlined />} data-testid={`builtin-${t.id}`}>
               Built-in
@@ -165,7 +167,14 @@ export function BankFileTemplates() {
         the employees, and download the file.
       </Text>
       {loadError && <Alert type="error" showIcon message={loadError} style={{ marginBottom: 16 }} />}
-      <Table rowKey="id" loading={loading} dataSource={templates} columns={columns} pagination={false} />
+      <Table
+        rowKey="id"
+        loading={loading}
+        dataSource={templates}
+        columns={columns}
+        pagination={false}
+        scroll={{ x: 'max-content' }}
+      />
       <BankFileTemplateEditor
         open={editorOpen}
         template={editing}
