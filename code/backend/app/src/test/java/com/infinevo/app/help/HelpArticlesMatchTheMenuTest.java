@@ -122,7 +122,7 @@ class HelpArticlesMatchTheMenuTest {
     @DisplayName("the menu was read: it has the employee list and the portal")
     void menuWasRead() {
         assertThat(PATHS).contains("/employees", "/me", "/payroll/runs", "/hrms/attendance");
-        assertThat(ARTICLES).hasSize(30);
+        assertThat(ARTICLES).hasSize(58);
     }
 
     @Test

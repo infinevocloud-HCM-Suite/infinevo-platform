@@ -42,5 +42,25 @@
   {
     "path": "/payroll/settings/professional-tax",
     "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/settings/bank-files",
+    "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/runs/new-off-cycle",
+    "parent": "/payroll/runs"
+  },
+  {
+    "path": "/payroll/settings/form-16",
+    "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/settings/tds",
+    "parent": "/payroll/settings"
+  },
+  {
+    "path": "/payroll/settings/fbp",
+    "parent": "/payroll/settings"
   }
 ]

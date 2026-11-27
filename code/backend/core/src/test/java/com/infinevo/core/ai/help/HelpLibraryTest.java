@@ -32,11 +32,11 @@ class HelpLibraryTest {
             "");
 
     @Test
-    @DisplayName("the shipped library loads: 30 articles, each id its file name, six sub-routes")
+    @DisplayName("the shipped library loads: 58 articles, each id its file name, six sub-routes")
     void loadsShippedArticles() {
         HelpLibrary library = new HelpLibrary();
 
-        assertThat(library.all()).hasSize(30);
+        assertThat(library.all()).hasSize(58);
         assertThat(library.all()).extracting(HelpArticle::id).contains("leave-types", "apply-leave", "run-payroll");
         assertThat(library.subRoutes())
                 .containsOnlyKeys(
@@ -47,6 +47,11 @@ class HelpLibraryTest {
                         "/me/payslips",
                         "/me/taxDeclaration",
                         "/payroll/settings/tax-declaration",
+                        "/payroll/settings/bank-files",
+                        "/payroll/settings/fbp",
+                        "/payroll/settings/form-16",
+                        "/payroll/settings/tds",
+                        "/payroll/runs/new-off-cycle",
                         "/payroll/settings/pay-schedule",
                         "/payroll/settings/epf",
                         "/payroll/settings/esi",

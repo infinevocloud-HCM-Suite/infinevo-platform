@@ -71,11 +71,11 @@ class HelpCatalogueTest {
     }
 
     @Test
-    @DisplayName("lines are sorted by id and hold only id, title and summary; all 30 are under 8,000 characters")
+    @DisplayName("lines are sorted by id and hold only id, title and summary; all 58 are under 8,000 characters")
     void shapeAndSize() {
         HelpCatalogue all = shipped.catalogueFor(everything());
 
-        assertThat(all.lines()).hasSize(30);
+        assertThat(all.lines()).hasSize(58);
         assertThat(all.more()).isFalse();
         List<String> ids = all.lines().stream().map(HelpCatalogue.Line::id).toList();
         assertThat(ids).isSorted();

@@ -21,11 +21,16 @@ class AiSubRoutesTest {
                 .contains("/me/leave");
         assertThat(subRoutes.allowedFor(Set.of("/payroll/settings")))
                 .containsExactly(
+                        "/payroll/settings/bank-files",
                         "/payroll/settings/epf",
                         "/payroll/settings/esi",
+                        "/payroll/settings/fbp",
+                        "/payroll/settings/form-16",
                         "/payroll/settings/pay-schedule",
                         "/payroll/settings/professional-tax",
-                        "/payroll/settings/tax-declaration");
+                        "/payroll/settings/tax-declaration",
+                        "/payroll/settings/tds");
+        assertThat(subRoutes.allowedFor(Set.of("/payroll/runs"))).containsExactly("/payroll/runs/new-off-cycle");
         assertThat(subRoutes.allowedFor(Set.of())).isEmpty();
         assertThat(subRoutes.allowedFor(null)).isEmpty();
     }
