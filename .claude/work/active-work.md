@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-27 — W-114.18 AI helper manager approvals
+
+- Tools `core.my_pending_approvals` and `core.propose_approval_decision`; action `core.approval.decide` behind Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/ApprovalToolProvider.java`, `ApprovalDecideExecutor.java`, `ApprovalItemReader.java`.
+- A row is named by position plus employee number and flow type; the query runs again and a mismatch is refused. Pay run, reimbursement and proof of investment: counted, never decided, refused in the tool and the executor.
+- Injection rules T1-T7: the reason and summary go to the model wrapped by `AiUntrustedText`; the card reads the reason from the database; one proposal per message; the payload stores the expected step and request status, checked at confirm. `ApprovalInjectionIT` covers an obeying model.
+- Open question (hrms reasons) built as option (a), the default; founder to choose. The link to the approval shows after confirm only (the card fields reach the model, so no id).
+- Built by Claude. No migration.
+
 ## 2026-11-26 — W-114.22 AI helper starters
 
 - `GET /api/v1/ai/starters` (`core.ai.use`; `403 AI_DISABLED` when off; no model call, not counted) returns up to six `{ id, label, prompt, kind }`. `code/backend/core/src/main/java/com/infinevo/core/ai/starter/`.

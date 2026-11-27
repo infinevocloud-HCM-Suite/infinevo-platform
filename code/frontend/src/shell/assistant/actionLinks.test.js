@@ -7,6 +7,12 @@ describe('actionLinks', () => {
     expect(linkLabelFor('core.leave.apply')).toBe('Open the leave request');
   });
 
+  it('links a decided approval to its request page (W-114.18)', () => {
+    expect(linkFor('core.approval.decide', { instanceId: 'ai-1', decision: 'APPROVED' })).toBe('/approvals/ai-1');
+    expect(linkFor('core.approval.decide', {})).toBeNull();
+    expect(linkLabelFor('core.approval.decide')).toBe('Open the approval');
+  });
+
   it('returns nothing for an unknown code, or a result without the id', () => {
     expect(linkFor('core.made.up', { leaveRequestId: 'lr-1' })).toBeNull();
     expect(linkFor(undefined, {})).toBeNull();
