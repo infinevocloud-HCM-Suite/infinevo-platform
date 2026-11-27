@@ -103,6 +103,68 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
      */
     long countByTenantIdAndDeletedFalseAndStatusNot(UUID tenantId, EmploymentStatus status);
 
+    /** W-114.19: live employees who joined in {@code [start, end]}, earliest first, with their department. */
+    @EntityGraph(attributePaths = {"department", "designation"})
+    @Query(
+            """
+            SELECT e FROM Employee e
+            WHERE e.tenantId = :tenantId
+              AND e.deleted = false
+              AND e.dateOfJoining >= :start
+              AND e.dateOfJoining <= :end
+            ORDER BY e.dateOfJoining, e.employeeNumber
+            """)
+    Page<Employee> findJoinedBetween(
+            @Param("tenantId") UUID tenantId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end,
+            Pageable pageable);
+
+    /** W-114.19: live employees whose last working date falls in {@code [start, end]}, earliest first. */
+    @EntityGraph(attributePaths = {"department", "designation"})
+    @Query(
+            """
+            SELECT e FROM Employee e
+            WHERE e.tenantId = :tenantId
+              AND e.deleted = false
+              AND e.terminationDate >= :start
+              AND e.terminationDate <= :end
+            ORDER BY e.terminationDate, e.employeeNumber
+            """)
+    Page<Employee> findLeftBetween(
+            @Param("tenantId") UUID tenantId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end,
+            Pageable pageable);
+
+    /** A group's name and how many employees are in it; the name is null for employees with no group. */
+    interface GroupCount {
+        String getName();
+
+        long getCount();
+    }
+
+    /**
+     * W-114.19: live employees not in {@code status}, counted per department - the same employees
+     * {@link #countByTenantIdAndDeletedFalseAndStatusNot} counts, so the groups add up to that total.
+     */
+    @Query(
+            """
+            SELECT d.name AS name, COUNT(e) AS count FROM Employee e LEFT JOIN e.department d
+            WHERE e.tenantId = :tenantId AND e.deleted = false AND e.status <> :status
+            GROUP BY d.name ORDER BY d.name
+            """)
+    List<GroupCount> countByDepartment(@Param("tenantId") UUID tenantId, @Param("status") EmploymentStatus status);
+
+    /** As {@link #countByDepartment}, per work location. */
+    @Query(
+            """
+            SELECT w.name AS name, COUNT(e) AS count FROM Employee e LEFT JOIN e.workLocation w
+            WHERE e.tenantId = :tenantId AND e.deleted = false AND e.status <> :status
+            GROUP BY w.name ORDER BY w.name
+            """)
+    List<GroupCount> countByWorkLocation(@Param("tenantId") UUID tenantId, @Param("status") EmploymentStatus status);
+
     /**
      * Paginated, filtered, free-text search over a tenant's employees (W-13.3, spec section 4).
      *
