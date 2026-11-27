@@ -31,6 +31,7 @@ public class EmployeeBankServiceImpl
     private static final int MAX_BANK_NAME = 128;
     private static final int MAX_IFSC = 20;
     private static final int MAX_ACCOUNT_NUMBER = 64;
+    private static final int MAX_CREDIT_NARRATION_OTHER = 100;
 
     public EmployeeBankServiceImpl(EmployeeBankRepository repository, EmployeeRepository employees) {
         super(repository, employees);
@@ -67,10 +68,17 @@ public class EmployeeBankServiceImpl
         // A string, checked as a string. Nothing here parses it as a number: 0012345678 is not
         // 12345678, and the moment it becomes one the leading zeros are gone for good.
         optional(errors, "bankAccountNumber", request.bankAccountNumber(), MAX_ACCOUNT_NUMBER);
+        // V260: "Other" needs its text; the text is kept only for "Other" (applyTo drops it otherwise).
+        if (request.creditNarration() == CreditNarration.OTHER && trimToNull(request.creditNarrationOther()) == null) {
+            errors.put("creditNarrationOther", "Enter the narration text for Other");
+        }
+        optional(errors, "creditNarrationOther", request.creditNarrationOther(), MAX_CREDIT_NARRATION_OTHER);
     }
 
     @Override
     protected void applyTo(EmployeeBank entity, EmployeeBankRequest request, String actor) {
+        CreditNarration narration =
+                request.creditNarration() == null ? CreditNarration.SALARY : request.creditNarration();
         entity.apply(
                 request.paymentMode(),
                 trimToNull(request.accountHolderName()),
@@ -78,6 +86,10 @@ public class EmployeeBankServiceImpl
                 trimToNull(request.ifscCode()),
                 trimToNull(request.bankAccountNumber()),
                 request.bankAccountType(),
+                // Left out (an older caller) means the founder's defaults, NEFT and Salary.
+                request.transferType() == null ? TransferType.NEFT : request.transferType(),
+                narration,
+                narration == CreditNarration.OTHER ? trimToNull(request.creditNarrationOther()) : null,
                 actor);
     }
 }

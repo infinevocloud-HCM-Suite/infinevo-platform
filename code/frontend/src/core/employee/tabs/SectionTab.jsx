@@ -84,6 +84,8 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
 
   const handleSave = async () => {
     for (const field of config.fields) {
+      // A field shown only for some values (showWhen) is not checked while it is hidden.
+      if (field.showWhen && !field.showWhen(values)) continue;
       if (field.required) {
         const val = values[field.name];
         if (val === undefined || val === null || String(val).trim() === '') {
@@ -130,6 +132,7 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
     <Card variant="borderless" style={{ padding: 0 }}>
       <Row gutter={[token.margin, token.margin]}>
         {config.fields.map((field) => {
+          if (field.showWhen && !field.showWhen(values)) return null;
           const val = values[field.name];
 
           let control = null;

@@ -84,7 +84,9 @@ class BankFileExportServiceTest {
                 "SAVINGS",
                 "BANK_TRANSFER",
                 new BigDecimal("65000.5000"),
-                "Salary 2026-11");
+                "Salary 2026-11",
+                "NEFT",
+                "Salary");
         BankFileRow raviRow = new BankFileRow(
                 RAVI,
                 "E-102",
@@ -96,7 +98,9 @@ class BankFileExportServiceTest {
                 "SALARY",
                 "BANK_TRANSFER",
                 new BigDecimal("1234.4900"),
-                "Salary 2026-11");
+                "Salary 2026-11",
+                "RTGS",
+                "Consultant fees");
         return new BankFileRun(
                 payRun,
                 List.of(ashaRow, raviRow),
@@ -158,6 +162,22 @@ class BankFileExportServiceTest {
         assertThat(lines.get(1).subList(0, 8))
                 .containsExactly("2", "NEFT", "R MENON", "998877", "ICIC0000456", "1234.49", "1234", "123449");
         assertThat(lines.get(1).get(11)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("transfer type and credit narration come from each employee's Bank tab")
+    void transferTypeAndCreditNarration() {
+        BankFileTemplateResponse template = template(
+                ExportFormat.XLSX,
+                true,
+                List.of(
+                        field("Type", BankFileField.TRANSFER_TYPE, null),
+                        field("Narration", BankFileField.CREDIT_NARRATION, null)));
+
+        List<List<String>> lines = BankFileExportServiceImpl.lines(template, run(), LocalDate.of(2026, 12, 1));
+
+        assertThat(lines.get(0)).containsExactly("NEFT", "Salary");
+        assertThat(lines.get(1)).containsExactly("RTGS", "Consultant fees");
     }
 
     @Test

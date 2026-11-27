@@ -188,7 +188,9 @@ public class BankFileServiceImpl implements BankFileService {
                             : "",
                     bank.getPaymentMode().name(),
                     netPay,
-                    narration));
+                    narration,
+                    bank.getTransferType() != null ? bank.getTransferType().name() : "",
+                    bank.creditNarrationText()));
         }
 
         if (!omittedWithReason.isEmpty()) {

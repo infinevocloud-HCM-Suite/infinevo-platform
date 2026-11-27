@@ -46,6 +46,10 @@ public final class PayRunTestSchema {
             if (!PayrollTestSchema.tableExists(conn, "core", "employee_bank")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/core/V019__employee_bank.sql");
             }
+            if (!PayrollTestSchema.columnExists(conn, "core", "employee_bank", "transfer_type")) {
+                PayrollTestSchema.executeResource(
+                        conn, "db/migration/core/V260__employee_bank_transfer_type_and_narration.sql");
+            }
             if (!PayrollTestSchema.tableExists(conn, "payroll", "pay_schedule")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V054__pay_schedule.sql");
             }

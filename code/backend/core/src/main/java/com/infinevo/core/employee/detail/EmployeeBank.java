@@ -72,6 +72,18 @@ public class EmployeeBank extends EmployeeDetail {
     @Column(name = "bank_account_type", length = 32)
     private BankAccountType bankAccountType;
 
+    // V260: the bank's transfer method and what the credit says it is for (founder 2026-11-27).
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transfer_type", nullable = false, length = 16)
+    private TransferType transferType = TransferType.NEFT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "credit_narration", nullable = false, length = 32)
+    private CreditNarration creditNarration = CreditNarration.SALARY;
+
+    @Column(name = "credit_narration_other", length = 100)
+    private String creditNarrationOther;
+
     protected EmployeeBank() {}
 
     EmployeeBank(UUID tenantId, Employee employee, String actor) {
@@ -102,6 +114,26 @@ public class EmployeeBank extends EmployeeDetail {
         return bankAccountType;
     }
 
+    public TransferType getTransferType() {
+        return transferType;
+    }
+
+    public CreditNarration getCreditNarration() {
+        return creditNarration;
+    }
+
+    public String getCreditNarrationOther() {
+        return creditNarrationOther;
+    }
+
+    /** The narration text the bank file carries: the label, or the typed text for {@link CreditNarration#OTHER}. */
+    public String creditNarrationText() {
+        if (creditNarration == CreditNarration.OTHER) {
+            return creditNarrationOther == null ? "" : creditNarrationOther;
+        }
+        return creditNarration == null ? "" : creditNarration.label();
+    }
+
     /**
      * Copies the mutable fields in and stamps the row.
      *
@@ -115,6 +147,9 @@ public class EmployeeBank extends EmployeeDetail {
             String ifscCode,
             String bankAccountNumber,
             BankAccountType bankAccountType,
+            TransferType transferType,
+            CreditNarration creditNarration,
+            String creditNarrationOther,
             String actor) {
         this.paymentMode = paymentMode;
         this.accountHolderName = accountHolderName;
@@ -122,6 +157,9 @@ public class EmployeeBank extends EmployeeDetail {
         this.ifscCode = ifscCode;
         this.bankAccountNumber = bankAccountNumber;
         this.bankAccountType = bankAccountType;
+        this.transferType = transferType;
+        this.creditNarration = creditNarration;
+        this.creditNarrationOther = creditNarrationOther;
         stamp(actor);
     }
 }

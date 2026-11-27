@@ -22,7 +22,10 @@ public enum BankFileField {
     WORK_EMAIL("Work email", BankFileValueKind.TEXT),
     MOBILE("Mobile", BankFileValueKind.TEXT),
     DEPARTMENT("Department", BankFileValueKind.TEXT),
-    DESIGNATION("Designation", BankFileValueKind.TEXT);
+    DESIGNATION("Designation", BankFileValueKind.TEXT),
+    // Founder 2026-11-27: from the employee's Bank tab (core.employee_bank, V260).
+    TRANSFER_TYPE("Transfer type (FT, IMPS, NEFT, RTGS)", BankFileValueKind.TEXT),
+    CREDIT_NARRATION("Credit narration (employee's)", BankFileValueKind.TEXT);
 
     private final String label;
     private final BankFileValueKind kind;
