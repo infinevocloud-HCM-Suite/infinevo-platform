@@ -532,6 +532,61 @@ class EmployeeDetailServiceTest {
         }
 
         @Test
+        @DisplayName(
+                "V260: transfer type and narration default to FT and Salary (V261); Other needs its text, kept only for Other")
+        void transferTypeAndCreditNarration() {
+            EmployeeBankResponse defaults = bankService.put(EMPLOYEE_A, bank("0012345678"));
+            assertThat(defaults.transferType()).isEqualTo(TransferType.FT);
+            assertThat(defaults.creditNarration()).isEqualTo(CreditNarration.SALARY);
+            assertThat(defaults.creditNarrationOther()).isNull();
+
+            assertThat(fieldErrors(() -> bankService.put(
+                            EMPLOYEE_A,
+                            new EmployeeBankRequest(
+                                    PaymentMode.BANK_TRANSFER,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    TransferType.IMPS,
+                                    CreditNarration.OTHER,
+                                    "   "))))
+                    .containsKey("creditNarrationOther");
+
+            EmployeeBankResponse other = bankService.put(
+                    EMPLOYEE_A,
+                    new EmployeeBankRequest(
+                            PaymentMode.BANK_TRANSFER,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            TransferType.RTGS,
+                            CreditNarration.OTHER,
+                            " Bonus "));
+            assertThat(other.transferType()).isEqualTo(TransferType.RTGS);
+            assertThat(other.creditNarrationOther()).isEqualTo("Bonus");
+
+            // Switching away from Other drops the old text, so the file cannot carry a stale narration.
+            EmployeeBankResponse fees = bankService.put(
+                    EMPLOYEE_A,
+                    new EmployeeBankRequest(
+                            PaymentMode.BANK_TRANSFER,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            TransferType.FT,
+                            CreditNarration.CONSULTANT_FEES,
+                            "Bonus"));
+            assertThat(fees.creditNarration()).isEqualTo(CreditNarration.CONSULTANT_FEES);
+            assertThat(fees.creditNarrationOther()).isNull();
+        }
+
+        @Test
         @DisplayName("A blank string is stored as null, not as an empty string")
         void blankBecomesNull() {
             assertThat(personalService

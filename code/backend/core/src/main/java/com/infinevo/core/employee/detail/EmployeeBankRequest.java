@@ -23,4 +23,19 @@ public record EmployeeBankRequest(
         String bankName,
         String ifscCode,
         String bankAccountNumber,
-        BankAccountType bankAccountType) {}
+        BankAccountType bankAccountType,
+        TransferType transferType,
+        CreditNarration creditNarration,
+        String creditNarrationOther) {
+
+    /** The request before V260: transfer type and narration left out, so they take FT and Salary (V261). */
+    public EmployeeBankRequest(
+            PaymentMode paymentMode,
+            String accountHolderName,
+            String bankName,
+            String ifscCode,
+            String bankAccountNumber,
+            BankAccountType bankAccountType) {
+        this(paymentMode, accountHolderName, bankName, ifscCode, bankAccountNumber, bankAccountType, null, null, null);
+    }
+}

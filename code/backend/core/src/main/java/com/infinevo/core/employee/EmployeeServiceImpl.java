@@ -144,6 +144,31 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public EmployeeResponse create(EmployeeRequest request, boolean startOnboarding) {
         UUID tenantId = TenantContext.require();
+        Fields fields = checkBeforeCreate(tenantId, request);
+
+        Employee employee = new Employee(tenantId, currentActor());
+        fields.applyTo(employee, currentActor());
+        assign(employee, request, tenantId);
+        Employee saved = save(employee, fields.employeeNumber());
+        writeEmploymentTerms(saved.getId(), request);
+        if (publisher != null && startOnboarding) {
+            // W-102: the new joiner's onboarding checklist, in this transaction.
+            publisher.publishEvent(new EmployeeCreatedEvent(tenantId, saved.getId(), currentActor()));
+        }
+        return EmployeeResponse.from(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkCreate(EmployeeRequest request) {
+        checkBeforeCreate(TenantContext.require(), request);
+    }
+
+    /**
+     * Every check {@link #create} makes before it writes, in the same order (W-114.20): the field rules, the number
+     * unused, the work email unused, and room under the plan's employee limit. Writes nothing.
+     */
+    private Fields checkBeforeCreate(UUID tenantId, EmployeeRequest request) {
         Fields fields = validate(request, null);
 
         if (employeeRepository.existsByTenantIdAndEmployeeNumber(tenantId, fields.employeeNumber())) {
@@ -162,17 +187,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (fields.status() != EmploymentStatus.TERMINATED) {
             limitGuard.checkRoomFor(1);
         }
-
-        Employee employee = new Employee(tenantId, currentActor());
-        fields.applyTo(employee, currentActor());
-        assign(employee, request, tenantId);
-        Employee saved = save(employee, fields.employeeNumber());
-        writeEmploymentTerms(saved.getId(), request);
-        if (publisher != null && startOnboarding) {
-            // W-102: the new joiner's onboarding checklist, in this transaction.
-            publisher.publishEvent(new EmployeeCreatedEvent(tenantId, saved.getId(), currentActor()));
-        }
-        return EmployeeResponse.from(saved);
+        return fields;
     }
 
     /**

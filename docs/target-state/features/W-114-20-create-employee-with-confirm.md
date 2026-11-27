@@ -147,7 +147,7 @@ cd code/frontend && npx vitest run src/shell/assistant && npm run lint
 
 | Check | Expected | Result |
 |---|---|---|
-| The commands | Build success; existing employee tests pass unchanged | not run |
+| The commands | Build success; existing employee tests pass unchanged | Pass 2026-11-27: `EmployeeServiceImplTest` 47, `EmployeeActionToolProviderTest` 8, `EmployeeCreateIT` 6 |
 | HR: "add Priya Nair, E-207, joining 2026-12-01, Finance" | A card with every field; no employee until Confirm | not run |
 | Confirm | One employee; the card links to `/employees/{id}`; the "N of M employees" badge goes up by one | not run |
 | HR: "and make Ravi her manager" | The helper says the reporting manager is not set from chat and links to the employee's page; no card, no reporting line written | not run |
@@ -165,6 +165,8 @@ cd code/frontend && npx vitest run src/shell/assistant && npm run lint
 | HR believes the employee is fully set up | Medium | The card lists what was not set; the "done" message repeats it with the link |
 | `checkCreate` and `create` drift apart | Low | `checkCreate` calls the same private checks; the unit test compares the refusals |
 | Two HR users add the same number at once | Low | The unique check at confirm and the database constraint decide; the loser sees `FAILED` |
+
+**As built (2026-11-27, Claude).** `checkCreate` and `create` share one private method, `checkBeforeCreate`, so they cannot drift. The service's refusals are not `IllegalArgumentException` or `IllegalStateException`, so the executor turns them into those, and a confirm refused by the service ends `FAILED` with the service's message. A call naming a field chat never sets (mobile, status, portal, salary, bank, PAN, Aadhaar, the manager) is refused with a sentence saying where HR sets it, and nothing of it is stored. An employee added here gets the onboarding checklist, as one added on the screen does (`W-102`).
 
 ## Rollback
 

@@ -17,13 +17,34 @@
 - Tools `payroll.payrun_summary` and `payroll.payrun_next_step` (`payroll.run.read`) in `code/backend/payroll/src/main/java/com/infinevo/payroll/ai/PayRunAiToolProvider.java`, with `PayRunSummary` and `PayRunNextStep`.
 - Read-only by founder rule: only `list` and `employees` are called; `NoPayRunActionTest` (app) fails the build if a `payroll.` action or a third `payroll.payrun_` tool appears.
 - Other employees' names, numbers and net pay go to the model for holders of `payroll.run.read`; lists capped at 20; no id, no error text. Built by Claude. No migration.
+## 2026-11-27 — W-114.18 AI helper manager approvals
+
+- Tools `core.my_pending_approvals` and `core.propose_approval_decision`; action `core.approval.decide` behind Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/ApprovalToolProvider.java`, `ApprovalDecideExecutor.java`, `ApprovalItemReader.java`.
+- A row is named by position plus employee number and flow type; the query runs again and a mismatch is refused. Pay run, reimbursement and proof of investment: counted, never decided, refused in the tool and the executor.
+- Injection rules T1-T7: the reason and summary go to the model wrapped by `AiUntrustedText`; the card reads the reason from the database; one proposal per message; the payload stores the expected step and request status, checked at confirm. `ApprovalInjectionIT` covers an obeying model.
+- Open question (hrms reasons) built as option (a), the default; founder to choose. The card links to the request before Confirm through its own view (`AiActionDescription.link`), which the model never receives. A summary holding an id (timesheet) or none is shown as the kind of request.
+- Built by Claude. No migration.
+
+
+## 2026-11-27 — W-114.19 AI helper team answers
+
+- Tools `core.team_on_leave`, `core.joiners`, `core.leavers`, `core.headcount` in `code/backend/core/src/main/java/com/infinevo/core/ai/TeamAiToolProvider.java`; three reads added to `EmployeeRepository` / `EmployeeQueryService`.
+- Same scope as the screens: `core.leave.read` everyone, `core.leave.read_team` self and direct reports; joiners, leavers and headcount need `core.employee.read` and have no manager version. No leave type, reason, contact or id; labels one line of 100.
+- **Fixed:** `LeaveRequestRepository.search` and `searchForEmployees` failed in PostgreSQL (`42P18`) whenever a date was given, so the Leave requests screen date filter and `core.my_leave_requests` with dates failed. A missing date is now an open end.
+- Built by Claude. No migration.
+
+## 2026-11-27 — W-114.20 AI helper adds an employee after HR confirms
+
+- Tool `core.propose_employee_create`, action `core.employee.create` behind Confirm: `code/backend/core/src/main/java/com/infinevo/core/ai/action/EmployeeActionToolProvider.java`, `EmployeeCreateExecutor.java`.
+- `EmployeeService.checkCreate` runs every check `create` runs before it writes (one shared private method), and writes nothing. The card links to `/employees/{id}` once confirmed.
+- Never from chat: mobile, status, termination, portal login, salary, bank, statutory data, reporting manager. Built by Claude. No migration.
 
 ## 2026-11-26 — W-114.17 AI helper self-service actions
 
 - Tools `core.my_open_requests` and `core.propose_wfh_request`, `_wfh_withdraw`, `_wfh_cancel`, `_leave_withdraw`, `_leave_cancel`; actions `core.wfh.apply`, `.withdraw`, `.cancel` and `core.leave.withdraw`, `.cancel`, each behind Confirm. `code/backend/core/src/main/java/com/infinevo/core/ai/action/SelfServiceToolProvider.java` and the five executors beside it.
 - A request is named by its start date; only the caller's own are searched, and each executor checks ownership again at confirm (the WFH service never does). Wrong status or start date reached: refused in the service's own words, no intent.
 - `WfhRequestService.validateApply` holds the checks moved unchanged out of `submitRequest`; the WFH screen is unchanged. The card links: leave to its request page, WFH to `/me/wfh`.
-- **Found, not fixed:** `LeaveRequestRepository.search` fails in PostgreSQL (`42P18`, "could not determine data type of parameter") whenever a date is passed to its `fromDate`/`toDate` filter, so the Leave screen's date filter and `core.my_leave_requests` with dates likely fail. The new tool searches without dates.
+- **Found here, fixed in W-114.19:** `LeaveRequestRepository.search` fails in PostgreSQL (`42P18`, "could not determine data type of parameter") whenever a date is passed to its `fromDate`/`toDate` filter, so the Leave screen's date filter and `core.my_leave_requests` with dates likely fail. The new tool searches without dates.
 - Built by Claude. No migration.
 
 ## 2026-11-26 — W-114.22 AI helper starters

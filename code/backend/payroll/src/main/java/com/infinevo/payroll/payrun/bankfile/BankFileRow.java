@@ -29,7 +29,9 @@ public record BankFileRow(
         String accountType,
         String paymentMode,
         BigDecimal netPay,
-        String narration) {
+        String narration,
+        String transferType,
+        String creditNarration) {
 
     public BankFileRow {
         Objects.requireNonNull(employeeId, "employeeId must not be null");

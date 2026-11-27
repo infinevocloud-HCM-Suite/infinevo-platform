@@ -34,13 +34,57 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
             @Param("statuses") Collection<LeaveRequestStatus> statuses,
             @Param("excludeId") UUID excludeId);
 
+    /** No date filter on one side: the search runs with this as that side's bound. */
+    LocalDate OPEN_FROM = LocalDate.of(1, 1, 1);
+
+    /** See {@link #OPEN_FROM}. */
+    LocalDate OPEN_TO = LocalDate.of(9999, 12, 31);
+
+    /**
+     * Requests overlapping {@code [fromDate, toDate]}, newest start first; a {@code null} date leaves that side open.
+     * The stored query always gets two dates: an "{@code :date IS NULL OR ...}" filter cannot be typed by PostgreSQL
+     * when a date is bound ({@code 42P18}, found by W-114.17, fixed in W-114.19).
+     */
+    default Page<LeaveRequest> search(
+            UUID tenantId,
+            UUID employeeId,
+            LeaveRequestStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Pageable pageable) {
+        return searchBetween(
+                tenantId,
+                employeeId,
+                status,
+                fromDate == null ? OPEN_FROM : fromDate,
+                toDate == null ? OPEN_TO : toDate,
+                pageable);
+    }
+
+    /** As {@link #search}, for a set of employees. */
+    default Page<LeaveRequest> searchForEmployees(
+            UUID tenantId,
+            Collection<UUID> employeeIds,
+            LeaveRequestStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Pageable pageable) {
+        return searchForEmployeesBetween(
+                tenantId,
+                employeeIds,
+                status,
+                fromDate == null ? OPEN_FROM : fromDate,
+                toDate == null ? OPEN_TO : toDate,
+                pageable);
+    }
+
     @Query("SELECT r FROM LeaveRequest r WHERE r.tenantId = :tenantId "
             + "AND (:employeeId IS NULL OR r.employeeId = :employeeId) "
             + "AND (:status IS NULL OR r.status = :status) "
-            + "AND (:fromDate IS NULL OR r.toDate >= :fromDate) "
-            + "AND (:toDate IS NULL OR r.fromDate <= :toDate) "
+            + "AND r.toDate >= :fromDate "
+            + "AND r.fromDate <= :toDate "
             + "ORDER BY r.fromDate DESC")
-    Page<LeaveRequest> search(
+    Page<LeaveRequest> searchBetween(
             @Param("tenantId") UUID tenantId,
             @Param("employeeId") UUID employeeId,
             @Param("status") LeaveRequestStatus status,
@@ -51,10 +95,10 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
     @Query("SELECT r FROM LeaveRequest r WHERE r.tenantId = :tenantId "
             + "AND r.employeeId IN :employeeIds "
             + "AND (:status IS NULL OR r.status = :status) "
-            + "AND (:fromDate IS NULL OR r.toDate >= :fromDate) "
-            + "AND (:toDate IS NULL OR r.fromDate <= :toDate) "
+            + "AND r.toDate >= :fromDate "
+            + "AND r.fromDate <= :toDate "
             + "ORDER BY r.fromDate DESC")
-    Page<LeaveRequest> searchForEmployees(
+    Page<LeaveRequest> searchForEmployeesBetween(
             @Param("tenantId") UUID tenantId,
             @Param("employeeIds") Collection<UUID> employeeIds,
             @Param("status") LeaveRequestStatus status,

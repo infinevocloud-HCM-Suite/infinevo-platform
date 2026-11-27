@@ -68,6 +68,10 @@ public final class EmployeeDetailTestSchema {
             if (!EmployeeTestSchema.tableExists(conn, "employee_bank")) {
                 EmployeeTestSchema.executeResource(conn, "db/migration/core/V019__employee_bank.sql");
             }
+            if (!EmployeeTestSchema.columnExists(conn, "employee_bank", "transfer_type")) {
+                EmployeeTestSchema.executeResource(
+                        conn, "db/migration/core/V260__employee_bank_transfer_type_and_narration.sql");
+            }
             // D-40: EmployeeEmployment maps employment_type, probation_end_date and notice_period_days,
             // so every section read names them. V154 creates no table; the guard is on a column it adds.
             if (!EmployeeTestSchema.columnExists(conn, "employee_employment", "employment_type")) {

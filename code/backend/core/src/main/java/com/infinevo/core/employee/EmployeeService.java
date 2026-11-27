@@ -17,6 +17,16 @@ import java.util.UUID;
  */
 public interface EmployeeService {
 
+    /**
+     * Runs every check {@link #create(EmployeeRequest)} makes before it writes, and writes nothing (W-114.20): the
+     * AI helper's preview, so a request the screen would refuse is refused before a card is shown.
+     *
+     * @throws ValidationException, DuplicateEmployeeNumberException or EmployeeLimitReachedException as create does
+     */
+    default void checkCreate(EmployeeRequest request) {
+        throw new UnsupportedOperationException("checkCreate");
+    }
+
     /** Creates an employee in the bound tenant, with their onboarding checklist (W-102). */
     EmployeeResponse create(EmployeeRequest request);
 

@@ -340,6 +340,36 @@ export const sectionFields = {
           { value: 'SALARY', label: 'Salary' },
         ],
       },
+      // Founder 2026-11-27 (V260): how the bank moves the money, and what the credit says it is for.
+      // Left blank on a new record, the server saves FT and Salary (V261).
+      {
+        name: 'transferType',
+        label: 'Transfer Type',
+        type: 'select',
+        options: [
+          { value: 'FT', label: 'FT' },
+          { value: 'IMPS', label: 'IMPS' },
+          { value: 'NEFT', label: 'NEFT' },
+          { value: 'RTGS', label: 'RTGS' },
+        ],
+      },
+      {
+        name: 'creditNarration',
+        label: 'Credit Narration',
+        type: 'select',
+        options: [
+          { value: 'SALARY', label: 'Salary' },
+          { value: 'CONSULTANT_FEES', label: 'Consultant fees' },
+          { value: 'OTHER', label: 'Other' },
+        ],
+      },
+      {
+        name: 'creditNarrationOther',
+        label: 'Narration Text',
+        type: 'text',
+        required: true,
+        showWhen: (values) => values.creditNarration === 'OTHER',
+      },
     ],
   },
 };

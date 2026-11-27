@@ -178,7 +178,7 @@ cd code/frontend && npx vitest run src/shell/assistant && npm run lint
 
 | Check | Expected | Result |
 |---|---|---|
-| The commands | Build success | not run |
+| The commands | Build success | Pass 2026-11-27: `ApprovalToolProviderTest` 8, `ApprovalDecideExecutorTest` 8, `ApprovalDecisionIT` 4, `ApprovalInjectionIT` 3 |
 | "What is waiting for my approval?" as a manager with three leave steps | Three rows, oldest first, with names and dates | not run |
 | Same as an employee with no approver action | The tool is not offered; the helper says it cannot see approvals | not run |
 | "Approve the first one" | A card; the step is undecided until Confirm; then the request is approved and shows so on the Leave screen | not run |
@@ -203,6 +203,8 @@ cd code/frontend && npx vitest run src/shell/assistant && npm run lint
 | Question | Options | Default in this spec |
 |---|---|---|
 | Regularization, overtime and timesheet requests live in `hrms`, so this `core` part cannot put their reason on the card | (a) Decide them from the helper with the summary and a link, as written. (b) List them but do not decide them until a small `hrms` part (`W-114.18a`) supplies the reason through a `core` interface | (a). Founder to choose |
+
+**As built (2026-11-27, Claude).** Option (a), the default, pending the founder's choice. The card's fields are also the propose tool's answer to the model, so they carry no id. The link to `/approvals/{instanceId}` rides on the card's own view instead (`AiActionDescription.link`, shown by `ActionCard` as "Open the request" before Confirm, plain app paths only), which the model never receives; after Confirm `actionLinks.js` links the same page. A timesheet step's inbox summary is its project's id, so a summary holding an id, or none (regularization, overtime), is shown as the kind of request. The employee's reason and the `hrms` summary in that answer are wrapped by `AiUntrustedText`. A refusal from `ApprovalService.decide` (not the approver, already decided) is shown in plain words with no step id. T6 uses the one-proposal-per-message rule `AiActionServiceImpl.propose` already had.
 
 ## Rollback
 

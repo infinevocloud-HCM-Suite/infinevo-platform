@@ -19,9 +19,21 @@ public record AiActionView(
         List<AiActionField> fields,
         AiIntentStatus status,
         Instant expiresAt,
-        @JsonInclude(JsonInclude.Include.ALWAYS) JsonNode result) {
+        @JsonInclude(JsonInclude.Include.ALWAYS) JsonNode result,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String link) {
 
     public AiActionView {
         fields = fields == null ? List.of() : List.copyOf(fields);
+    }
+
+    public AiActionView(
+            UUID intentId,
+            String actionCode,
+            String summary,
+            List<AiActionField> fields,
+            AiIntentStatus status,
+            Instant expiresAt,
+            JsonNode result) {
+        this(intentId, actionCode, summary, fields, status, expiresAt, result, null);
     }
 }

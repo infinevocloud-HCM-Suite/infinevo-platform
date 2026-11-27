@@ -2,6 +2,8 @@ package com.infinevo.core.employee;
 
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -59,6 +61,43 @@ public class EmployeeQueryService {
 
         Page<Employee> page = repository.search(tenantId, safeQ, status, includeDeleted, clamped);
         return page.map(EmployeeSummaryResponse::from);
+    }
+
+    /** At most this many rows from {@link #joinedBetween} and {@link #leftBetween}; the page carries the total. */
+    public static final int MAX_DATED_ROWS = 50;
+
+    /** How {@link #headcountBy} groups. */
+    public enum HeadcountGroup {
+        DEPARTMENT,
+        LOCATION
+    }
+
+    /** W-114.19: live employees who joined in {@code [start, end]}, earliest first, at most 50. */
+    @Transactional(readOnly = true)
+    public Page<Employee> joinedBetween(LocalDate start, LocalDate end) {
+        return repository.findJoinedBetween(TenantContext.require(), start, end, PageRequest.of(0, MAX_DATED_ROWS));
+    }
+
+    /** W-114.19: live employees whose last working date is in {@code [start, end]}, earliest first, at most 50. */
+    @Transactional(readOnly = true)
+    public Page<Employee> leftBetween(LocalDate start, LocalDate end) {
+        return repository.findLeftBetween(TenantContext.require(), start, end, PageRequest.of(0, MAX_DATED_ROWS));
+    }
+
+    /** W-114.19: the employees the limit guard counts - live and not terminated. */
+    @Transactional(readOnly = true)
+    public long headcount() {
+        return repository.countByTenantIdAndDeletedFalseAndStatusNot(
+                TenantContext.require(), EmploymentStatus.TERMINATED);
+    }
+
+    /** W-114.19: {@link #headcount()}'s employees per department or work location; the counts add up to it. */
+    @Transactional(readOnly = true)
+    public List<EmployeeRepository.GroupCount> headcountBy(HeadcountGroup group) {
+        UUID tenantId = TenantContext.require();
+        return group == HeadcountGroup.LOCATION
+                ? repository.countByWorkLocation(tenantId, EmploymentStatus.TERMINATED)
+                : repository.countByDepartment(tenantId, EmploymentStatus.TERMINATED);
     }
 
     /**

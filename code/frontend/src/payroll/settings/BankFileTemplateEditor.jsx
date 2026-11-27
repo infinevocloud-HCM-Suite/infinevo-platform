@@ -21,6 +21,8 @@ const SAMPLE = {
   DEPARTMENT: 'Engineering',
   DESIGNATION: 'Engineer',
   NARRATION: 'Salary 2026-11',
+  TRANSFER_TYPE: 'FT',
+  CREDIT_NARRATION: 'Salary',
 };
 
 const AMOUNT_SAMPLE = { DECIMAL_2: '65000.50', WHOLE_RUPEES: '65001', PAISE: '6500050' };

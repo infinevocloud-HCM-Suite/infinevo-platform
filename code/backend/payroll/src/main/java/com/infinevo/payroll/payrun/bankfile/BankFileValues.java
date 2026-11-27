@@ -44,6 +44,8 @@ final class BankFileValues {
             case BANK_NAME -> row.bankName();
             case ACCOUNT_TYPE -> row.accountType();
             case NARRATION -> row.narration();
+            case TRANSFER_TYPE -> text(row.transferType());
+            case CREDIT_NARRATION -> text(row.creditNarration());
             case NET_PAY -> amount(row.netPay(), format);
             case PAY_PERIOD -> period(run.getPeriod(), format);
             case PAID_ON -> run.getPaidOn() == null ? "" : date(run.getPaidOn(), format);

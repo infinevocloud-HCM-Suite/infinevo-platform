@@ -831,6 +831,41 @@ class EmployeeServiceImplTest {
         assertThat(store).isEmpty();
     }
 
+    // --- W-114.20: checkCreate, the AI helper's preview of create --------------------------------
+
+    @Test
+    @DisplayName("W-114.20: checkCreate refuses exactly what create refuses - bad field, number taken, limit - and"
+            + " writes nothing")
+    void checkCreateRefusesWhatCreateRefuses() {
+        EmployeeRequest tooLong = request("E".repeat(65));
+        assertThatThrownBy(() -> service.checkCreate(tooLong)).isInstanceOf(EmployeeService.ValidationException.class);
+        assertThatThrownBy(() -> service.create(tooLong)).isInstanceOf(EmployeeService.ValidationException.class);
+
+        service.create(request("E-1"));
+        assertThatThrownBy(() -> service.checkCreate(request("E-1")))
+                .isInstanceOf(EmployeeService.DuplicateEmployeeNumberException.class)
+                .hasMessageContaining("E-1");
+
+        doThrow(new EmployeeService.EmployeeLimitReachedException(1, 1))
+                .when(limitGuard)
+                .checkRoomFor(1);
+        assertThatThrownBy(() -> service.checkCreate(request("E-2")))
+                .isInstanceOf(EmployeeService.EmployeeLimitReachedException.class);
+        assertThatThrownBy(() -> service.create(request("E-2")))
+                .isInstanceOf(EmployeeService.EmployeeLimitReachedException.class);
+        assertThat(store).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("W-114.20: checkCreate on an acceptable request saves nothing and publishes nothing")
+    void checkCreateWritesNothing() {
+        service.checkCreate(request("E-9"));
+
+        verify(repository, never()).save(any(Employee.class));
+        verify(repository, never()).saveAndFlush(any(Employee.class));
+        assertThat(store).isEmpty();
+    }
+
     @Test
     @DisplayName("W-84.2: a record created straight as TERMINATED adds nobody, so the limit is not looked at")
     void createAsTerminatedIsNotGated() {

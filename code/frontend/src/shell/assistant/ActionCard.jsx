@@ -9,7 +9,7 @@ import {
   AI_ACTION_FAILED,
   AI_DISABLED,
 } from './assistantService.js';
-import { linkFor, linkLabelFor } from './actionLinks.js';
+import { linkFor, linkLabelFor, viewLinkFor } from './actionLinks.js';
 
 /** Every sentence the card shows (W-114.9, States). */
 export const ACTION_TEXT = {
@@ -19,6 +19,7 @@ export const ACTION_TEXT = {
   confirm: 'Confirm',
   cancel: 'Cancel',
   done: 'Done.',
+  openFirst: 'Open the request',
   cancelled: 'Cancelled.',
   expired: 'This expired. Ask again to try once more.',
   failed: 'This could not be done:',
@@ -232,6 +233,7 @@ export function ActionCard({ intentId }) {
   const summary = text(action.summary);
   const fields = Array.isArray(action.fields) ? action.fields : [];
   const link = status === 'CONFIRMED' ? linkFor(action.actionCode, action.result) : null;
+  const viewLink = proposed ? viewLinkFor(action.link) : null;
 
   let footer = null;
   if (proposed) {
@@ -256,6 +258,7 @@ export function ActionCard({ intentId }) {
           <Button size="small" disabled={busy !== null} onClick={() => run('cancel')}>
             {ACTION_TEXT.cancel}
           </Button>
+          {viewLink && <DoneLink to={viewLink}>{ACTION_TEXT.openFirst}</DoneLink>}
           {remaining !== null && (
             // Off the live region: the message list's log would otherwise read the time out every second.
             // Only a change of state is announced.

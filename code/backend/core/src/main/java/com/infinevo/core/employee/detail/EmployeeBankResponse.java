@@ -20,6 +20,9 @@ public record EmployeeBankResponse(
         String ifscCode,
         String bankAccountNumber,
         BankAccountType bankAccountType,
+        TransferType transferType,
+        CreditNarration creditNarration,
+        String creditNarrationOther,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -35,6 +38,9 @@ public record EmployeeBankResponse(
                 bank.getIfscCode(),
                 bank.getBankAccountNumber(),
                 bank.getBankAccountType(),
+                bank.getTransferType(),
+                bank.getCreditNarration(),
+                bank.getCreditNarrationOther(),
                 bank.getCreatedAt(),
                 bank.getUpdatedAt());
     }

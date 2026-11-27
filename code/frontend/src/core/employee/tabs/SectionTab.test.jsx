@@ -21,6 +21,37 @@ describe('SectionTab component', () => {
     vi.clearAllMocks();
   });
 
+  it('bank: Narration Text shows only for Other, and Other without it is not saved', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    employeeService.section.mockResolvedValueOnce({
+      paymentMode: 'BANK_TRANSFER',
+      transferType: 'NEFT',
+      creditNarration: 'SALARY',
+    });
+
+    const { unmount } = render(<SectionTab employeeId="emp-1" sectionName="bank" />);
+    await waitFor(() => expect(screen.getByTitle('NEFT')).toBeDefined());
+    expect(screen.getByText('Transfer Type')).toBeDefined();
+    expect(screen.getByText('Credit Narration')).toBeDefined();
+    expect(screen.queryByText('Narration Text')).toBeNull();
+    unmount();
+
+    employeeService.section.mockResolvedValueOnce({
+      paymentMode: 'BANK_TRANSFER',
+      transferType: 'IMPS',
+      creditNarration: 'OTHER',
+    });
+    render(<SectionTab employeeId="emp-1" sectionName="bank" />);
+    await waitFor(() => expect(screen.getByText('Narration Text')).toBeDefined());
+
+    fireEvent.click(screen.getByRole('button', { name: /save bank details/i }));
+    const { errorMsg } = await import('@shared/ui/msgHelper.js');
+    await waitFor(() =>
+      expect(errorMsg).toHaveBeenCalledWith({ message: 'Narration Text is required.' })
+    );
+    expect(employeeService.saveSection).not.toHaveBeenCalled();
+  });
+
   it('loads section on mount and saves updated fields', async () => {
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
     employeeService.section.mockResolvedValueOnce({
