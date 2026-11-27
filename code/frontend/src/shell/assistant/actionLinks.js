@@ -1,12 +1,15 @@
 /**
  * Where a carried-out action can be opened (W-114.9). One line per `actionCode`; a code with no line
  * shows no link. Every path is checked against the route tables (`src/shell/routes.js`,
- * `src/core/index.js`). Later parts (W-114.17, .18, .20) add their lines here; the card does not change.
+ * `src/core/index.js`). Later parts (W-114.17, .18, .20, .28) add their lines here; the card does not change.
  */
 const leaveRequest = (result) =>
   result.leaveRequestId ? '/me/leave/requests/' + encodeURIComponent(result.leaveRequestId) : null;
 // A WFH request has no page of its own: the portal's WFH tab lists it (W-114.17).
 const wfhTab = (result) => (result.wfhRequestId ? '/me/wfh' : null);
+
+// A set-up step (W-114.28) opens the list that now holds what was made.
+const listOnce = (key, path) => (result) => (result[key] ? path : null);
 
 const LINKS = {
   'core.leave.apply': leaveRequest,
@@ -19,6 +22,13 @@ const LINKS = {
     result.instanceId ? '/approvals/' + encodeURIComponent(result.instanceId) : null,
   'core.employee.create': (result) =>
     result.employeeId ? '/employees/' + encodeURIComponent(result.employeeId) : null,
+  'core.org.department.create': listOnce('id', '/org/departments'),
+  'core.org.designation.create': listOnce('id', '/org/designations'),
+  'core.org.location.create': listOnce('id', '/org/work-locations'),
+  'core.holiday.add': (result) =>
+    result.calendarId ? '/holidays/' + encodeURIComponent(result.calendarId) : null,
+  'core.user.invite': listOnce('email', '/users'),
+  'payroll.bank_file_template.create': listOnce('templateId', '/payroll/settings/bank-files'),
 };
 
 /** The words of each link, kept next to its path so the card holds no action-specific text. */
@@ -31,6 +41,12 @@ const LABELS = {
   'core.wfh.apply': 'Open work from home',
   'core.wfh.withdraw': 'Open work from home',
   'core.wfh.cancel': 'Open work from home',
+  'core.org.department.create': 'Open departments',
+  'core.org.designation.create': 'Open designations',
+  'core.org.location.create': 'Open work locations',
+  'core.holiday.add': 'Open the holiday calendar',
+  'core.user.invite': 'Open users and invitations',
+  'payroll.bank_file_template.create': 'Open bank file templates',
 };
 
 const has = (map, key) => typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key);

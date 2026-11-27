@@ -180,6 +180,21 @@ public class PayrollTestApp {
         return service;
     }
 
+    /**
+     * W-114.28: payroll's first AI step (the bank file template tool) proposes through core's store, which this
+     * narrower scan leaves out. A mock: the payroll AI tests build their own capture.
+     */
+    @Bean
+    public com.infinevo.core.ai.action.AiActionProposals aiActionProposals() {
+        return org.mockito.Mockito.mock(com.infinevo.core.ai.action.AiActionProposals.class);
+    }
+
+    /** W-114.27: the per-employee TDS tool finds the person through core's query service, outside this scan. */
+    @Bean
+    public com.infinevo.core.employee.EmployeeQueryService employeeQueryService() {
+        return org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeQueryService.class);
+    }
+
     @Bean
     public com.infinevo.core.org.ReportingLineService reportingLineService() {
         return org.mockito.Mockito.mock(com.infinevo.core.org.ReportingLineService.class);

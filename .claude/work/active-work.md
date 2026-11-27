@@ -6,6 +6,12 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-27 — W-114.28 AI helper admin set-up steps behind Confirm
+
+- Tools `core.propose_department`, `core.propose_designation`, `core.propose_work_location`, `core.propose_holiday`, `core.propose_user_invite` (`code/backend/core/src/main/java/com/infinevo/core/ai/action/`) and `payroll.propose_bank_file_template` (`code/backend/payroll/src/main/java/com/infinevo/payroll/ai/`). Nothing is made until Confirm; Confirm calls the screen's service.
+- `NoPayRunActionTest` allows one payroll action, the bank file template; pay run and money steps still fail the build. `PayrollTestApp` gained two stand-in beans (the `.27` TDS tool had stopped every payroll IT context from starting).
+- Built by Claude. No migration.
+
 ## 2026-11-27 — W-114.26 and W-114.27 AI helper admin help and per-employee TDS
 
 - Founder 2026-11-27: the helper is mainly for HR, payroll officer and tenant admin and covers all they do; every new spec has an AI helper section (`/plan-feature` step 9a). Pay run steps stay off the helper; money decisions stay on screen for now.

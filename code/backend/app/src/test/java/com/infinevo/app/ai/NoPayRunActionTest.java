@@ -19,11 +19,17 @@ import org.springframework.core.type.filter.AssignableTypeFilter;
 /**
  * W-114.21 spec, Tests ({@code NoPayRunActionIT}, built as a classpath scan): the founder's rule of 2026-11-23 - the AI
  * helper never creates, locks, computes, approves, pays or cancels a pay run. Here, with every module on the
- * classpath, no {@link AiActionExecutor} has an action code starting {@code payroll.}, and the only tool names
+ * classpath, no {@link AiActionExecutor} has an action code starting {@code payroll.} but the settings steps listed below, and the only tool names
  * starting {@code payroll.payrun_} are the two read tools. A scan, not a Spring context: the executors and tools of all
  * modules are visible only in {@code app}, and their action codes and names are their {@code static final} constants.
  */
 class NoPayRunActionTest {
+
+    /**
+     * The only payroll actions allowed: settings steps that touch no pay run and no money (W-114.28, founder
+     * 2026-11-27). Anything else, a pay run step above all, fails here.
+     */
+    private static final Set<String> SETTINGS_ACTIONS = Set.of("payroll.bank_file_template.create");
 
     private static List<Class<?>> concrete(Class<?> type) throws ClassNotFoundException {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
@@ -54,14 +60,17 @@ class NoPayRunActionTest {
     }
 
     @Test
-    @DisplayName("no action executor carries a payroll action; every executor names its code in ACTION_CODE")
+    @DisplayName("no payroll action but the settings steps; every executor names its code in ACTION_CODE")
     void noPayrollExecutor() throws Exception {
         List<Class<?>> executors = concrete(AiActionExecutor.class);
         assertThat(executors).isNotEmpty();
         for (Class<?> c : executors) {
             Field code = c.getDeclaredField("ACTION_CODE");
             code.setAccessible(true);
-            assertThat((String) code.get(null)).as(c.getName()).doesNotStartWith("payroll.");
+            String value = (String) code.get(null);
+            if (value.startsWith("payroll.")) {
+                assertThat(value).as(c.getName()).isIn(SETTINGS_ACTIONS);
+            }
         }
     }
 

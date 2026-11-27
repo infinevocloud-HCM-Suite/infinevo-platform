@@ -38,6 +38,27 @@ describe('actionLinks', () => {
     }
   });
 
+  it('W-114.28: each set-up step opens the list that holds what was made', () => {
+    const cases = [
+      ['core.org.department.create', { id: 'd-1', code: 'FIN' }, '/org/departments', 'Open departments'],
+      ['core.org.designation.create', { id: 'g-1', code: 'MGR' }, '/org/designations', 'Open designations'],
+      ['core.org.location.create', { id: 'l-1', code: 'PUN' }, '/org/work-locations', 'Open work locations'],
+      ['core.holiday.add', { calendarId: 'c 1', holidayId: 'h-1' }, '/holidays/c%201', 'Open the holiday calendar'],
+      ['core.user.invite', { email: 'a@b.in' }, '/users', 'Open users and invitations'],
+      [
+        'payroll.bank_file_template.create',
+        { templateId: 't-1' },
+        '/payroll/settings/bank-files',
+        'Open bank file templates',
+      ],
+    ];
+    for (const [code, result, path, label] of cases) {
+      expect(linkFor(code, result)).toBe(path);
+      expect(linkFor(code, {})).toBeNull();
+      expect(linkLabelFor(code)).toBe(label);
+    }
+  });
+
   it('returns nothing for an unknown code, or a result without the id', () => {
     expect(linkFor('core.made.up', { leaveRequestId: 'lr-1' })).toBeNull();
     expect(linkFor(undefined, {})).toBeNull();
