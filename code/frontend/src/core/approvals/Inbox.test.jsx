@@ -131,6 +131,26 @@ describe('Inbox component', () => {
     expect(store.getState().approvals.pendingCount).toBe(2);
   });
 
+  it('filters by employee name, loading the largest page so no match is missed', async () => {
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <Inbox />
+        </MemoryRouter>
+      </Provider>
+    );
+    await waitFor(() => expect(screen.getByText('Employee: Alice Smith')).toBeDefined(), { timeout: 5000 });
+    expect(approvalService.pending).toHaveBeenLastCalledWith(0, 15);
+
+    fireEvent.change(screen.getByPlaceholderText('Search employee name'), { target: { value: 'alice' } });
+
+    await waitFor(() => expect(approvalService.pending).toHaveBeenLastCalledWith(0, 100));
+    await waitFor(() => {
+      expect(screen.getByText('Employee: Alice Smith')).toBeDefined();
+      expect(screen.queryByText('Employee ID: emp-2')).toBeNull();
+    });
+  });
+
   it('shows every assigned row to a Payroll-only tenant - the modules narrow the filter, never the rows', async () => {
     vi.spyOn(useCanModule, 'useHasModule').mockImplementation((module) => module === 'PAYROLL');
 

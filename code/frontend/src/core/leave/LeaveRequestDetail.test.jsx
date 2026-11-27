@@ -41,7 +41,17 @@ vi.mock('../employee/employeeService.js', () => ({
 vi.mock('../approvals/approvalService.js', () => ({
   approvalService: {
     history: vi.fn(),
+    reassign: vi.fn(),
   },
+}));
+
+vi.mock('../approvals/useEmployeeSearch.js', () => ({
+  useEmployeeSearch: () => ({
+    options: [{ value: 'emp-aman', label: 'P026 - Aman Kumar Sinha' }],
+    loading: false,
+    error: null,
+    search: vi.fn(),
+  }),
 }));
 
 vi.mock('@shared/ui/msgHelper.js', () => ({
@@ -174,6 +184,55 @@ describe('LeaveRequestDetail component', () => {
     const dots = document.querySelectorAll('.ant-timeline-item-head');
     expect(dots[0].className).toMatch(/green/);
     expect(dots[1].className).toMatch(/blue/);
+  });
+
+  const renderDetail = () =>
+    render(
+      <MemoryRouter initialEntries={['/leave/requests/req-1']}>
+        <Routes>
+          <Route path="/leave/requests/:id" element={<LeaveRequestDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+  it('an admin reassigns a pending leave to another approver', async () => {
+    leaveRequestService.get.mockResolvedValue({ ...mockRequest, status: 'PENDING', decidedAt: null });
+    approvalService.reassign.mockResolvedValueOnce({});
+
+    renderDetail();
+
+    const btn = await screen.findByTestId('btn-leave-reassign');
+    fireEvent.click(btn);
+    await waitFor(() => expect(screen.getByRole('dialog', { name: /Reassign approver/i })).toBeDefined());
+
+    fireEvent.mouseDown(screen.getByRole('combobox'));
+    fireEvent.click(await screen.findByText('P026 - Aman Kumar Sinha'));
+    fireEvent.change(screen.getByPlaceholderText(/Back to reporting manager/i), {
+      target: { value: 'Back to reporting manager' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Reassign$/ }));
+
+    await waitFor(() =>
+      expect(approvalService.reassign).toHaveBeenCalledWith('inst-1', {
+        employeeId: 'emp-aman',
+        reason: 'Back to reporting manager',
+      })
+    );
+  });
+
+  it('no reassign without core.approval.manage, nor once the leave is decided', async () => {
+    leaveRequestService.get.mockResolvedValue({ ...mockRequest, status: 'PENDING', decidedAt: null });
+    vi.spyOn(useCanModule, 'useCan').mockImplementation((code) => code !== 'core.approval.manage');
+    const { unmount } = renderDetail();
+    await waitFor(() => expect(screen.getByText('Leave Request Details')).toBeDefined());
+    expect(screen.queryByTestId('btn-leave-reassign')).toBeNull();
+    unmount();
+
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    leaveRequestService.get.mockResolvedValue(mockRequest); // APPROVED
+    renderDetail();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel Leave/i })).toBeDefined());
+    expect(screen.queryByTestId('btn-leave-reassign')).toBeNull();
   });
 
   it('allows cancelling an approved leave with a reason', async () => {
