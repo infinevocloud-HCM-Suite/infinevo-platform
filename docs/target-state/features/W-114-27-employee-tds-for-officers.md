@@ -69,6 +69,8 @@ This part is itself an AI helper read tool.
 
 **As built (2026-11-27, Claude).** `payroll/ai/EmployeeTdsAiToolProvider.java`; `EmployeeTdsAiToolTest` 5 pass.
 
+**Review fix (2026-11-27).** The lookup reads every page of the search (100 a page, up to 50 pages, in employee number order), so an exact match past the first 100 rows is found.
+
 ## Rollback
 
 Revert the commit. The tool is no longer offered.

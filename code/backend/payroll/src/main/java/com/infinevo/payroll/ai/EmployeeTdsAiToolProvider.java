@@ -21,6 +21,7 @@ import com.infinevo.payroll.tds.EmployeeTds;
 import com.infinevo.payroll.tds.EmployeeTdsService;
 import com.infinevo.payroll.tds.TdsSpread;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,7 +32,9 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -230,12 +233,25 @@ public class EmployeeTdsAiToolProvider implements AiToolProvider {
         return out;
     }
 
+    /** The search's page cap ({@code EmployeeQueryService}), and how many pages are read at most. */
+    static final int SEARCH_PAGE = 100;
+
+    static final int MAX_SEARCH_PAGES = 50;
+
     /** An exact employee number first; otherwise an exact full name. Live employees only. */
     private List<EmployeeSummaryResponse> find(String who) {
         String wanted = who.toLowerCase(Locale.ROOT);
         String prefix = who.split("\\s+")[0];
-        List<EmployeeSummaryResponse> found =
-                employees.search(prefix, null, false, PageRequest.of(0, 100)).getContent();
+        // Every match of the first word, a page at a time in a fixed order: an exact match may be past the first page.
+        List<EmployeeSummaryResponse> found = new ArrayList<>();
+        for (int page = 0; page < MAX_SEARCH_PAGES; page++) {
+            Page<EmployeeSummaryResponse> p = employees.search(
+                    prefix, null, false, PageRequest.of(page, SEARCH_PAGE, Sort.by("employeeNumber", "id")));
+            found.addAll(p.getContent());
+            if (!p.hasNext()) {
+                break;
+            }
+        }
         List<EmployeeSummaryResponse> byNumber = found.stream()
                 .filter(e -> e.employeeNumber() != null
                         && e.employeeNumber().toLowerCase(Locale.ROOT).equals(wanted))

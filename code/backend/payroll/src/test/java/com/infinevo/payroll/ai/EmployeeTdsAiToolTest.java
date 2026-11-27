@@ -132,6 +132,27 @@ class EmployeeTdsAiToolTest {
     }
 
     @Test
+    @DisplayName("an exact match past the first page of the search is still found")
+    void secondPage() throws Exception {
+        List<EmployeeSummaryResponse> first = new java.util.ArrayList<>();
+        for (int i = 0; i < EmployeeTdsAiToolProvider.SEARCH_PAGE; i++) {
+            first.add(person(UUID.randomUUID(), "E-01" + i, "Asha", "Other" + i));
+        }
+        when(employees.search(anyString(), isNull(), anyBoolean(), any())).thenAnswer(inv -> {
+            org.springframework.data.domain.Pageable p = inv.getArgument(3);
+            return p.getPageNumber() == 0
+                    ? new PageImpl<>(first, p, EmployeeTdsAiToolProvider.SEARCH_PAGE + 1L)
+                    : new PageImpl<>(
+                            List.of(person(ashaId, "E-014", "Asha", "Rao")),
+                            p,
+                            EmployeeTdsAiToolProvider.SEARCH_PAGE + 1L);
+        });
+
+        assertThat(call("{\"employee\":\"Asha Rao\"}").data().path("annualTax").asText())
+                .isEqualTo("52000.00");
+    }
+
+    @Test
     @DisplayName("by full name; two with that name: both listed, no figures")
     void byName_andTwo() throws Exception {
         found(person(ashaId, "E-014", "Asha", "Rao"));

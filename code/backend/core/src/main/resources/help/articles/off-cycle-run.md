@@ -14,7 +14,7 @@ Who can do this: the payroll officer, or anyone whose role lets them run payroll
 2. Step 1, Run Details: pick the Payment Date, choose the Employees (search by name or ID), and add Notes / Reason if you like.
 3. Click Create Run & Enter Inputs →. If an employee cannot be put on the run, the screen lists them under Employees not considered.
 4. Step 2, Pay Inputs: there is a row for each employee. For each row pick the Kind (One-Time Payout, Overtime, Reimbursement or Ad-Hoc Deduction), enter the Amount (₹) and check the Source Reference. Click Add Input Row for more.
-5. Click Save Inputs. Each row shows RECORDED, or DUPLICATE if that reference was already saved for the employee. Inputs can be added only before the run is locked.
+5. Click Save Inputs. Each saved row shows a green tick tag, or DUPLICATE if that reference was already saved for the employee. Inputs can be added only before the run is locked.
 6. Click View Pay Run Page →. From here it runs like a monthly run: Lock, Compute, check the figures, Approve, then Pay (see "Run payroll for a month, step by step").
 
 On the Pay Runs list, set Type to Off-Cycle to see only these runs.
