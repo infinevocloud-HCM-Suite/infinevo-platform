@@ -90,7 +90,33 @@ class ApprovalItemReader {
             }
         }
         boolean core = type == ApprovalFlowType.LEAVE || type == ApprovalFlowType.WORK_FROM_HOME;
-        return new Item(summary == null ? "" : summary, null, core, null);
+        return new Item(summary(type, summary), null, core, null);
+    }
+
+    private static final java.util.regex.Pattern UUID_TEXT = java.util.regex.Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    /**
+     * The inbox summary as the helper may show it: the request's kind when the step has none (regularization and
+     * overtime start with no item reference), or when it holds an id (a timesheet step's item reference is its
+     * project's id), so no id reaches the model or the card.
+     */
+    static String summary(ApprovalFlowType type, String summary) {
+        if (summary == null || summary.isBlank() || UUID_TEXT.matcher(summary).find()) {
+            return ApprovalDecideExecutor.label(type);
+        }
+        return summary;
+    }
+
+    /** A refusal's message with any id taken out, for the card. */
+    static String withoutIds(String message) {
+        return message == null
+                ? null
+                : UUID_TEXT
+                        .matcher(message)
+                        .replaceAll("")
+                        .replaceAll(" {2,}", " ")
+                        .trim();
     }
 
     static String span(LocalDate from, LocalDate to) {

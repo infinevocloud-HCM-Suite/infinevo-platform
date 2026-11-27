@@ -117,6 +117,16 @@ class ApprovalToolProviderTest {
                         UUID.randomUUID(),
                         "Overtime 2026-11-20",
                         "Ravi Kumar",
+                        now),
+                // As the timesheet flow starts it: the item reference, and so the summary, is a project id.
+                row(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        ApprovalFlowType.TIMESHEET,
+                        ravi,
+                        UUID.randomUUID(),
+                        UUID.randomUUID().toString(),
+                        "Ravi Kumar",
                         now));
         when(approvalService.getPendingSteps(any()))
                 .thenAnswer(inv -> new PageImpl<>(rows, PageRequest.of(0, 20), rows.size()));
@@ -200,7 +210,7 @@ class ApprovalToolProviderTest {
         assertThat(result.ok()).isTrue();
         JsonNode data = result.data();
         assertThat(UUID_TEXT.matcher(data.toString()).find()).isFalse();
-        assertThat(data.path("total").asInt()).isEqualTo(3);
+        assertThat(data.path("total").asInt()).isEqualTo(4);
         JsonNode rows = data.path("approvals");
         assertThat(rows.get(0).path("position").asInt()).isEqualTo(1);
         assertThat(rows.get(0).path("employeeNumber").asText()).isEqualTo("E-014");
@@ -209,6 +219,8 @@ class ApprovalToolProviderTest {
         assertThat(rows.get(1).path("flowType").asText()).isEqualTo("PAY_RUN");
         assertThat(rows.get(1).path("decidable").asBoolean()).isFalse();
         assertThat(data.path("note").asText()).startsWith("1 more on the Approvals screen");
+        // The timesheet's project id is replaced by the kind of request, in the list and so on the card.
+        assertThat(rows.get(3).path("summary").path("quotedText").asText()).isEqualTo("Timesheet");
     }
 
     @Test

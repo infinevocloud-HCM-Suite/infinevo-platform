@@ -307,6 +307,38 @@ describe('ActionCard', () => {
     expect(screen.queryByRole('link')).toBeNull();
   });
 
+  it('W-114.18: a proposed card shows the server link to read the request first; a foreign link is ignored', async () => {
+    vi.spyOn(assistantService, 'getAction').mockResolvedValue({
+      intentId: 'a1',
+      actionCode: 'core.approval.decide',
+      summary: 'Approve leave request for Asha Rao',
+      fields: [{ label: 'Request', value: 'Leave request' }],
+      status: 'PROPOSED',
+      expiresAt: IN_15_MIN(),
+      result: null,
+      link: '/approvals/inst-1',
+    });
+    renderCard('a1');
+    const link = await screen.findByRole('link', { name: ACTION_TEXT.openFirst });
+    expect(link.getAttribute('href')).toBe('/approvals/inst-1');
+  });
+
+  it('W-114.18: a link to another site is never followed', async () => {
+    vi.spyOn(assistantService, 'getAction').mockResolvedValue({
+      intentId: 'a2',
+      actionCode: 'core.approval.decide',
+      summary: 'Approve it',
+      fields: [],
+      status: 'PROPOSED',
+      expiresAt: IN_15_MIN(),
+      result: null,
+      link: '//evil.example/approvals',
+    });
+    renderCard('a2');
+    await screen.findByRole('group', { name: 'Approve it' });
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
   it('rule 1: the card shows what getAction returns, nothing from the message', async () => {
     // The helper's message said "2 days from 4 Dec"; the stored action is 5 days from 1 Dec.
     vi.spyOn(assistantService, 'getAction').mockResolvedValue(leaveAction());

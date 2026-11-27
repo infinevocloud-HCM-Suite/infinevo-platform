@@ -203,7 +203,7 @@ public class ApprovalToolProvider implements AiToolProvider {
             o.put("flowType", row.flowType() == null ? "" : row.flowType().name());
             o.put("subjectEmployeeName", row.subjectEmployeeName() == null ? "" : row.subjectEmployeeName());
             o.put("employeeNumber", employeeNumber(requesters, row));
-            o.set("summary", AiUntrustedText.wrap(row.summary()));
+            o.set("summary", AiUntrustedText.wrap(ApprovalItemReader.summary(row.flowType(), row.summary())));
             o.put("waiting", waiting(row.createdAt()));
             o.put("decidable", decidable);
             if (row.flowType() == ApprovalFlowType.LEAVE || row.flowType() == ApprovalFlowType.WORK_FROM_HOME) {

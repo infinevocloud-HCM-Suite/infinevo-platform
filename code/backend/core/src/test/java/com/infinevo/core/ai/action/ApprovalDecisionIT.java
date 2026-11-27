@@ -38,6 +38,10 @@ class ApprovalDecisionIT extends ApprovalItSupport {
         assertThat(answer.path("proposedAction").path("actionCode").asText()).isEqualTo("core.approval.decide");
         assertThat(stepDecision(leave)).isNull();
         assertThat(leaveStatus(leave, "PENDING")).isEqualTo("PENDING");
+        // T4: the card links to the request before Confirm; the answer the model read carries no link or id.
+        JsonNode view = body(view(subManager, intent).andExpect(status().isOk()));
+        assertThat(view.path("link").asText()).startsWith("/approvals/");
+        assertThat(toolResults().get(0)).doesNotContain("/approvals/");
 
         JsonNode first = body(confirm(subManager, intent).andExpect(status().isOk()));
         assertThat(first.path("status").asText()).isEqualTo("CONFIRMED");

@@ -143,18 +143,44 @@ class ApprovalDecideExecutorTest {
         assertThat(card.fields().get(1).value()).isEqualTo("Asha Rao");
         assertThat(card.fields().get(4).value()).isEqualTo("2026-11-24");
         assertThat(card.summary()).isEqualTo("Approve leave request for Asha Rao");
+        assertThat(card.link()).isEqualTo("/approvals/" + instanceId);
     }
 
     @Test
     @DisplayName("an hrms request's card says to open it for the note")
     void describe_hrmsType() {
+        // Overtime and regularization steps start with no item reference, as their services start them.
         plantInstance(ApprovalFlowType.OVERTIME);
-        when(step.getItemRef()).thenReturn("Overtime 2026-11-20");
+        when(step.getItemRef()).thenReturn(null);
 
         AiActionDescription card = executor.describe(ctx, payload(ApprovalDecision.APPROVED, null));
 
-        assertThat(card.fields().get(2).value()).isEqualTo("Overtime 2026-11-20");
+        assertThat(card.fields().get(2).value()).isEqualTo("Overtime request");
         assertThat(card.fields().get(3).value()).isEqualTo(ApprovalItemReader.OPEN_FOR_NOTE);
+    }
+
+    @Test
+    @DisplayName("a timesheet step's item reference is a project id: the card shows the kind, never the id")
+    void describe_timesheet_noId() {
+        plantInstance(ApprovalFlowType.TIMESHEET);
+        when(step.getItemRef()).thenReturn(UUID.randomUUID().toString());
+
+        AiActionDescription card = executor.describe(ctx, payload(ApprovalDecision.APPROVED, null));
+
+        assertThat(card.fields().get(2).value()).isEqualTo("Timesheet");
+        assertThat(card.fields().toString()).doesNotContainPattern("[0-9a-f]{8}-[0-9a-f]{4}-");
+    }
+
+    @Test
+    @DisplayName("any other refusal from the service reaches the card with its id taken out")
+    void otherRefusal_noId() {
+        doThrow(new IllegalStateException("Approval definition not found: " + UUID.randomUUID()))
+                .when(approvalService)
+                .decide(eq(stepId), any());
+
+        assertThatThrownBy(() -> executor.execute(ctx, payload(ApprovalDecision.APPROVED, null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Approval definition not found:");
     }
 
     @Test

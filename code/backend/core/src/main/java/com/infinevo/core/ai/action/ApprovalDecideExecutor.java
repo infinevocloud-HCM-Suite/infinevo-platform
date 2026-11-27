@@ -160,7 +160,9 @@ public class ApprovalDecideExecutor implements AiActionExecutor {
         fields.add(commentField);
         String verb = decision == ApprovalDecision.REJECTED ? "Reject" : "Approve";
         return new AiActionDescription(
-                verb + " " + label(type).toLowerCase(java.util.Locale.ROOT) + " for " + requester, fields);
+                verb + " " + label(type).toLowerCase(java.util.Locale.ROOT) + " for " + requester,
+                fields,
+                "/approvals/" + instance.getId());
     }
 
     @Override
@@ -200,7 +202,7 @@ public class ApprovalDecideExecutor implements AiActionExecutor {
             if (message != null && message.contains("has already been decided")) {
                 throw new IllegalStateException(ALREADY_DECIDED);
             }
-            throw e;
+            throw new IllegalStateException(ApprovalItemReader.withoutIds(message), e);
         }
         ObjectNode result = NODES.objectNode();
         result.put("instanceId", instance.getId().toString());
