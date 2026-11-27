@@ -67,7 +67,7 @@ describe('ActionCard', () => {
     expect(values).toEqual(['Casual Leave', '2026-12-01', '2026-12-05', '5', 'Family trip']);
     expect(confirmButton().id).toBe('btn-ai-confirm');
     expect(cancelButton()).not.toBeNull();
-    const countdown = screen.getByTestId('assistant-action-countdown');
+    const countdown = await screen.findByTestId('assistant-action-countdown');
     expect(countdown.textContent).toMatch(/^Expires in 1[45]:\d\d$/);
     // Not read out every second by the message list's live region.
     expect(countdown.getAttribute('aria-live')).toBe('off');
