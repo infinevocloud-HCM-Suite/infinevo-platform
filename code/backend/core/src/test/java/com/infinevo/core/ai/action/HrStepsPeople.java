@@ -30,6 +30,7 @@ final class HrStepsPeople {
     private final List<EmployeeSummaryResponse> live = new ArrayList<>();
 
     HrStepsPeople() {
+        when(query.canSearch()).thenReturn(true);
         when(query.search(any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
             String prefix = ((String) inv.getArgument(0)).toLowerCase();
             return new PageImpl<>(live.stream()

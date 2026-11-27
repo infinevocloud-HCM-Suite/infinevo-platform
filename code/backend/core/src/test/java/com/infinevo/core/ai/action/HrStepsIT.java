@@ -78,6 +78,9 @@ class HrStepsIT extends AbstractIntegrationTest {
     private UUID tenant;
     private UUID subHr;
     private UUID subEmployee;
+    private UUID subManager;
+    private UUID mohan;
+    private String otherNumber;
     private UUID hrEmployee;
     private UUID asha;
     private String ashaNumber;
@@ -104,7 +107,23 @@ class HrStepsIT extends AbstractIntegrationTest {
                 "core.leave_balance.manage",
                 "core.wfh_balance.manage",
                 "core.approval.delegate",
-                "core.onboarding.manage");
+                "core.onboarding.manage",
+                "core.employee.read");
+        // As production's manager role (V176, V022): delegate, but team read only, so no employee search.
+        UUID managerRole = AuthzTestSchema.insertRole(
+                tenant,
+                "ai-mgr-" + suffix,
+                "Manager " + suffix,
+                "core.ai.use",
+                "core.approval.delegate",
+                "core.employee.read_team");
+        subManager = UUID.randomUUID();
+        mohan = AuthzTestSchema.insertEmployee(tenant, "E-M-" + suffix, "Mohan");
+        AuthzTestSchema.linkEmployee(mohan, member(tenant, subManager, managerRole));
+        // Another company with an employee: never found from this one.
+        UUID otherTenant = AuthzTestSchema.insertTenant("AiHrOther " + suffix);
+        otherNumber = "E-O-" + suffix;
+        AuthzTestSchema.insertEmployee(otherTenant, otherNumber, "Olga");
         UUID employeeRole = AuthzTestSchema.insertRole(tenant, "ai-emp-" + suffix, "Staff " + suffix, "core.ai.use");
         subHr = UUID.randomUUID();
         hrEmployee = AuthzTestSchema.insertEmployee(tenant, "E-H-" + suffix, "Hema");
@@ -291,7 +310,59 @@ class HrStepsIT extends AbstractIntegrationTest {
         assertThat(count(LEAVE_ROWS, asha.toString())).isZero();
     }
 
+    @Test
+    @DisplayName("a manager (delegate, no employee search) gets one refusal whoever is named, and no card")
+    void delegation_managerCannotSearch() throws Exception {
+        for (String who : List.of(ashaNumber, "E-NOBODY")) {
+            stub.reset();
+            JsonNode answer = say(
+                    subManager,
+                    AiModelResponse.toolCall(
+                            "call_1",
+                            "core.propose_delegation",
+                            json.writeValueAsString(Map.of(
+                                    "delegate",
+                                    who,
+                                    "from",
+                                    "2026-12-01",
+                                    "to",
+                                    "2026-12-10",
+                                    "flowTypes",
+                                    List.of("Leave")))));
+            assertThat(answer.path("proposedAction").isMissingNode()
+                            || answer.path("proposedAction").isNull())
+                    .isTrue();
+            assertThat(lastText()).contains(NamedEmployee.NO_SEARCH).doesNotContain("Asha");
+        }
+        assertThat(count(
+                        "SELECT count(*) FROM core.approval_delegation WHERE tenant_id = ?"
+                                + " AND delegator_employee_id::text = ?",
+                        mohan.toString()))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("another company's employee number answers like an unknown one, and no card")
+    void otherTenant_notFound() throws Exception {
+        JsonNode answer = say(
+                subHr,
+                AiModelResponse.toolCall(
+                        "call_1",
+                        "core.propose_onboarding_assign",
+                        json.writeValueAsString(Map.of("employee", otherNumber))));
+        assertThat(answer.path("proposedAction").isMissingNode()
+                        || answer.path("proposedAction").isNull())
+                .isTrue();
+        assertThat(lastText()).contains(NamedEmployee.NO_EMPLOYEE).doesNotContain("Olga");
+    }
+
     // ---- helpers ----
+
+    /** What the tool answered: the last message of the model's second request. */
+    private String lastText() {
+        var messages = stub.requests().get(1).messages();
+        return String.valueOf(messages.get(messages.size() - 1).content());
+    }
 
     private JsonNode say(UUID sub, AiModelResponse call) throws Exception {
         stub.script(call, AiModelResponse.text("Press Confirm."));

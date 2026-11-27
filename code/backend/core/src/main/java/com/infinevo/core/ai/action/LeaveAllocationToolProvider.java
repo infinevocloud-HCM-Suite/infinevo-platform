@@ -125,7 +125,10 @@ public class LeaveAllocationToolProvider implements AiToolProvider {
                         .put("type", "integer")
                         .put("minimum", MIN_YEAR)
                         .put("maximum", MAX_YEAR)
-                        .put("description", "The year the leave year starts in. Leave out for this year."));
+                        .put(
+                                "description",
+                                "The calendar year the leave year starts in (a leave year from April starts in April of that"
+                                        + " year). Leave out for the screen's default; confirm the dates on the card with the user."));
         props.put(
                 "days",
                 NODES.objectNode()

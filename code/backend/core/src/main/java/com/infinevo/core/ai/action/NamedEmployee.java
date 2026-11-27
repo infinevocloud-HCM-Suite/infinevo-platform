@@ -27,6 +27,8 @@ final class NamedEmployee {
     static final String MANY = "More than one employee has that name. Ask which one, by employee number: ";
     static final String NO_NUMBER = "That employee has no employee number. Use the screen for this one.";
     static final String GONE = "That employee is no longer there.";
+    static final String NO_SEARCH = "You cannot search employees, so this step cannot find a colleague here."
+            + " Use the screen, or ask an administrator for employee access.";
     static final int MAX_MATCHES = 10;
 
     /** The search's page cap ({@code EmployeeQueryService}), and how many pages are read at most. */
@@ -38,6 +40,10 @@ final class NamedEmployee {
 
     /** The one live employee with that number, or else that full name; otherwise a {@link BadInput} to relay. */
     static EmployeeSummaryResponse one(EmployeeQueryService employees, String who) {
+        // The same answer whoever is named, before any lookup: the screen's picker needs this action too.
+        if (!employees.canSearch()) {
+            throw new BadInput(NO_SEARCH);
+        }
         String wanted = who.trim().toLowerCase(Locale.ROOT);
         String prefix = who.trim().split("\\s+")[0];
         // Every match of the first word, a page at a time in a fixed order: an exact match may be past the first page.

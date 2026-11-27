@@ -63,6 +63,18 @@ public class EmployeeQueryService {
         return page.map(EmployeeSummaryResponse::from);
     }
 
+    /**
+     * Whether the caller may search employees as the list and every employee picker do
+     * ({@code GET /v1/employees} needs {@code core.employee.read}). W-114.29: the helper's HR steps find a person by
+     * name or number only when this holds, so a step never looks up someone the screen would not show.
+     */
+    public boolean canSearch() {
+        return permissionService.holds(SEARCH_ACTION);
+    }
+
+    /** The action {@link #canSearch} checks. */
+    public static final String SEARCH_ACTION = "core.employee.read";
+
     /** At most this many rows from {@link #joinedBetween} and {@link #leftBetween}; the page carries the total. */
     public static final int MAX_DATED_ROWS = 50;
 

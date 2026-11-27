@@ -102,7 +102,11 @@ public class DelegationCreateExecutor implements AiActionExecutor {
         if (ctx.employeeId() == null) {
             throw new IllegalStateException("No employee profile found for caller");
         }
-        for (String code : OrgMasterCreateExecutor.text(payload, FLOWS).split(",")) {
+        String flowCodes = OrgMasterCreateExecutor.text(payload, FLOWS);
+        if (flowCodes == null || flowCodes.isBlank()) {
+            throw new IllegalArgumentException("No flow types to delegate.");
+        }
+        for (String code : flowCodes.split(",")) {
             if (!FLOW_LABELS.containsKey(code.trim())) {
                 throw new IllegalArgumentException(PAY_RUN_ON_SCREEN);
             }

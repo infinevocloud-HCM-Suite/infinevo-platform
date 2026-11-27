@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.ai.AiToolInputs.BadInput;
@@ -45,6 +47,21 @@ class NamedEmployeeTest {
     }
 
     @Test
+    @DisplayName("without employee search, every name gets the same refusal and nothing is looked up")
+    void noSearch() {
+        EmployeeQueryService query = mock(EmployeeQueryService.class);
+        when(query.search(any(), any(), anyBoolean(), any()))
+                .thenReturn(new PageImpl<>(List.of(person("E-1", "Asha", "Rao", false))));
+
+        for (String who : List.of("E-1", "E-404", "Asha Rao")) {
+            assertThatThrownBy(() -> NamedEmployee.one(query, who))
+                    .isInstanceOf(BadInput.class)
+                    .hasMessage(NamedEmployee.NO_SEARCH);
+        }
+        verify(query, never()).search(any(), any(), anyBoolean(), any());
+    }
+
+    @Test
     @DisplayName("an exact match past the search's first page of 100 is still found")
     void pastTheFirstPage() {
         List<EmployeeSummaryResponse> first = new ArrayList<>();
@@ -53,6 +70,7 @@ class NamedEmployeeTest {
         }
         EmployeeSummaryResponse wanted = person("E-900", "Asha", "Rao", false);
         EmployeeQueryService query = mock(EmployeeQueryService.class);
+        when(query.canSearch()).thenReturn(true);
         when(query.search(eq("asha"), any(), anyBoolean(), any())).thenAnswer(inv -> {
             Pageable p = inv.getArgument(3);
             return p.getPageNumber() == 0
@@ -67,6 +85,7 @@ class NamedEmployeeTest {
     @DisplayName("a soft-deleted row answers like an unknown one; several list at most 10 names with numbers")
     void deletedAndMany() {
         EmployeeQueryService query = mock(EmployeeQueryService.class);
+        when(query.canSearch()).thenReturn(true);
         List<EmployeeSummaryResponse> rows = new ArrayList<>();
         rows.add(person("E-1", "Gone", "Person", true));
         for (int i = 0; i < 12; i++) {
