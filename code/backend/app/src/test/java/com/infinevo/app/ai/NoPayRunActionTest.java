@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.ai.AiToolProvider;
 import com.infinevo.core.ai.action.AiActionExecutor;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -30,6 +31,10 @@ class NoPayRunActionTest {
      * 2026-11-27). Anything else, a pay run step above all, fails here.
      */
     private static final Set<String> SETTINGS_ACTIONS = Set.of("payroll.bank_file_template.create");
+
+    /** The executor classes of those steps: a payroll executor not named here fails, whatever its action code. */
+    private static final Set<String> SETTINGS_EXECUTORS =
+            Set.of("com.infinevo.payroll.ai.BankFileTemplateCreateExecutor");
 
     private static List<Class<?>> concrete(Class<?> type) throws ClassNotFoundException {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
@@ -70,6 +75,25 @@ class NoPayRunActionTest {
             String value = (String) code.get(null);
             if (value.startsWith("payroll.")) {
                 assertThat(value).as(c.getName()).isIn(SETTINGS_ACTIONS);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "whatever its code, no executor lives in payroll but the settings steps, and none takes a pay run service")
+    void noPayRunExecutorByClass() throws Exception {
+        for (Class<?> c : concrete(AiActionExecutor.class)) {
+            if (c.getName().startsWith("com.infinevo.payroll.")) {
+                assertThat(c.getName()).as("a payroll executor").isIn(SETTINGS_EXECUTORS);
+            }
+            for (Constructor<?> k : c.getDeclaredConstructors()) {
+                for (Class<?> param : k.getParameterTypes()) {
+                    assertThat(param.getName())
+                            .as(c.getName() + " takes " + param.getName())
+                            .doesNotStartWith("com.infinevo.payroll.payrun.PayRun")
+                            .doesNotStartWith("com.infinevo.payroll.payrun.payment");
+                }
             }
         }
     }

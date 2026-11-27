@@ -187,6 +187,8 @@ cd code/backend && ./mvnw -B -pl payroll,app -am verify
 
 **As built (2026-11-27, Claude).** The two tools are in their own provider, `ai/PayRunAiToolProvider.java`, not in `PayrollAiToolProvider`: those tools all read the caller's own pay and need an employee record, these read other employees' rows and do not. The `payroll.` name prefix still gates them on the Payroll module. `PayRunService.list` has no order of its own, so the tool asks for newest period first, and rows in the screen's order. `NoPayRunActionIT` is built as `app/src/test/.../ai/NoPayRunActionTest.java`, a classpath scan of every executor's `ACTION_CODE` and every provider's tool-name constants; `PayRunSummaryToolIT` is in `payroll`, beside the other payroll AI ITs and the pay run test schema. Tests: `PayRunSummaryTest` 7, `PayRunNextStepTest` 9, `PayRunAiToolProviderTest` 5, `PayRunSummaryToolIT` 3, `NoPayRunActionTest` 2.
 
+**Review fixes (2026-11-27).** A month whose only regular run is cancelled now counts as no run (a new one may be created), so both tools give the no-run answers. Above 5,000 rows employer contributions, which are summed over rows, are left out and the note says so. The off-cycle count says when the month lies beyond the runs it reads. Rows are read 1,000 at a time. `NoPayRunActionTest` also fails any executor class in `payroll` not on an allow-list, and any executor that takes a pay run service, whatever its action code. The IT puts a bank account number on an employee and checks the stored TOOL text (the masked result `AiChatServiceImpl.runTool` stores) holds no id, no bank number and nothing shaped like a PAN.
+
 ## Rollback
 
 Revert the commit. The helper loses the two tools; no run is touched, because none ever was.

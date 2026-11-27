@@ -63,7 +63,7 @@ public class PayRunAiToolProvider implements AiToolProvider {
     static final String SCREEN_PATH = "/payroll/runs";
 
     /** Rows are read this many at a time, up to {@link #MAX_ROWS} per run. */
-    static final int ROW_PAGE = 200;
+    static final int ROW_PAGE = 1000;
 
     static final int MAX_ROWS = 5000;
 
@@ -80,7 +80,8 @@ public class PayRunAiToolProvider implements AiToolProvider {
 
     static final String NO_RUN = "There is no pay run for that month.";
     static final String NO_FIGURES = "This run has no figures yet.";
-    static final String TOO_MANY = "Too many rows to list; the totals are complete.";
+    static final String TOO_MANY = "Too many rows to list. Included, skipped, gross, deductions and net pay are"
+            + " complete; employer contributions are on the screen.";
     static final String SERVICE_FAILED = "The Payroll service could not answer just now. Try again later.";
     static final String NOT_ALLOWED = "Not available: the signed-in user is not allowed to see this";
 
@@ -224,7 +225,12 @@ public class PayRunAiToolProvider implements AiToolProvider {
         out.put("period", run.period());
         out.put("status", run.status().name());
         out.put("currency", PayrollAiToolResults.CURRENCY);
-        out.put("offCycleRunsThisMonth", offCycleCount(month));
+        int offCycle = offCycleCount(month);
+        if (offCycle < 0) {
+            out.put("offCycleRunsThisMonth", "too many to count here; see the screen");
+        } else {
+            out.put("offCycleRunsThisMonth", offCycle);
+        }
         out.put("screenPath", SCREEN_PATH);
         if (!WITH_FIGURES.contains(run.status())) {
             out.put("message", NO_FIGURES);
@@ -247,6 +253,8 @@ public class PayRunAiToolProvider implements AiToolProvider {
         out.set("totals", totals(r.thisRun(), r.lastRun()));
         out.put("negativeNetCount", r.negativeNetCount());
         if (rows.truncated() || lastRows.truncated()) {
+            // Employer contributions are summed over the rows read; the rest come from the run row itself.
+            out.path("totals").forEach(t -> ((ObjectNode) t).remove("employerContributions"));
             out.put("lists", TOO_MANY);
             return out;
         }
@@ -365,31 +373,28 @@ public class PayRunAiToolProvider implements AiToolProvider {
     // ---- finding runs ----
 
     /**
-     * The month's regular run: the one not cancelled when there is one, else the cancelled one. Regular runs are
+     * The month's regular run that is not cancelled. A cancelled run is as good as none: a new run may be created
+     * for that month ({@code PayRunService.create} refuses only while a non-cancelled one exists). Regular runs are
      * read newest first; the search stops at the first older month.
      */
     private Optional<PayRunResponse> regular(YearMonth month) {
         String period = month.toString();
-        PayRunResponse cancelled = null;
         for (int page = 0; page < RUN_MAX_PAGES; page++) {
             Page<PayRunResponse> p =
                     payRuns.list(null, PayRunType.REGULAR, PageRequest.of(page, RUN_PAGE, NEWEST_FIRST));
             for (PayRunResponse r : p.getContent()) {
                 int order = r.period().compareTo(period);
-                if (order == 0) {
-                    if (r.status() != PayRunStatus.CANCELLED) {
-                        return Optional.of(r);
-                    }
-                    cancelled = cancelled == null ? r : cancelled;
+                if (order == 0 && r.status() != PayRunStatus.CANCELLED) {
+                    return Optional.of(r);
                 } else if (order < 0) {
-                    return Optional.ofNullable(cancelled);
+                    return Optional.empty();
                 }
             }
             if (!p.hasNext()) {
                 break;
             }
         }
-        return Optional.ofNullable(cancelled);
+        return Optional.empty();
     }
 
     private Optional<PayRunResponse> newestRegular() {
@@ -398,6 +403,7 @@ public class PayRunAiToolProvider implements AiToolProvider {
         return first.flatMap(r -> regular(YearMonth.parse(r.period())));
     }
 
+    /** Off-cycle runs of the month, or {@code -1} when the month lies beyond the runs read. */
     private int offCycleCount(YearMonth month) {
         String period = month.toString();
         int count = 0;
@@ -413,10 +419,10 @@ public class PayRunAiToolProvider implements AiToolProvider {
                 }
             }
             if (!p.hasNext()) {
-                break;
+                return count;
             }
         }
-        return count;
+        return -1;
     }
 
     private static YearMonth period(JsonNode args) {

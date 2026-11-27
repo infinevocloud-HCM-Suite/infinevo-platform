@@ -59,6 +59,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 @TestPropertySource(properties = "document.link.secret=integration-test-document-link-secret")
 class PayRunSummaryToolIT extends AbstractIntegrationTest {
 
+    private static final String BANK_NUMBER = "000987654321";
+    private static final Pattern PAN_SHAPE = Pattern.compile("[A-Z]{5}[0-9]{4}[A-Z]");
     private static final Pattern ANY_UUID =
             Pattern.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     private static final YearMonth JUNE = YearMonth.of(2026, 6);
@@ -111,6 +113,12 @@ class PayRunSummaryToolIT extends AbstractIntegrationTest {
         // Joins in July: in this run, not in last month's.
         UUID joiner = PayRunTestSchema.insertEmployee(TENANT_A, "EX-07", LocalDate.of(2026, 7, 1), "ACTIVE", null);
         PayRunTestSchema.insertBank(TENANT_A, joiner);
+        PayRunTestSchema.execute(
+                "UPDATE core.employee_bank SET bank_account_number = ?, ifsc_code = 'HDFC0001234'"
+                        + " WHERE tenant_id = ? AND employee_id = ?",
+                BANK_NUMBER,
+                TENANT_A,
+                joiner);
         UUID salary = PayRunTestSchema.insertSalary(TENANT_A, joiner, LocalDate.of(2026, 7, 1));
         PayRunTestSchema.insertStructureLine(
                 "employee_earning", TENANT_A, salary, catalogue.basic(), "30000.0000", null);
@@ -155,9 +163,13 @@ class PayRunSummaryToolIT extends AbstractIntegrationTest {
         assertThat(thisRun.path("included").asInt()).isEqualTo(july.includedCount());
         assertThat(data.path("inThisRunNotLast").path("items").toString()).contains("EX-07");
         assertThat(data.path("inThisRunNotLast").path("total").asInt()).isEqualTo(1);
+        // What the chat stores as the TOOL row: the masked result (AiChatServiceImpl.runTool).
         String text = data.toString();
         assertThat(ANY_UUID.matcher(text).find()).isFalse();
         assertThat(text).doesNotContain("failure_reason").doesNotContain("computation_error");
+        assertThat(text).contains("EX-07");
+        assertThat(text).doesNotContain(BANK_NUMBER);
+        assertThat(PAN_SHAPE.matcher(text).find()).isFalse();
     }
 
     @Test

@@ -4,10 +4,12 @@ import static com.infinevo.payroll.ai.PayRunFixtures.row;
 import static com.infinevo.payroll.ai.PayRunFixtures.run;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -143,6 +145,43 @@ class PayRunAiToolProviderTest {
         assertThat(data.path("nextStep").asText()).startsWith("Review the figures");
         assertThat(data.path("youCanDoThis").asBoolean()).isFalse();
         assertThat(data.path("screenPath").asText()).isEqualTo("/payroll/runs");
+    }
+
+    @Test
+    @DisplayName("a month whose only regular run is cancelled has no run: summary says so, next step is to create one")
+    void cancelledOnly_isNoRun() throws Exception {
+        when(nov.status()).thenReturn(PayRunStatus.CANCELLED);
+        when(permissions.holds(anyString())).thenReturn(true);
+
+        JsonNode summary =
+                call("payroll.payrun_summary", "{\"period\":\"2026-11\"}").data();
+        assertThat(summary.path("message").asText()).isEqualTo(PayRunAiToolProvider.NO_RUN);
+
+        JsonNode next =
+                call("payroll.payrun_next_step", "{\"period\":\"2026-11\"}").data();
+        assertThat(next.path("status").isNull()).isTrue();
+        assertThat(next.path("nextStep").asText())
+                .isEqualTo(PayRunNextStep.of(null).nextStep());
+        assertThat(next.path("youCanDoThis").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("more rows than are read: no lists, and no employer contributions, which are summed over rows")
+    void tooManyRows_dropsRowSums() throws Exception {
+        when(payRuns.employees(eq(nov.id()), isNull(), any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, PayRunAiToolProvider.ROW_PAGE), 1_000_000));
+
+        JsonNode data =
+                call("payroll.payrun_summary", "{\"period\":\"2026-11\"}").data();
+
+        assertThat(data.path("lists").asText()).isEqualTo(PayRunAiToolProvider.TOO_MANY);
+        assertThat(data.path("totals").path("thisRun").path("netPay").asText()).isEqualTo("80000.00");
+        assertThat(data.path("totals").path("thisRun").has("employerContributions"))
+                .isFalse();
+        assertThat(data.path("totals").path("difference").has("employerContributions"))
+                .isFalse();
+        verify(payRuns, times(PayRunAiToolProvider.MAX_ROWS / PayRunAiToolProvider.ROW_PAGE))
+                .employees(eq(nov.id()), isNull(), any());
     }
 
     @Test
