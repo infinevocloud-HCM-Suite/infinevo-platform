@@ -12,11 +12,11 @@ import {
   Typography,
   Modal,
   Input,
-
-
   Spin,
+  Form,
+  Select,
 } from 'antd';
-import { CloseCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, StopOutlined, SwapOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
@@ -24,6 +24,7 @@ import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { approvalService } from '../approvals/approvalService.js';
+import { useEmployeeSearch } from '../approvals/useEmployeeSearch.js';
 import { portalService } from '@shell/portal/portalService.js';
 import { formatDate } from '@shared/ui/format.js';
 
@@ -58,6 +59,18 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   // D-72: a manager reaches this screen from /approvals (core.leave.read_team) and may not hold
   // the Leave requests menu, so the way back is the inbox they came from.
   const canReadAll = useCan('core.leave.read');
+  // Founder 2026-11-27: an admin opening a pending leave here can hand its waiting step to another
+  // approver (e.g. back to the manager after an escalation), the same reassign as the Approvals page.
+  const canReassign = useCan('core.approval.manage');
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
+  const [reassignForm] = Form.useForm();
+  const {
+    options: employeeOptions,
+    loading: searchLoading,
+    error: searchError,
+    search: searchEmployees,
+  } = useEmployeeSearch();
 
   const [loading, setLoading] = useState(false);
   const [request, setRequest] = useState(null);
@@ -154,6 +167,27 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
     setReasonModalOpen(true);
   };
 
+  const handleReassign = async () => {
+    let values;
+    try {
+      values = await reassignForm.validateFields();
+    } catch {
+      return;
+    }
+    setReassigning(true);
+    try {
+      await approvalService.reassign(request.approvalInstanceId, values);
+      await successMsg('Approver changed', 'The leave request now waits for the new approver.');
+      setReassignOpen(false);
+      reassignForm.resetFields();
+      loadDetail();
+    } catch (err) {
+      await errorMsg(err);
+    } finally {
+      setReassigning(false);
+    }
+  };
+
   const handleActionSubmit = async () => {
     setSubmittingAction(true);
     try {
@@ -201,6 +235,11 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const isApplicant = Boolean(currentEmployeeId && request?.employeeId && currentEmployeeId === request.employeeId);
   const canWithdraw = isApplicant && (request.status === 'PENDING' || request.status === 'SUBMITTED');
   const canCancel = !isReadOnly && canManage && request.status === 'APPROVED';
+  const showReassign =
+    !isReadOnly &&
+    canReassign &&
+    Boolean(request.approvalInstanceId) &&
+    (request.status === 'PENDING' || request.status === 'SUBMITTED');
 
   return (
     <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -213,6 +252,16 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
             backLabel="Back"
             actions={
               <Space>
+                {showReassign && (
+                  <Button
+                    className="btn-spring"
+                    icon={<SwapOutlined />}
+                    onClick={() => setReassignOpen(true)}
+                    data-testid="btn-leave-reassign"
+                  >
+                    Reassign approver
+                  </Button>
+                )}
                 {canWithdraw && (
                   <Button
                     danger
@@ -330,6 +379,44 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
           )}
         </Card>
       </Space>
+
+      <Modal
+        title="Reassign approver"
+        open={reassignOpen}
+        onOk={handleReassign}
+        onCancel={() => setReassignOpen(false)}
+        confirmLoading={reassigning}
+        okText="Reassign"
+      >
+        <Form form={reassignForm} layout="vertical">
+          <Form.Item
+            name="employeeId"
+            label="New approver"
+            rules={[{ required: true, message: 'Choose the new approver.' }]}
+          >
+            <Select
+              id="input-leave-reassign-employee"
+              showSearch
+              placeholder="Search employee by name or ID"
+              filterOption={false}
+              loading={searchLoading}
+              onSearch={searchEmployees}
+              onFocus={() => {
+                if (employeeOptions.length === 0) searchEmployees('');
+              }}
+              options={employeeOptions}
+              notFoundContent={searchError || undefined}
+            />
+          </Form.Item>
+          <Form.Item
+            name="reason"
+            label="Reason"
+            rules={[{ required: true, message: 'Say why the approver changes.' }]}
+          >
+            <TextArea id="input-leave-reassign-reason" rows={3} placeholder="e.g. Back to reporting manager" />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* Reason Modal for Withdraw / Cancel */}
       <Modal
